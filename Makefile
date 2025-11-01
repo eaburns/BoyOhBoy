@@ -1,7 +1,7 @@
 CC=clang
 CFLAGS=-std=c23
 
-OBJS=gameboy.o instructions.o disasm.o
+OBJS=gameboy.o cpu.o disasm.o
 
 all: disasm $(OBJS)
 
