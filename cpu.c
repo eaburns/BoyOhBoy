@@ -42,14 +42,7 @@ struct instruction {
   // The instruction mnemonic. For example "LD".
   const char *mnemonic;
 
-  // If cb_prefix is true, this is a 2-byte op code.
-  // The first byte is 0xCB, and the following byte
-  // contains op_code as normal.
-  bool cb_prefix;
-
-  // The first byte of the instruction
-  // (2nd byte in the case of cb_prefix==true), but with 0
-  // in the place of any operands encoded into the byte.
+  // The instruction op code.
   uint8_t op_code;
 
   // Instructions can have 0, 1, or 2 operands.
@@ -303,7 +296,9 @@ static bool exec_di(Gameboy *, Instruction *, int cycle) { return false; }
 
 static bool exec_ei(Gameboy *, Instruction *, int cycle) { return false; }
 
-static const Instruction instructions[] = {
+static const Instruction _unknown_instruction = {.mnemonic = "UNKNOWN"};
+
+static const Instruction _instructions[] = {
     {
         .mnemonic = "NOP",
         .op_code = 0x00,
@@ -423,97 +418,6 @@ static const Instruction instructions[] = {
         .mnemonic = "CCF",
         .op_code = 0x3F,
         .exec = exec_ccf,
-    },
-    {
-        .mnemonic = "RLC",
-        .cb_prefix = true,
-        .op_code = 0x00,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_rlc_r8,
-    },
-    {
-        .mnemonic = "RRC",
-        .cb_prefix = true,
-        .op_code = 0x08,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_rrc_r8,
-    },
-    {
-        .mnemonic = "RL",
-        .cb_prefix = true,
-        .op_code = 0x10,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_rl_r8,
-    },
-    {
-        .mnemonic = "RR",
-        .cb_prefix = true,
-        .op_code = 0x18,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_rr_r8,
-    },
-    {
-        .mnemonic = "SLA",
-        .cb_prefix = true,
-        .op_code = 0x20,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_sla_r8,
-    },
-    {
-        .mnemonic = "SRA",
-        .cb_prefix = true,
-        .op_code = 0x28,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_sra_r8,
-    },
-    {
-        .mnemonic = "SWAP",
-        .cb_prefix = true,
-        .op_code = 0x30,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_swap_r8,
-    },
-    {
-        .mnemonic = "SRL",
-        .cb_prefix = true,
-        .op_code = 0x38,
-        .operand1 = R8,
-        .shift = 0,
-        .exec = exec_srl_r8,
-    },
-    {
-        .mnemonic = "BIT",
-        .cb_prefix = true,
-        .op_code = 0x40,
-        .operand1 = BIT_INDEX,
-        .operand2 = R8,
-        .shift = 0,
-        .exec = exec_bit_b3_r8,
-    },
-    {
-        .mnemonic = "RES",
-        .cb_prefix = true,
-        .op_code = 0x80,
-        .operand1 = BIT_INDEX,
-        .operand2 = R8,
-        .shift = 0,
-        .exec = exec_res_b3_r8,
-    },
-    {
-        .mnemonic = "SET",
-        .cb_prefix = true,
-        .op_code = 0xB0,
-        .operand1 = BIT_INDEX,
-        .operand2 = R8,
-        .shift = 0,
-        .exec = exec_set_b3_r8,
     },
     {
         .mnemonic = "JR",
@@ -820,19 +724,96 @@ static const Instruction instructions[] = {
         .op_code = 0xFB,
         .exec = exec_ei,
     },
-    {.mnemonic = "UNKNOWN", .op_code = 0xD3},
-    {.mnemonic = "UNKNOWN", .op_code = 0xDB},
-    {.mnemonic = "UNKNOWN", .op_code = 0xDD},
-    {.mnemonic = "UNKNOWN", .op_code = 0xE3},
-    {.mnemonic = "UNKNOWN", .op_code = 0xE4},
-    {.mnemonic = "UNKNOWN", .op_code = 0xEB},
-    {.mnemonic = "UNKNOWN", .op_code = 0xEC},
-    {.mnemonic = "UNKNOWN", .op_code = 0xED},
-    {.mnemonic = "UNKNOWN", .op_code = 0xF4},
-    {.mnemonic = "UNKNOWN", .op_code = 0xFC},
-    {.mnemonic = "UNKNOWN", .op_code = 0xFD},
     {.mnemonic = NULL /* sentinal value */},
 };
+
+static const Instruction _cb_instructions[] = {
+    {
+        .mnemonic = "RLC",
+        .op_code = 0x00,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_rlc_r8,
+    },
+    {
+        .mnemonic = "RRC",
+        .op_code = 0x08,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_rrc_r8,
+    },
+    {
+        .mnemonic = "RL",
+        .op_code = 0x10,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_rl_r8,
+    },
+    {
+        .mnemonic = "RR",
+        .op_code = 0x18,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_rr_r8,
+    },
+    {
+        .mnemonic = "SLA",
+        .op_code = 0x20,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_sla_r8,
+    },
+    {
+        .mnemonic = "SRA",
+        .op_code = 0x28,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_sra_r8,
+    },
+    {
+        .mnemonic = "SWAP",
+        .op_code = 0x30,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_swap_r8,
+    },
+    {
+        .mnemonic = "SRL",
+        .op_code = 0x38,
+        .operand1 = R8,
+        .shift = 0,
+        .exec = exec_srl_r8,
+    },
+    {
+        .mnemonic = "BIT",
+        .op_code = 0x40,
+        .operand1 = BIT_INDEX,
+        .operand2 = R8,
+        .shift = 0,
+        .exec = exec_bit_b3_r8,
+    },
+    {
+        .mnemonic = "RES",
+        .op_code = 0x80,
+        .operand1 = BIT_INDEX,
+        .operand2 = R8,
+        .shift = 0,
+        .exec = exec_res_b3_r8,
+    },
+    {
+        .mnemonic = "SET",
+        .op_code = 0xB0,
+        .operand1 = BIT_INDEX,
+        .operand2 = R8,
+        .shift = 0,
+        .exec = exec_set_b3_r8,
+    },
+    {.mnemonic = NULL, /* sentinal */},
+};
+
+const Instruction *unknown_instruction = &_unknown_instruction;
+const Instruction *instructions = _instructions;
+const Instruction *cb_instructions = _cb_instructions;
 
 // Returns the number of bytes following the instruction opcode for the operand.
 static int operand_size(Operand operand) {
@@ -864,7 +845,11 @@ static int operand_size(Operand operand) {
 
 int instr_size(const Instruction *instr) {
   int size = 1;
-  if (instr->cb_prefix) {
+  // If the instruction is in the cb_instructions bank,
+  // then add a byte to account for the 0xCB prefix.
+  if (instr >= _cb_instructions &&
+      instr <
+          _cb_instructions + sizeof(_cb_instructions) / sizeof(Instruction)) {
     size += 1;
   }
   size += operand_size(instr->operand1);
@@ -920,21 +905,15 @@ static uint8_t op_code_mask(const Instruction *instr) {
   return 0; // unreachable
 }
 
-const Instruction *instr_decode(const Mem mem, Addr addr) {
-  const Instruction *instr = &instructions[0];
+const Instruction *find_instruction(const Instruction *bank, uint8_t op_code) {
+  const Instruction *instr = bank;
   while (instr->mnemonic != NULL) {
-    uint8_t mask = op_code_mask(instr);
-    if (!instr->cb_prefix && (mem[addr] & mask) == instr->op_code ||
-        instr->cb_prefix && mem[addr] == 0xCB &&
-            (mem[addr + 1] & mask) == instr->op_code) {
-      break;
+    if ((op_code & op_code_mask(instr)) == instr->op_code) {
+      return instr;
     }
     instr++;
   }
-  if (instr->mnemonic == NULL) {
-    fail("impossible unknown instruction: $%02x", mem[addr]);
-  }
-  return instr;
+  return unknown_instruction;
 }
 
 static const char *r8_names[] = {"B", "C", "D", "E", "H", "L", "[HL]", "A"};
@@ -1011,7 +990,9 @@ static void operand_snprint(char *buf, int size, Operand operand, int shift,
 
 const Instruction *instr_snprint(char *out, int size, const Mem mem,
                                  Addr addr) {
-  const Instruction *instr = instr_decode(mem, addr);
+  const Instruction *instr =
+      mem[addr] == 0xCB ? find_instruction(cb_instructions, mem[addr + 1])
+                        : find_instruction(instructions, mem[addr]);
   if (instr->operand1 == NONE) {
     snprintf(out, size, "%s", instr->mnemonic);
     return instr;

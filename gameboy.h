@@ -25,11 +25,21 @@ typedef struct {
 struct instruction;
 typedef struct instruction Instruction;
 
+// A place-holder to represent an unknown instruction.
+extern const Instruction *unknown_instruction;
+
+// The primary instruction bank.
+extern const Instruction *instructions;
+
+// The bank of instructions that follow a 0xCB byte.
+extern const Instruction *cb_instructions;
+
 // Returns the size of the instruction in bytes.
 int instr_size(const Instruction *instr);
 
-// Decodes the instruction at addr in mem.
-const Instruction *instr_decode(const Mem mem, Addr addr);
+// Returns the instruction corresponding to op_code in the given instruction
+// bank.
+const Instruction *find_instruction(const Instruction *bank, uint8_t op_code);
 
 // Writes a human readable version of the instruction at addr in mem
 // to out, writing no more than size bytes including the '\0' terminator.
