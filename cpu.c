@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 
-enum operand {
+typedef enum {
   NONE = 0,
 
   // Register operands.
@@ -36,9 +36,9 @@ enum operand {
   IMM8MEM,     // [imm8]
   IMM16,
   IMM16MEM, // [imm16]
-};
+} Operand;
 
-struct instr {
+struct instruction {
   // The instruction mnemonic. For example "LD".
   const char *mnemonic;
 
@@ -56,7 +56,7 @@ struct instr {
   // If the instruction has more than one operand,
   // one of the operands is always an immediate value
   // that follows the first byte of the instruction.
-  enum operand operand1, operand2;
+  Operand operand1, operand2;
 
   // If one of the operands is encoded into the 1st byte of the instruction,
   // this indicates the number of bits to right-shift to find the operand.
@@ -64,7 +64,7 @@ struct instr {
 
   // Executes the next cycle of the instruction.
   // Returns whether the instruction is complete.
-  bool (*exec)(struct gameboy *, struct instr *, int cycle);
+  bool (*exec)(Gameboy *, Instruction *, int cycle);
 };
 
 static int r8(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
@@ -103,300 +103,211 @@ static uint16_t imm16(const uint8_t mem[MEM_SIZE], uint16_t addr) {
   return (int)mem[addr + 1] << 8 | mem[addr];
 }
 
-static bool exec_nop(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_nop(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ld_r16_imm16(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_r16_imm16(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_r16mem_a(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_r16mem_a(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_a_r16mem(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_a_r16mem(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_imm16mem_sp(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_imm16mem_sp(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_inc_r16(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_inc_r16(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_dec_r16(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_dec_r16(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_add_hl_r16(struct gameboy *, struct instr *, int cycle) {
+static bool exec_add_hl_r16(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_inc_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_inc_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_dec_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_dec_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ld_r8_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_r8_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_rlca(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rlca(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rrca(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rrca(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rla(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rla(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rra(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rra(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_daa(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_daa(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_cpl(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_cpl(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_scf(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_scf(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ccf(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ccf(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rlc_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rlc_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rrc_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rrc_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rl_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rl_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_rr_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rr_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_sla_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_sla_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_sra_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_sra_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_swap_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_swap_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_srl_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_srl_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_bit_b3_r8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_bit_b3_r8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_res_b3_r8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_res_b3_r8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_set_b3_r8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_set_b3_r8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_jr_imm8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_jr_imm8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_jr_cond_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_jr_cond_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_stop(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_stop(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ld_r8_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ld_r8_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_halt(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_halt(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_add_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_add_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_adc_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_adc_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_sub_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_sub_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_sbc_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_sbc_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_and_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_and_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_xor_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_xor_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_or_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_or_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_cp_a_r8(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_cp_a_r8(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_add_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_add_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_adc_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_adc_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_sub_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_sub_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_sbc_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_sbc_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_and_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_and_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_xor_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_xor_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_or_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_or_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_cp_a_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_cp_a_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ret_cond(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ret_cond(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ret(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ret(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_reti(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_reti(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_jp_cond_imm16(struct gameboy *, struct instr *, int cycle) {
+static bool exec_jp_cond_imm16(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_jp_imm16(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_jp_imm16(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_jp_hl(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_jp_hl(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_call_cond_imm16(struct gameboy *, struct instr *, int cycle) {
+static bool exec_call_cond_imm16(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_call_imm16(struct gameboy *, struct instr *, int cycle) {
+static bool exec_call_imm16(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_rst_tgt3(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_rst_tgt3(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_pop_r16(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_pop_r16(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_push_r16(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_push_r16(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ldh_cmem_a(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ldh_cmem_a(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ldh_imm8mem_a(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ldh_imm8mem_a(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_imm16mem_a(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_imm16mem_a(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ldh_a_cmem(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ldh_a_cmem(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ldh_a_imm8mem(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ldh_a_imm8mem(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_a_imm16mem(struct gameboy *, struct instr *, int cycle) {
+static bool exec_ld_a_imm16mem(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_add_sp_imm8(struct gameboy *, struct instr *, int cycle) {
+static bool exec_add_sp_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_hl_sp_plus_imm8(struct gameboy *, struct instr *,
-                                    int cycle) {
+static bool exec_ld_hl_sp_plus_imm8(Gameboy *, Instruction *, int cycle) {
   return false;
 }
 
-static bool exec_ld_sp_hl(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ld_sp_hl(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_di(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_di(Gameboy *, Instruction *, int cycle) { return false; }
 
-static bool exec_ei(struct gameboy *, struct instr *, int cycle) {
-  return false;
-}
+static bool exec_ei(Gameboy *, Instruction *, int cycle) { return false; }
 
-static const struct instr instructions[] = {
+static const Instruction instructions[] = {
     {
         .mnemonic = "NOP",
         .op_code = 0x00,
@@ -928,7 +839,7 @@ static const struct instr instructions[] = {
 };
 
 // Returns the number of bytes following the instruction opcode for the operand.
-static int operand_size(enum operand operand) {
+static int operand_size(Operand operand) {
   switch (operand) {
   case NONE:
   case A:
@@ -955,7 +866,7 @@ static int operand_size(enum operand operand) {
   }
 }
 
-int instr_size(const struct instr *instr) {
+int instr_size(const Instruction *instr) {
   int size = 1;
   if (instr->cb_prefix) {
     size += 1;
@@ -965,7 +876,7 @@ int instr_size(const struct instr *instr) {
   return size;
 }
 
-static int operand_op_code_bits(const enum operand operand) {
+static int operand_op_code_bits(const Operand operand) {
   switch (operand) {
   case NONE:
   case A:
@@ -994,7 +905,7 @@ static int operand_op_code_bits(const enum operand operand) {
   }
 }
 
-static uint8_t op_code_mask(const struct instr *instr) {
+static uint8_t op_code_mask(const Instruction *instr) {
   // Only one of operand1 or operand2 will be non-zero.
   int bits = operand_op_code_bits(instr->operand1) +
              operand_op_code_bits(instr->operand2);
@@ -1013,8 +924,8 @@ static uint8_t op_code_mask(const struct instr *instr) {
   return 0; // unreachable
 }
 
-const struct instr *instr_decode(const uint8_t mem[MEM_SIZE], uint16_t addr) {
-  const struct instr *instr = &instructions[0];
+const Instruction *instr_decode(const uint8_t mem[MEM_SIZE], uint16_t addr) {
+  const Instruction *instr = &instructions[0];
   while (instr->mnemonic != NULL) {
     uint8_t mask = op_code_mask(instr);
     if (!instr->cb_prefix && (mem[addr] & mask) == instr->op_code ||
@@ -1036,9 +947,8 @@ static const char *r16stk_names[] = {"BC", "DE", "HL", "AF"};
 static const char *r16mem_names[] = {"BC", "DE", "HL+", "HL-"};
 static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
 
-static void operand_snprint(char *buf, int size, enum operand operand,
-                            int shift, const uint8_t mem[MEM_SIZE],
-                            uint16_t addr) {
+static void operand_snprint(char *buf, int size, Operand operand, int shift,
+                            const uint8_t mem[MEM_SIZE], uint16_t addr) {
   switch (operand) {
   case NONE:
     if (size > 0) {
@@ -1103,9 +1013,9 @@ static void operand_snprint(char *buf, int size, enum operand operand,
   }
 }
 
-const struct instr *instr_snprint(char *out, int size,
-                                  const uint8_t mem[MEM_SIZE], uint16_t addr) {
-  const struct instr *instr = instr_decode(mem, addr);
+const Instruction *instr_snprint(char *out, int size,
+                                 const uint8_t mem[MEM_SIZE], uint16_t addr) {
+  const Instruction *instr = instr_decode(mem, addr);
   if (instr->operand1 == NONE) {
     snprintf(out, size, "%s", instr->mnemonic);
     return instr;
