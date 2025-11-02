@@ -29,8 +29,8 @@ int main(int argc, const char *argv[]) {
   Addr addr = 0;
   while (addr < rom_size) {
     printf("%04x: ", addr);
-    char buf[64];
-    const Instruction *instr = snprint_instruction(buf, sizeof(buf), mem, addr);
+    char buf[INSTRUCTION_STR_MAX];
+    const Instruction *instr = format_instruction(buf, sizeof(buf), mem, addr);
     int size = instruction_size(instr);
     switch (size) {
     case 1:

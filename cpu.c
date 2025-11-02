@@ -922,110 +922,92 @@ static const char *r16stk_names[] = {"BC", "DE", "HL", "AF"};
 static const char *r16mem_names[] = {"BC", "DE", "HL+", "HL-"};
 static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
 
-static void snprint_operand(char *buf, int size, Operand operand, int shift,
-                            const Mem mem, Addr addr) {
+static int snprint_operand(char *buf, int size, Operand operand, int shift,
+                           const Mem mem, Addr addr) {
   switch (operand) {
   case NONE:
     if (size > 0) {
       buf[0] = '\0';
     }
-    break;
+    return 0;
   case A:
-    snprintf(buf, size, "A");
-    break;
+    return snprintf(buf, size, "A");
   case SP:
-    snprintf(buf, size, "SP");
-    break;
+    return snprintf(buf, size, "SP");
   case HL:
-    snprintf(buf, size, "HL");
-    break;
+    return snprintf(buf, size, "HL");
   case CMEM:
-    snprintf(buf, size, "[C]");
-    break;
+    return snprintf(buf, size, "[C]");
   case SP_PLUS_IMM8:
-    snprintf(buf, size, "SP+%d", mem[addr]);
-    break;
+    return snprintf(buf, size, "SP+%d", mem[addr]);
   case R16:
-    snprintf(buf, size, "%s", r16_names[r16(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "%s", r16_names[r16(shift, mem, addr)]);
   case R16STK:
-    snprintf(buf, size, "%s", r16stk_names[r16(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "%s", r16stk_names[r16(shift, mem, addr)]);
   case R16MEM:
-    snprintf(buf, size, "[%s]", r16mem_names[r16(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "[%s]", r16mem_names[r16(shift, mem, addr)]);
   case R8:
-    snprintf(buf, size, "%s", r8_names[r8(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "%s", r8_names[r8(shift, mem, addr)]);
   case COND:
-    snprintf(buf, size, "%s", cond_names[cond(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "%s", cond_names[cond(shift, mem, addr)]);
   case TGT3:
-    snprintf(buf, size, "%d", tgt3(shift, mem, addr));
-    break;
+    return snprintf(buf, size, "%d", tgt3(shift, mem, addr));
   case BIT_INDEX:
-    snprintf(buf, size, "%d", bit_index(shift, mem, addr));
-    break;
+    return snprintf(buf, size, "%d", bit_index(shift, mem, addr));
   case R8_DST:
-    snprintf(buf, size, "%s", r8_names[r8_dst(shift, mem, addr)]);
-    break;
+    return snprintf(buf, size, "%s", r8_names[r8_dst(shift, mem, addr)]);
   case IMM8:
-    snprintf(buf, size, "%d ($%02x)", imm8(mem, addr), imm8(mem, addr));
-    break;
+    return snprintf(buf, size, "%d ($%02x)", imm8(mem, addr), imm8(mem, addr));
   case IMM8_OFFSET:
-    snprintf(buf, size, "%+d ($%04x)", imm8_offset(mem, addr),
-             addr + 1 + imm8_offset(mem, addr));
-    break;
+    return snprintf(buf, size, "%+d ($%04x)", imm8_offset(mem, addr),
+                    addr + 1 + imm8_offset(mem, addr));
   case IMM8MEM:
-    snprintf(buf, size, "[$FF%02x]", imm8(mem, addr));
-    break;
+    return snprintf(buf, size, "[$FF%02x]", imm8(mem, addr));
   case IMM16:
-    snprintf(buf, size, "%d ($%04x)", imm16(mem, addr), imm16(mem, addr));
-    break;
+    return snprintf(buf, size, "%d ($%04x)", imm16(mem, addr),
+                    imm16(mem, addr));
   case IMM16MEM:
-    snprintf(buf, size, "[$%04x]", imm16(mem, addr));
-    break;
+    return snprintf(buf, size, "[$%04x]", imm16(mem, addr));
   }
 }
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
-const Instruction *snprint_instruction(char *out, int size, const Mem mem,
-                                       Addr addr) {
+const Instruction *format_instruction(char *out, int size, const Mem mem,
+                                     Addr addr) {
   const Instruction *bank = instructions;
   if (mem[addr] == 0x76) {
     // This would normally be LD [HL], [HL], but it is special-cased to be HALT.
     snprintf(out, size, "HALT");
     return find_instruction(bank, mem[addr]);
   }
+
   if (mem[addr] == 0xCB) {
     addr++;
     bank = cb_instructions;
   }
+
   const Instruction *instr = find_instruction(bank, mem[addr]);
-  int n = snprintf(out, size, "%s", instr->mnemonic);
-  out += n;
-  size -= n;
-
-  if (instr->operand1 != NONE) {
-    if (immediate_operand(instr->operand1)) {
-      addr++;
-    }
-    char buf[16];
-    snprint_operand(buf, sizeof(buf), instr->operand1, instr->shift, mem, addr);
-    n = snprintf(out, size, " %s", buf);
-    out += n;
-    size -= n;
+  if (instr->operand1 == NONE) {
+    snprintf(out, size, "%s", instr->mnemonic);
+    return instr;
   }
 
-  if (instr->operand2 != NONE) {
-    if (immediate_operand(instr->operand2)) {
-      addr++;
-    }
-    char buf[16];
-    snprint_operand(buf, sizeof(buf), instr->operand2, instr->shift, mem, addr);
-    snprintf(out, size, ", %s", buf);
+  if (immediate_operand(instr->operand1)) {
+    addr++;
+  }
+  char buf1[16];
+  snprint_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, mem, addr);
+  if (instr->operand2 == NONE) {
+    snprintf(out, size, "%s %s", instr->mnemonic, buf1);
+    return instr;
   }
 
+  if (immediate_operand(instr->operand2)) {
+    addr++;
+  }
+  char buf2[16];
+  snprint_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, mem, addr);
+  snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
   return instr;
 }

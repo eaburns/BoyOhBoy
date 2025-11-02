@@ -41,10 +41,16 @@ int instruction_size(const Instruction *instr);
 // bank.
 const Instruction *find_instruction(const Instruction *bank, uint8_t op_code);
 
+// The maximum snprint_instruction size in bytes among all instructions,
+// including the \0 terminator. This can be used to allocate the buffer passed
+// to snprint_instruction to ensure no truncation.
+//
+// (Really, the max is 24 or 25? I forgot, but let's round up to a nice 32.)
+enum { INSTRUCTION_STR_MAX = 32 };
+
 // Writes a human readable version of the instruction at addr in mem
-// to out, writing no more than size bytes including the '\0' terminator.
-// The return value is the decoded instruction.
-const Instruction *snprint_instruction(char *out, int size, const Mem mem,
-                                       Addr addr);
+// to out, writing at most size bytes including the '\0' terminator.
+// The decoded instruction is returned.
+const Instruction *format_instruction(char *out, int size, const Mem mem, Addr addr);
 
 #endif // GAMEBOY_H
