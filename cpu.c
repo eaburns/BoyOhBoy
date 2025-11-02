@@ -67,39 +67,35 @@ struct instruction {
   bool (*exec)(Gameboy *, Instruction *, int cycle);
 };
 
-static int r8(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int r8(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> shift) & 0x7;
 }
 
-static int tgt3(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int tgt3(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> shift) & 0x7;
 }
 
-static int bit_index(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int bit_index(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> (shift + 3)) & 0x7;
 }
 
-static int r8_dst(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int r8_dst(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> (shift + 3)) & 0x7;
 }
 
-static int r16(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int r16(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> shift) & 0x3;
 }
 
-static int cond(int shift, const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static int cond(int shift, const Mem mem, Addr addr) {
   return (mem[addr] >> shift) & 0x3;
 }
 
-static uint8_t imm8(const uint8_t mem[MEM_SIZE], uint16_t addr) {
-  return mem[addr];
-}
+static uint8_t imm8(const Mem mem, Addr addr) { return mem[addr]; }
 
-static int8_t imm8_offset(const uint8_t mem[MEM_SIZE], uint16_t addr) {
-  return mem[addr];
-}
+static int8_t imm8_offset(const Mem mem, Addr addr) { return mem[addr]; }
 
-static uint16_t imm16(const uint8_t mem[MEM_SIZE], uint16_t addr) {
+static uint16_t imm16(const Mem mem, Addr addr) {
   return (int)mem[addr + 1] << 8 | mem[addr];
 }
 
@@ -924,7 +920,7 @@ static uint8_t op_code_mask(const Instruction *instr) {
   return 0; // unreachable
 }
 
-const Instruction *instr_decode(const uint8_t mem[MEM_SIZE], uint16_t addr) {
+const Instruction *instr_decode(const Mem mem, Addr addr) {
   const Instruction *instr = &instructions[0];
   while (instr->mnemonic != NULL) {
     uint8_t mask = op_code_mask(instr);
@@ -948,7 +944,7 @@ static const char *r16mem_names[] = {"BC", "DE", "HL+", "HL-"};
 static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
 
 static void operand_snprint(char *buf, int size, Operand operand, int shift,
-                            const uint8_t mem[MEM_SIZE], uint16_t addr) {
+                            const Mem mem, Addr addr) {
   switch (operand) {
   case NONE:
     if (size > 0) {
@@ -1013,8 +1009,8 @@ static void operand_snprint(char *buf, int size, Operand operand, int shift,
   }
 }
 
-const Instruction *instr_snprint(char *out, int size,
-                                 const uint8_t mem[MEM_SIZE], uint16_t addr) {
+const Instruction *instr_snprint(char *out, int size, const Mem mem,
+                                 Addr addr) {
   const Instruction *instr = instr_decode(mem, addr);
   if (instr->operand1 == NONE) {
     snprintf(out, size, "%s", instr->mnemonic);

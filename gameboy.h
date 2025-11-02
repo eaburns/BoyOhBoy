@@ -4,9 +4,13 @@
 #include <stdint.h>
 
 // Aborts with a message printf-style message.
-extern void fail(const char *fmt, ...);
+void fail(const char *fmt, ...);
 
 enum { MEM_SIZE = 0xFFFF };
+
+typedef uint8_t Mem[MEM_SIZE];
+
+typedef uint16_t Addr;
 
 typedef struct {
   uint8_t a, b, c, d, e, f, h, l;
@@ -22,16 +26,14 @@ struct instruction;
 typedef struct instruction Instruction;
 
 // Returns the size of the instruction in bytes.
-extern int instr_size(const Instruction *instr);
+int instr_size(const Instruction *instr);
 
 // Decodes the instruction at addr in mem.
-extern const Instruction *instr_decode(const uint8_t mem[MEM_SIZE],
-                                       uint16_t addr);
+const Instruction *instr_decode(const Mem mem, Addr addr);
 
 // Writes a human readable version of the instruction at addr in mem
 // to out, writing no more than size bytes including the '\0' terminator.
 // The return value is the decoded instruction.
-extern const Instruction *
-instr_snprint(char *out, int size, const uint8_t mem[MEM_SIZE], uint16_t addr);
+const Instruction *instr_snprint(char *out, int size, const Mem mem, Addr addr);
 
 #endif // GAMEBOY_H

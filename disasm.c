@@ -12,7 +12,7 @@ int main(int argc, const char *argv[]) {
   }
   const char *path = argv[1];
 
-  uint8_t mem[MEM_SIZE];
+  Mem mem;
   FILE *in = fopen(path, "r");
   if (in == NULL) {
     fail("failed to open %s: %s", path, strerror(errno));
@@ -26,7 +26,7 @@ int main(int argc, const char *argv[]) {
   }
   printf("rom size: %d (bytes)\n", rom_size);
 
-  uint16_t addr = 0;
+  Addr addr = 0;
   while (addr < rom_size) {
     printf("%04x: ", addr);
     char buf[64];
