@@ -843,7 +843,7 @@ static int operand_size(Operand operand) {
   }
 }
 
-int instr_size(const Instruction *instr) {
+int instruction_size(const Instruction *instr) {
   int size = 1;
   // If the instruction is in the cb_instructions bank,
   // then add a byte to account for the 0xCB prefix.
@@ -922,7 +922,7 @@ static const char *r16stk_names[] = {"BC", "DE", "HL", "AF"};
 static const char *r16mem_names[] = {"BC", "DE", "HL+", "HL-"};
 static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
 
-static void operand_snprint(char *buf, int size, Operand operand, int shift,
+static void snprint_operand(char *buf, int size, Operand operand, int shift,
                             const Mem mem, Addr addr) {
   switch (operand) {
   case NONE:
@@ -988,8 +988,8 @@ static void operand_snprint(char *buf, int size, Operand operand, int shift,
   }
 }
 
-const Instruction *instr_snprint(char *out, int size, const Mem mem,
-                                 Addr addr) {
+const Instruction *snprint_instruction(char *out, int size, const Mem mem,
+                                       Addr addr) {
   const Instruction *instr =
       mem[addr] == 0xCB ? find_instruction(cb_instructions, mem[addr + 1])
                         : find_instruction(instructions, mem[addr]);
@@ -999,16 +999,16 @@ const Instruction *instr_snprint(char *out, int size, const Mem mem,
   }
   if (instr->operand2 == NONE) {
     char buf[16];
-    operand_snprint(buf, sizeof(buf), instr->operand1, instr->shift, mem,
+    snprint_operand(buf, sizeof(buf), instr->operand1, instr->shift, mem,
                     addr + 1);
     snprintf(out, size, "%s %s", instr->mnemonic, buf);
     return instr;
   }
   char buf1[16];
-  operand_snprint(buf1, sizeof(buf1), instr->operand1, instr->shift, mem,
+  snprint_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, mem,
                   addr + 1);
   char buf2[16];
-  operand_snprint(buf2, sizeof(buf2), instr->operand2, instr->shift, mem,
+  snprint_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, mem,
                   addr + operand_size(instr->operand1));
   snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
   return instr;

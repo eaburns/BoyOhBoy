@@ -35,7 +35,7 @@ extern const Instruction *instructions;
 extern const Instruction *cb_instructions;
 
 // Returns the size of the instruction in bytes.
-int instr_size(const Instruction *instr);
+int instruction_size(const Instruction *instr);
 
 // Returns the instruction corresponding to op_code in the given instruction
 // bank.
@@ -44,6 +44,7 @@ const Instruction *find_instruction(const Instruction *bank, uint8_t op_code);
 // Writes a human readable version of the instruction at addr in mem
 // to out, writing no more than size bytes including the '\0' terminator.
 // The return value is the decoded instruction.
-const Instruction *instr_snprint(char *out, int size, const Mem mem, Addr addr);
+const Instruction *snprint_instruction(char *out, int size, const Mem mem,
+                                       Addr addr);
 
 #endif // GAMEBOY_H

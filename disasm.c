@@ -30,8 +30,8 @@ int main(int argc, const char *argv[]) {
   while (addr < rom_size) {
     printf("%04x: ", addr);
     char buf[64];
-    const Instruction *instr = instr_snprint(buf, sizeof(buf), mem, addr);
-    int size = instr_size(instr);
+    const Instruction *instr = snprint_instruction(buf, sizeof(buf), mem, addr);
+    int size = instruction_size(instr);
     switch (size) {
     case 1:
       printf("%02x      ", mem[addr]);
