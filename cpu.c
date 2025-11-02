@@ -65,7 +65,7 @@ static int r8(int shift, const Mem mem, Addr addr) {
 }
 
 static int tgt3(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x7;
+  return ((mem[addr] >> shift) & 0x7) * 8;
 }
 
 static int bit_index(int shift, const Mem mem, Addr addr) {
@@ -406,7 +406,7 @@ static const Instruction _instructions[] = {
     },
     {
         .mnemonic = "CPL",
-        .op_code = 0x1F,
+        .op_code = 0x2F,
         .exec = exec_cpl,
     },
     {
@@ -802,7 +802,7 @@ static const Instruction _cb_instructions[] = {
     },
     {
         .mnemonic = "SET",
-        .op_code = 0xB0,
+        .op_code = 0xC0,
         .operand1 = BIT_INDEX,
         .operand2 = R8,
         .shift = 0,
@@ -977,7 +977,7 @@ static void snprint_operand(char *buf, int size, Operand operand, int shift,
              addr + 1 + imm8_offset(mem, addr));
     break;
   case IMM8MEM:
-    snprintf(buf, size, "[FF%02x]", imm8(mem, addr));
+    snprintf(buf, size, "[$FF%02x]", imm8(mem, addr));
     break;
   case IMM16:
     snprintf(buf, size, "%d ($%04x)", imm16(mem, addr), imm16(mem, addr));
@@ -988,28 +988,44 @@ static void snprint_operand(char *buf, int size, Operand operand, int shift,
   }
 }
 
+bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
+
 const Instruction *snprint_instruction(char *out, int size, const Mem mem,
                                        Addr addr) {
-  const Instruction *instr =
-      mem[addr] == 0xCB ? find_instruction(cb_instructions, mem[addr + 1])
-                        : find_instruction(instructions, mem[addr]);
-  if (instr->operand1 == NONE) {
-    snprintf(out, size, "%s", instr->mnemonic);
-    return instr;
+  const Instruction *bank = instructions;
+  if (mem[addr] == 0x76) {
+    // This would normally be LD [HL], [HL], but it is special-cased to be HALT.
+    snprintf(out, size, "HALT");
+    return find_instruction(bank, mem[addr]);
   }
-  if (instr->operand2 == NONE) {
+  if (mem[addr] == 0xCB) {
+    addr++;
+    bank = cb_instructions;
+  }
+  const Instruction *instr = find_instruction(bank, mem[addr]);
+  int n = snprintf(out, size, "%s", instr->mnemonic);
+  out += n;
+  size -= n;
+
+  if (instr->operand1 != NONE) {
+    if (immediate_operand(instr->operand1)) {
+      addr++;
+    }
     char buf[16];
-    snprint_operand(buf, sizeof(buf), instr->operand1, instr->shift, mem,
-                    addr + 1);
-    snprintf(out, size, "%s %s", instr->mnemonic, buf);
-    return instr;
+    snprint_operand(buf, sizeof(buf), instr->operand1, instr->shift, mem, addr);
+    n = snprintf(out, size, " %s", buf);
+    out += n;
+    size -= n;
   }
-  char buf1[16];
-  snprint_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, mem,
-                  addr + 1);
-  char buf2[16];
-  snprint_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, mem,
-                  addr + operand_size(instr->operand1));
-  snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
+
+  if (instr->operand2 != NONE) {
+    if (immediate_operand(instr->operand2)) {
+      addr++;
+    }
+    char buf[16];
+    snprint_operand(buf, sizeof(buf), instr->operand2, instr->shift, mem, addr);
+    snprintf(out, size, ", %s", buf);
+  }
+
   return instr;
 }
