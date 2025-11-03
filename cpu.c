@@ -60,38 +60,6 @@ struct instruction {
   bool (*exec)(Gameboy *, Instruction *, int cycle);
 };
 
-static int r8(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x7;
-}
-
-static int tgt3(int shift, const Mem mem, Addr addr) {
-  return ((mem[addr] >> shift) & 0x7) * 8;
-}
-
-static int bit_index(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> (shift + 3)) & 0x7;
-}
-
-static int r8_dst(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> (shift + 3)) & 0x7;
-}
-
-static int r16(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x3;
-}
-
-static int cond(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x3;
-}
-
-static uint8_t imm8(const Mem mem, Addr addr) { return mem[addr]; }
-
-static int8_t imm8_offset(const Mem mem, Addr addr) { return mem[addr]; }
-
-static uint16_t imm16(const Mem mem, Addr addr) {
-  return (int)mem[addr + 1] << 8 | mem[addr];
-}
-
 static bool exec_nop(Gameboy *, Instruction *, int cycle) { return false; }
 
 static bool exec_ld_r16_imm16(Gameboy *, Instruction *, int cycle) {
@@ -916,11 +884,96 @@ const Instruction *find_instruction(const Instruction *bank, uint8_t op_code) {
   return unknown_instruction;
 }
 
-static const char *r8_names[] = {"B", "C", "D", "E", "H", "L", "[HL]", "A"};
-static const char *r16_names[] = {"BC", "DE", "HL", "SP"};
-static const char *r16stk_names[] = {"BC", "DE", "HL", "AF"};
-static const char *r16mem_names[] = {"BC", "DE", "HL+", "HL-"};
-static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
+static Reg8 decode_reg8(int shift, uint8_t op_code) {
+  return (op_code >> shift) & 0x7;
+}
+
+static Reg8 decode_reg8_dst(int shift, uint8_t op_code) {
+  return (op_code >> (shift + 3)) & 0x7;
+}
+
+static Reg16 decode_reg16(int shift, uint8_t op_code) {
+  return (op_code >> shift) & 0x3;
+}
+
+static Reg16 decode_reg16_stack(int shift, uint8_t op_code) {
+  Reg16 r = decode_reg16(shift, op_code);
+  return r == 3 ? REG_AF : r;
+}
+
+static Reg16 decode_reg16_mem(int shift, uint8_t op_code) {
+  Reg16 r = decode_reg16(shift, op_code);
+  return r == 2 ? REG_HL_PLUS : (r == 3 ? REG_HL_MINUS : r);
+}
+
+static Cond decode_cond(int shift, uint8_t op_code) {
+  return (op_code >> shift) & 0x3;
+}
+
+static int decode_tgt3(int shift, uint8_t op_code) {
+  return ((op_code >> shift) & 0x7) * 8;
+}
+
+static int decode_bit_index(int shift, uint8_t op_code) {
+  return (op_code >> (shift + 3)) & 0x7;
+}
+
+const char *reg8_name(Reg8 r) {
+  static const char *r8_names[] = {"B", "C", "D", "E", "H", "L", "[HL]", "A"};
+  return r8_names[r];
+}
+
+const char *reg16_name(Reg16 r) {
+  static const char *r16_names[] = {"BC", "DE", "HL", "SP", "AF", "HL+", "HL-"};
+  return r16_names[r];
+}
+
+const char *cond_name(Cond c) {
+  static const char *cond_names[] = {"NZ", "Z", "NC", "C"};
+  return cond_names[c];
+}
+
+uint8_t get_reg8(const Cpu *cpu, Reg8 r) { return cpu->registers[r]; }
+
+void set_reg8(Cpu *cpu, Reg8 r, uint8_t x) { cpu->registers[r] = x; }
+
+uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
+  switch (r) {
+  case REG_BC:
+    return (uint16_t)get_reg8(cpu, REG_B) << 8 | get_reg8(cpu, REG_C);
+  case REG_DE:
+    return (uint16_t)get_reg8(cpu, REG_D) << 8 | get_reg8(cpu, REG_E);
+  case REG_HL:
+    return (uint16_t)get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
+  case REG_SP:
+    return cpu->sp;
+  default:
+    fail("invalid argument to get_reg16: %d", r);
+  }
+  return 0; // unreachable
+}
+
+void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
+  switch (r) {
+  case REG_BC:
+    set_reg8(cpu, REG_B, high);
+    set_reg8(cpu, REG_C, low);
+    break;
+  case REG_DE:
+    set_reg8(cpu, REG_D, high);
+    set_reg8(cpu, REG_E, low);
+    break;
+  case REG_HL:
+    set_reg8(cpu, REG_H, high);
+    set_reg8(cpu, REG_L, low);
+    break;
+  case REG_SP:
+    cpu->sp = (uint16_t)high << 8 | low;
+    break;
+  default:
+    fail("invalid argument to set_reg16: %d", r);
+  }
+}
 
 static int snprint_operand(char *buf, int size, Operand operand, int shift,
                            const Mem mem, Addr addr) {
@@ -941,40 +994,43 @@ static int snprint_operand(char *buf, int size, Operand operand, int shift,
   case SP_PLUS_IMM8:
     return snprintf(buf, size, "SP+%d", mem[addr]);
   case R16:
-    return snprintf(buf, size, "%s", r16_names[r16(shift, mem, addr)]);
+    return snprintf(buf, size, "%s",
+                    reg16_name(decode_reg16(shift, mem[addr])));
   case R16STK:
-    return snprintf(buf, size, "%s", r16stk_names[r16(shift, mem, addr)]);
+    return snprintf(buf, size, "%s",
+                    reg16_name(decode_reg16_stack(shift, mem[addr])));
   case R16MEM:
-    return snprintf(buf, size, "[%s]", r16mem_names[r16(shift, mem, addr)]);
+    return snprintf(buf, size, "[%s]",
+                    reg16_name(decode_reg16_mem(shift, mem[addr])));
   case R8:
-    return snprintf(buf, size, "%s", r8_names[r8(shift, mem, addr)]);
+    return snprintf(buf, size, "%s", reg8_name(decode_reg8(shift, mem[addr])));
   case COND:
-    return snprintf(buf, size, "%s", cond_names[cond(shift, mem, addr)]);
+    return snprintf(buf, size, "%s", cond_name(decode_cond(shift, mem[addr])));
   case TGT3:
-    return snprintf(buf, size, "%d", tgt3(shift, mem, addr));
+    return snprintf(buf, size, "%d", decode_tgt3(shift, mem[addr]));
   case BIT_INDEX:
-    return snprintf(buf, size, "%d", bit_index(shift, mem, addr));
+    return snprintf(buf, size, "%d", decode_bit_index(shift, mem[addr]));
   case R8_DST:
-    return snprintf(buf, size, "%s", r8_names[r8_dst(shift, mem, addr)]);
+    return snprintf(buf, size, "%s",
+                    reg8_name(decode_reg8_dst(shift, mem[addr])));
   case IMM8:
-    return snprintf(buf, size, "%d ($%02x)", imm8(mem, addr), imm8(mem, addr));
+    return snprintf(buf, size, "%d ($%02x)", mem[addr], mem[addr]);
   case IMM8_OFFSET:
-    return snprintf(buf, size, "%+d ($%04x)", imm8_offset(mem, addr),
-                    addr + 1 + imm8_offset(mem, addr));
+    return snprintf(buf, size, "%+d ($%04x)", mem[addr], addr + 1 + mem[addr]);
   case IMM8MEM:
-    return snprintf(buf, size, "[$FF%02x]", imm8(mem, addr));
+    return snprintf(buf, size, "[$FF%02x]", mem[addr]);
   case IMM16:
-    return snprintf(buf, size, "%d ($%04x)", imm16(mem, addr),
-                    imm16(mem, addr));
+    int x = (int)mem[addr + 1] << 8 | mem[addr];
+    return snprintf(buf, size, "%d ($%04x)", x, x);
   case IMM16MEM:
-    return snprintf(buf, size, "[$%04x]", imm16(mem, addr));
+    return snprintf(buf, size, "[$%04x]", (int)mem[addr + 1] << 8 | mem[addr]);
   }
 }
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
 const Instruction *format_instruction(char *out, int size, const Mem mem,
-                                     Addr addr) {
+                                      Addr addr) {
   const Instruction *bank = instructions;
   if (mem[addr] == 0x76) {
     // This would normally be LD [HL], [HL], but it is special-cased to be HALT.

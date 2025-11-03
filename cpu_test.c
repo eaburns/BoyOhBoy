@@ -439,8 +439,159 @@ void run_cb_snprint_tests() {
   }
 }
 
+void run_reg8_get_set_tests() {
+  for (Reg8 r = REG_B; r <= REG_A; r++) {
+    Cpu cpu = {};
+    set_reg8(&cpu, r, 1);
+    for (Reg8 s = REG_B; r <= REG_A; r++) {
+      uint8_t got = get_reg8(&cpu, r);
+      if (s == r && got != 1) {
+        fail("set_reg(%s, 1), get_reg(%s)=%d, wanted 1", reg8_name(r),
+             reg8_name(r), got);
+      }
+      if (s != r && got != 0) {
+        fail("set_reg(%s, 1), get_reg(%s)=%d, wanted 0", reg8_name(r),
+             reg8_name(r), got);
+      }
+    }
+  }
+}
+
+void run_reg16_get_set_tests() {
+  {
+    Cpu cpu = {};
+    set_reg16(&cpu, REG_BC, 1, 2);
+    if (get_reg16(&cpu, REG_BC) != 0x0201) {
+      fail("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+           get_reg16(&cpu, REG_BC));
+    }
+    if (get_reg8(&cpu, REG_B) != 2) {
+      fail("set_reg(BC, 1), get_reg(B)=%d, wanted 2", get_reg8(&cpu, REG_B));
+    }
+    if (get_reg8(&cpu, REG_C) != 1) {
+      fail("set_reg(BC, 1), get_reg(C)=%d, wanted 1", get_reg8(&cpu, REG_C));
+    }
+    if (get_reg8(&cpu, REG_D) != 0) {
+      fail("set_reg(BC, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+    }
+    if (get_reg8(&cpu, REG_E) != 0) {
+      fail("set_reg(BC, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+    }
+    if (get_reg8(&cpu, REG_H) != 0) {
+      fail("set_reg(BC, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+    }
+    if (get_reg8(&cpu, REG_L) != 0) {
+      fail("set_reg(BC, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+    }
+    if (get_reg8(&cpu, REG_A) != 0) {
+      fail("set_reg(BC, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+    }
+    if (cpu.sp != 0) {
+      fail("set_reg(BC, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+    }
+  }
+  {
+    Cpu cpu = {};
+    set_reg16(&cpu, REG_DE, 1, 2);
+    if (get_reg16(&cpu, REG_DE) != 0x0201) {
+      fail("set_reg(DE, 1), get_reg(DE)=0x%04x, wanted 0x0201",
+           get_reg16(&cpu, REG_DE));
+    }
+    if (get_reg8(&cpu, REG_B) != 0) {
+      fail("set_reg(DE, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+    }
+    if (get_reg8(&cpu, REG_C) != 0) {
+      fail("set_reg(DE, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+    }
+    if (get_reg8(&cpu, REG_D) != 2) {
+      fail("set_reg(DE, 1), get_reg(D)=%d, wanted 2", get_reg8(&cpu, REG_D));
+    }
+    if (get_reg8(&cpu, REG_E) != 1) {
+      fail("set_reg(DE, 1), get_reg(E)=%d, wanted 1", get_reg8(&cpu, REG_E));
+    }
+    if (get_reg8(&cpu, REG_H) != 0) {
+      fail("set_reg(DE, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+    }
+    if (get_reg8(&cpu, REG_L) != 0) {
+      fail("set_reg(DE, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+    }
+    if (get_reg8(&cpu, REG_A) != 0) {
+      fail("set_reg(DE, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+    }
+    if (cpu.sp != 0) {
+      fail("set_reg(DE, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+    }
+  }
+  {
+    Cpu cpu = {};
+    set_reg16(&cpu, REG_HL, 1, 2);
+    if (get_reg16(&cpu, REG_HL) != 0x0201) {
+      fail("set_reg(HL, 1), get_reg(HL)=0x%04x, wanted 0x0201",
+           get_reg16(&cpu, REG_HL));
+    }
+    if (get_reg8(&cpu, REG_B) != 0) {
+      fail("set_reg(HL, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+    }
+    if (get_reg8(&cpu, REG_C) != 0) {
+      fail("set_reg(HL, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+    }
+    if (get_reg8(&cpu, REG_D) != 0) {
+      fail("set_reg(HL, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+    }
+    if (get_reg8(&cpu, REG_E) != 0) {
+      fail("set_reg(HL, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+    }
+    if (get_reg8(&cpu, REG_H) != 2) {
+      fail("set_reg(HL, 1), get_reg(H)=%d, wanted 2", get_reg8(&cpu, REG_H));
+    }
+    if (get_reg8(&cpu, REG_L) != 1) {
+      fail("set_reg(HL, 1), get_reg(L)=%d, wanted 1", get_reg8(&cpu, REG_L));
+    }
+    if (get_reg8(&cpu, REG_A) != 0) {
+      fail("set_reg(HL, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+    }
+    if (cpu.sp != 0) {
+      fail("set_reg(HL, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+    }
+  }
+  {
+    Cpu cpu = {};
+    set_reg16(&cpu, REG_SP, 1, 2);
+    if (get_reg16(&cpu, REG_SP) != 0x0201) {
+      fail("set_reg(SP, 1), get_reg(SP)=0x%04x, wanted 0x0201",
+           get_reg16(&cpu, REG_SP));
+    }
+    if (get_reg8(&cpu, REG_B) != 0) {
+      fail("set_reg(SP, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+    }
+    if (get_reg8(&cpu, REG_C) != 0) {
+      fail("set_reg(SP, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+    }
+    if (get_reg8(&cpu, REG_D) != 0) {
+      fail("set_reg(SP, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+    }
+    if (get_reg8(&cpu, REG_E) != 0) {
+      fail("set_reg(SP, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+    }
+    if (get_reg8(&cpu, REG_H) != 0) {
+      fail("set_reg(SP, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+    }
+    if (get_reg8(&cpu, REG_L) != 0) {
+      fail("set_reg(SP, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+    }
+    if (get_reg8(&cpu, REG_A) != 0) {
+      fail("set_reg(SP, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+    }
+    if (cpu.sp != 0x0201) {
+      fail("set_reg(SP, 1), get_reg(SP)=%d, wanted 0x0201", cpu.sp);
+    }
+  }
+}
+
 int main() {
   run_snprint_tests();
   run_cb_snprint_tests();
+  run_reg8_get_set_tests();
+  run_reg16_get_set_tests();
   return 0;
 }
