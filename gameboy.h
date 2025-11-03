@@ -2,6 +2,7 @@
 #define GAMEBOY_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 // Aborts with a message printf-style message.
 void fail(const char *fmt, ...);
@@ -46,32 +47,6 @@ typedef enum {
   C = 3,
 } Cond;
 
-typedef struct {
-  // The 8-bit registers, indexed by the Reg8 enum.
-  // Note that value at index REG_DL_MEM is always 0,
-  // since that is not an actual 8-bit register.
-  uint8_t registers[8];
-  uint16_t sp, pc;
-} Cpu;
-
-// Returns the string name of the given register.
-const char *reg8_name(Reg8 r);
-const char *reg16_name(Reg16 r);
-const char *cond_name(Cond c);
-
-// Get or set the value of the register.
-uint8_t get_reg8(const Cpu *cpu, Reg8 r);
-void set_reg8(Cpu *cpu, Reg8 r, uint8_t x);
-
-// Get or set the value of the register.
-// Only supports REG_BC, REG_DE, REG_HL, and REG_SP. Any other Reg16 will fail.
-uint16_t get_reg16(const Cpu *cpu, Reg16 r);
-void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
-
-typedef struct {
-  Cpu cpu;
-} Gameboy;
-
 // An opaque handle to an instruction.
 struct instruction;
 typedef struct instruction Instruction;
@@ -104,5 +79,71 @@ enum { INSTRUCTION_STR_MAX = 32 };
 // The decoded instruction is returned.
 const Instruction *format_instruction(char *out, int size, const Mem mem,
                                       Addr addr);
+
+typedef struct {
+  // The 8-bit registers, indexed by the Reg8 enum.
+  // Note that value at index REG_DL_MEM is always 0,
+  // since that is not an actual 8-bit register.
+  uint8_t registers[8];
+  uint16_t sp, pc, ir;
+
+  // The following are used for tracking the intermediate state of execution for
+  // a single instruction.
+  // The initial state at the start of a new instruction is:
+  //  - ir contains the op code byte, loaded by the previous previous
+  //  instruction,
+  //  - bank == instructions,
+  //  - instr == NULL,
+  //  - cycle == 0,
+  //  - scratch == {}.
+  // cpu_mcycle runs the next cycle of the current instruction.
+  // If cycle==0, it first sets instr to the Instruction in ir.
+  // It then calls instr->exec().
+  // If instr->exec() returns NOT_DONE, then it returns.
+  // If instr->exec() returns DONE, then it resets bank, instr, cycle, and
+  // scratch to their initial states; the just-returned call to instr->exec() is
+  // responsible for fetching ir for the next instruction.
+
+  // The current instruction bank, either instructions or cb_instructions.
+  // If bank==NULL, it is set to instructions by cpu_mcycle, so there is no need
+  // to explicitly initialize it.
+  const Instruction *bank;
+  // The current instruction in ir.
+  const Instruction *instr;
+  // The number of cycles spent so far executing ir.
+  int cycle;
+  // Scratch space used by instruction execution to hold state between cycles.
+  uint8_t scratch[2];
+} Cpu;
+
+// Returns the string name of the given register.
+const char *reg8_name(Reg8 r);
+const char *reg16_name(Reg16 r);
+const char *cond_name(Cond c);
+
+// Get or set the value of the register.
+uint8_t get_reg8(const Cpu *cpu, Reg8 r);
+void set_reg8(Cpu *cpu, Reg8 r, uint8_t x);
+
+// Get or set the value of the register.
+// Only supports REG_BC, REG_DE, REG_HL, and REG_SP. Any other Reg16 will fail.
+uint16_t get_reg16(const Cpu *cpu, Reg16 r);
+void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
+
+typedef struct {
+  Cpu cpu;
+  Mem mem;
+} Gameboy;
+
+typedef enum { DONE, NOT_DONE } ExecResult;
+
+// Executes a single M-Cycle of the CPU.
+ExecResult cpu_mcycle(Gameboy *g);
+
+// Returns whether two Gameboy states are equal.
+bool gameboy_eq(const Gameboy *a, const Gameboy *b);
+
+// Prints the difference between two Gameboy states to f.
+void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b);
 
 #endif // GAMEBOY_H

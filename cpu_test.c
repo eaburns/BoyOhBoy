@@ -588,10 +588,67 @@ void run_reg16_get_set_tests() {
   }
 }
 
+struct exec_test {
+  const char *name;
+  const Gameboy init;
+  const Gameboy want;
+  int cycles;
+};
+
+static struct exec_test exec_tests[] = {
+    {
+        .name = "NOP",
+        .init =
+            {
+                .cpu = {.ir = 0x00},
+                .mem = {0x00, 0x01},
+            },
+        .want =
+            {
+                .cpu = {.pc = 1, .ir = 0x00},
+                .mem = {0x00, 0x01},
+            },
+        .cycles = 1,
+    },
+    {
+        .name = "LD BC, imm16",
+        .init =
+            {
+                .cpu = {.ir = 0x01},
+                .mem = {0x01, 0x02, 0x03, 0x4},
+            },
+        .want =
+            {
+                .cpu = {.registers = {[REG_B]=0x02, [REG_C]=0x01}, .pc = 3, .ir = 0x03},
+                .mem = {0x01, 0x02, 0x03, 0x4},
+            },
+        .cycles = 3,
+    },
+};
+
+void run_exec_tests() {
+  for (int i = 0; i < sizeof(exec_tests) / sizeof(exec_tests[0]); i++) {
+    struct exec_test *test = &exec_tests[i];
+    Gameboy g = test->init;
+    int cycles = 0;
+    do {
+      cycles++;
+    } while (cycles < 10 && cpu_mcycle(&g));
+    if (cycles != test->cycles) {
+      fail("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
+    }
+    if (!gameboy_eq(&g, &test->want)) {
+      gameboy_print_diff(stderr, &g, &test->want);
+      fail("%s: Gameboy state does not match expected", test->name);
+    }
+  }
+}
+
 int main() {
   run_snprint_tests();
   run_cb_snprint_tests();
   run_reg8_get_set_tests();
   run_reg16_get_set_tests();
+  run_exec_tests();
   return 0;
 }
