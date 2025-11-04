@@ -85,7 +85,8 @@ typedef struct {
   // Note that value at index REG_DL_MEM is always 0,
   // since that is not an actual 8-bit register.
   uint8_t registers[8];
-  uint16_t sp, pc, ir;
+  uint8_t ir;
+  uint16_t sp, pc;
 
   // The following are used for tracking the intermediate state of execution for
   // a single instruction.
@@ -126,9 +127,12 @@ uint8_t get_reg8(const Cpu *cpu, Reg8 r);
 void set_reg8(Cpu *cpu, Reg8 r, uint8_t x);
 
 // Get or set the value of the register.
-// Only supports REG_BC, REG_DE, REG_HL, and REG_SP. Any other Reg16 will fail.
+// Getting or setting REG_HL_PLUS and REG_HL_MINUS are equivalent to using
+// REG_HL.
+// TODO: Getting or setting REG_AF is not yet supported.
 uint16_t get_reg16(const Cpu *cpu, Reg16 r);
-void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
+void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
+void set_reg16(Cpu *cpu, Reg16 r, uint16_t x);
 
 typedef struct {
   Cpu cpu;

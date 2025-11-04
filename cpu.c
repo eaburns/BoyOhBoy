@@ -73,6 +73,15 @@ static uint8_t fetch(const Gameboy *g, Addr addr) {
 // Fetches the byte at the PC register and increments it.
 static uint8_t fetch_pc(Gameboy *g) { return fetch(g, g->cpu.pc++); }
 
+// Writes the byte to the given memory address.
+// CPU emulation should always write memory using store instead of accessing
+// memory directly. This is because store takes care of situations were certain
+// memory is not actually writable by the CPU.
+void store(Gameboy *g, Addr addr, uint8_t x) {
+  // TODO: actually deal with cases where memory is not writable by the CPU.
+  g->mem[addr] = x;
+}
+
 ExecResult cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
   if (cpu->bank == NULL) {
@@ -112,12 +121,12 @@ static Reg16 decode_reg16(int shift, uint8_t op_code) {
   return (op_code >> shift) & 0x3;
 }
 
-static Reg16 decode_reg16_stack(int shift, uint8_t op_code) {
+static Reg16 decode_reg16stk(int shift, uint8_t op_code) {
   Reg16 r = decode_reg16(shift, op_code);
   return r == 3 ? REG_AF : r;
 }
 
-static Reg16 decode_reg16_mem(int shift, uint8_t op_code) {
+static Reg16 decode_reg16mem(int shift, uint8_t op_code) {
   Reg16 r = decode_reg16(shift, op_code);
   return r == 2 ? REG_HL_PLUS : (r == 3 ? REG_HL_MINUS : r);
 }
@@ -129,40 +138,115 @@ static ExecResult exec_nop(Gameboy *g, const Instruction *, int cycle) {
 
 static ExecResult exec_ld_r16_imm16(Gameboy *g, const Instruction *instr,
                                     int cycle) {
+  Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    g->cpu.scratch[0] = fetch_pc(g);
+    cpu->scratch[0] = fetch_pc(g);
     return NOT_DONE;
   case 1:
-    g->cpu.scratch[1] = fetch_pc(g);
+    cpu->scratch[1] = fetch_pc(g);
     return NOT_DONE;
   default: // 2
-    Reg16 r = decode_reg16(instr->shift, g->cpu.ir);
-    set_reg16(&g->cpu, r, g->cpu.scratch[0], g->cpu.scratch[1]);
-    g->cpu.ir = fetch_pc(g);
+    Reg16 r = decode_reg16(instr->shift, cpu->ir);
+    set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
+    cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ld_r16mem_a(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_ld_r16mem_a(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    Reg16 r = decode_reg16mem(instr->shift, g->cpu.ir);
+    Addr addr = get_reg16(cpu, r);
+    uint8_t a = get_reg8(cpu, REG_A);
+    if (r == REG_HL_PLUS) {
+      set_reg16(cpu, r, addr + 1);
+    } else if (r == REG_HL_MINUS) {
+      set_reg16(cpu, r, addr - 1);
+    }
+    store(g, addr, a);
+    return NOT_DONE;
+  default: // 1
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
-static ExecResult exec_ld_a_r16mem(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_ld_a_r16mem(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    Reg16 r = decode_reg16mem(instr->shift, cpu->ir);
+    Addr addr = get_reg16(cpu, r);
+    uint8_t x = fetch(g, addr);
+    set_reg8(cpu, REG_A, x);
+    if (r == REG_HL_PLUS) {
+      set_reg16(cpu, r, addr + 1);
+    } else if (r == REG_HL_MINUS) {
+      set_reg16(cpu, r, addr - 1);
+    }
+    return NOT_DONE;
+  default: // 1
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
-static ExecResult exec_ld_imm16mem_sp(Gameboy *, const Instruction *,
+static ExecResult exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
                                       int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  uint16_t sp = get_reg16(cpu, REG_SP);
+  // Addr is only valid on cycles 2, 3, and 4,
+  // since it is still being loaded on cycles 0 and 1.
+  Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    cpu->scratch[1] = fetch_pc(g);
+    return NOT_DONE;
+  case 2:
+    store(g, addr, sp & 0xFF);
+    return NOT_DONE;
+  case 3:
+    store(g, addr + 1, sp >> 8);
+  default: // 4
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
-static ExecResult exec_inc_r16(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_inc_r16(Gameboy *g, const Instruction *instr,
+                               int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    Reg16 r = decode_reg16(instr->shift, cpu->ir);
+    set_reg16(cpu, r, get_reg16(cpu, r) + 1);
+    return NOT_DONE;
+  default: // 1
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
-static ExecResult exec_dec_r16(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_dec_r16(Gameboy *g, const Instruction *instr,
+                               int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    Reg16 r = decode_reg16(instr->shift, cpu->ir);
+    set_reg16(cpu, r, get_reg16(cpu, r) - 1);
+    return NOT_DONE;
+  default: // 1
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_add_hl_r16(Gameboy *, const Instruction *, int cycle) {
@@ -1094,6 +1178,8 @@ uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
   case REG_DE:
     return (uint16_t)get_reg8(cpu, REG_D) << 8 | get_reg8(cpu, REG_E);
   case REG_HL:
+  case REG_HL_PLUS:
+  case REG_HL_MINUS:
     return (uint16_t)get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   case REG_SP:
     return cpu->sp;
@@ -1103,7 +1189,7 @@ uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
   return 0; // unreachable
 }
 
-void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
+void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
   switch (r) {
   case REG_BC:
     set_reg8(cpu, REG_B, high);
@@ -1114,6 +1200,8 @@ void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
     set_reg8(cpu, REG_E, low);
     break;
   case REG_HL:
+  case REG_HL_PLUS:
+  case REG_HL_MINUS:
     set_reg8(cpu, REG_H, high);
     set_reg8(cpu, REG_L, low);
     break;
@@ -1123,6 +1211,10 @@ void set_reg16(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
   default:
     fail("invalid argument to set_reg16: %d", r);
   }
+}
+
+void set_reg16(Cpu *cpu, Reg16 r, uint16_t x) {
+  set_reg16_low_high(cpu, r, x & 0xFF, x >> 8);
 }
 
 static int r8(int shift, const Mem mem, Addr addr) {
@@ -1180,10 +1272,10 @@ static int snprint_operand(char *buf, int size, Operand operand, int shift,
                     reg16_name(decode_reg16(shift, mem[addr])));
   case R16STK:
     return snprintf(buf, size, "%s",
-                    reg16_name(decode_reg16_stack(shift, mem[addr])));
+                    reg16_name(decode_reg16stk(shift, mem[addr])));
   case R16MEM:
     return snprintf(buf, size, "[%s]",
-                    reg16_name(decode_reg16_mem(shift, mem[addr])));
+                    reg16_name(decode_reg16mem(shift, mem[addr])));
   case R8:
     return snprintf(buf, size, "%s", reg8_name(decode_reg8(shift, mem[addr])));
   case COND:

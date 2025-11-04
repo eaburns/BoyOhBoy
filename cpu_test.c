@@ -460,7 +460,7 @@ void run_reg8_get_set_tests() {
 void run_reg16_get_set_tests() {
   {
     Cpu cpu = {};
-    set_reg16(&cpu, REG_BC, 1, 2);
+    set_reg16_low_high(&cpu, REG_BC, 1, 2);
     if (get_reg16(&cpu, REG_BC) != 0x0201) {
       fail("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_BC));
@@ -492,7 +492,7 @@ void run_reg16_get_set_tests() {
   }
   {
     Cpu cpu = {};
-    set_reg16(&cpu, REG_DE, 1, 2);
+    set_reg16_low_high(&cpu, REG_DE, 1, 2);
     if (get_reg16(&cpu, REG_DE) != 0x0201) {
       fail("set_reg(DE, 1), get_reg(DE)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_DE));
@@ -524,7 +524,7 @@ void run_reg16_get_set_tests() {
   }
   {
     Cpu cpu = {};
-    set_reg16(&cpu, REG_HL, 1, 2);
+    set_reg16_low_high(&cpu, REG_HL, 1, 2);
     if (get_reg16(&cpu, REG_HL) != 0x0201) {
       fail("set_reg(HL, 1), get_reg(HL)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_HL));
@@ -556,7 +556,7 @@ void run_reg16_get_set_tests() {
   }
   {
     Cpu cpu = {};
-    set_reg16(&cpu, REG_SP, 1, 2);
+    set_reg16_low_high(&cpu, REG_SP, 1, 2);
     if (get_reg16(&cpu, REG_SP) != 0x0201) {
       fail("set_reg(SP, 1), get_reg(SP)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_SP));
@@ -586,6 +586,16 @@ void run_reg16_get_set_tests() {
       fail("set_reg(SP, 1), get_reg(SP)=%d, wanted 0x0201", cpu.sp);
     }
   }
+
+  // Test that set_reg16 is using the right byte order.
+  {
+    Cpu cpu = {};
+    set_reg16(&cpu, REG_BC, 0x0102);
+    if (get_reg16(&cpu, REG_BC) != 0x0102) {
+      fail("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+           get_reg16(&cpu, REG_BC));
+    }
+  }
 }
 
 struct exec_test {
@@ -595,35 +605,320 @@ struct exec_test {
   int cycles;
 };
 
-static struct exec_test exec_tests[] = {
-    {
-        .name = "NOP",
-        .init =
+// We use High RAM below for writes, since we know it's going to be writable,
+// whereas the ROM addresses won't be writable.
+enum { HIGH_RAM_START = 0xFF80 };
+
+static struct exec_test
+    exec_tests[] =
+        {
             {
-                .cpu = {.ir = 0x00},
-                .mem = {0x00, 0x01},
+                .name = "(exec_nop) NOP",
+                .init =
+                    {
+                        .cpu = {.ir = 0x00},
+                        .mem = {0x00, 0x01},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 1, .ir = 0x00},
+                        .mem = {0x00, 0x01},
+                    },
+                .cycles = 1,
             },
-        .want =
             {
-                .cpu = {.pc = 1, .ir = 0x00},
-                .mem = {0x00, 0x01},
+                .name = "(exec_ld_r16_imm16) LD BC, imm16",
+                .init =
+                    {
+                        .cpu = {.ir = 0x01},
+                        .mem = {0x01, 0x02, 0x03, 0x4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x02, [REG_C] = 0x01},
+                                .pc = 3,
+                                .ir = 0x03,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4},
+                    },
+                .cycles = 3,
             },
-        .cycles = 1,
-    },
-    {
-        .name = "LD BC, imm16",
-        .init =
             {
-                .cpu = {.ir = 0x01},
-                .mem = {0x01, 0x02, 0x03, 0x4},
+                .name = "(exec_ld_r16mem_a) LD [BC], A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x02,
+                                .registers =
+                                    {
+                                        [REG_B] = HIGH_RAM_START >> 8,
+                                        [REG_C] = HIGH_RAM_START & 0xFF,
+                                        [REG_A] = 0x12,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = HIGH_RAM_START >> 8,
+                                        [REG_C] = HIGH_RAM_START & 0xFF,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
             },
-        .want =
             {
-                .cpu = {.registers = {[REG_B]=0x02, [REG_C]=0x01}, .pc = 3, .ir = 0x03},
-                .mem = {0x01, 0x02, 0x03, 0x4},
+                .name = "(exec_ld_r16mem_a) LD [HL+], A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x22,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                        [REG_A] = 0x12,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = (HIGH_RAM_START & 0xFF) + 1,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
             },
-        .cycles = 3,
-    },
+            {
+                .name = "(exec_ld_r16mem_a) LD [HL-], A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x32,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                        [REG_A] = 0x12,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = (HIGH_RAM_START & 0xFF) - 1,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_a_r16mem) LD A, [BC]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x0A,
+                                .registers =
+                                    {
+                                        [REG_B] = HIGH_RAM_START >> 8,
+                                        [REG_C] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = HIGH_RAM_START >> 8,
+                                        [REG_C] = HIGH_RAM_START & 0xFF,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_a_r16mem) LD [HL+], A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x2A,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = (HIGH_RAM_START & 0xFF) + 1,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_a_r16mem) LD A, [HL-]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3A,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = (HIGH_RAM_START & 0xFF) - 1,
+                                        [REG_A] = 0x12,
+                                    },
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x4, [HIGH_RAM_START] = 0x12},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_imm16mem_sp) LD [IMM16], SP",
+                .init =
+                    {
+                        .cpu = {.ir = 0x08, .sp = 0x1234},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0x03,
+                                0x04,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .sp = 0x1234,
+                                .pc = 3,
+                                .ir = 0x03,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0x03,
+                                0x04,
+                                [HIGH_RAM_START] = 0x34,
+                                [HIGH_RAM_START + 1] = 0x12,
+                            },
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_inc_r16) INC BC",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00, [REG_C] = 0xFF},
+                                .ir = 0x03,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x01, [REG_C] = 0x00},
+                                .pc = 0x01,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_dec_r16) DEC BC",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x01, [REG_C] = 0x00},
+                                .ir = 0x0B,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00, [REG_C] = 0xFF},
+                                .pc = 0x01,
+                                .ir = 0x01,
+                            },
+                        .mem = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
