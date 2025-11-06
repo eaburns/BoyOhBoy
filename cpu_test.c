@@ -614,6 +614,7 @@ enum {
   HIGH_RAM_START = 0xFF80,
   FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
   FLAGS_ZNH = FLAG_Z | FLAG_N | FLAG_H,
+  FLAGS_ZNHC = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
 };
 
 static struct exec_test
@@ -1294,6 +1295,53 @@ static struct exec_test
                         .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 1},
                     },
                 .cycles = 3,
+            },
+            {
+                .name = "(exec_rlca) RLCA (no carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x07,
+                                .registers = {[REG_A] = 0x1},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.registers = {[REG_A] = 0x2},
+                                .pc = 1,
+                                .ir = 1,
+                                .flags = 0},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_rlca) RLCA (carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x07,
+                                .registers = {[REG_A] = 0xAA},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x55},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
             },
 };
 

@@ -342,8 +342,17 @@ static ExecResult exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_rlca(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_rlca(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  uint8_t x = get_reg8(cpu, REG_A);
+  set_reg8(cpu, REG_A, (x << 1) | (x >> 7));
+  // RLCA always sets Z to 0 regardless of whether the result is 0.
+  assign_flag(cpu, FLAG_Z, false);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x >> 7);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_rrca(Gameboy *, const Instruction *, int cycle) {
