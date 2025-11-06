@@ -285,12 +285,29 @@ static ExecResult exec_add_hl_r16(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_inc_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  uint8_t x = get_reg8(cpu, REG_A);
+  set_reg8(cpu, REG_A, x + 1);
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, ((x & 0xF) + 1) >> 4);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
-static ExecResult exec_dec_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  uint8_t x = get_reg8(cpu, REG_A);
+  set_reg8(cpu, REG_A, x - 1);
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
+  assign_flag(cpu, FLAG_N, true);
+  // H is set to whether there was a borrow from bit 4. Probably a better way to
+  // compute this, but this is the direct way to determine it: if bit 4 was set
+  // and now it is not, then there was a borrow. ☺
+  assign_flag(cpu, FLAG_H, ((x >> 4) & 1) && !((x - 1) >> 4 & 1));
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_ld_r8_imm8(Gameboy *, const Instruction *, int cycle) {

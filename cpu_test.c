@@ -610,6 +610,7 @@ struct exec_test {
 enum {
   HIGH_RAM_START = 0xFF80,
   FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
+  FLAGS_ZNH = FLAG_Z | FLAG_N | FLAG_H,
 };
 
 static struct exec_test
@@ -1073,6 +1074,164 @@ static struct exec_test
                         .mem = {1, 2, 3, 4},
                     },
                 .cycles = 2,
+            },
+            {
+                .name = "(exec_inc_r8) INC A (non-zero, no carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3C,
+                                .registers = {[REG_A] = 0},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 1},
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_inc_r8) INC A (half carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3C,
+                                .registers = {[REG_A] = 0xF},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x10},
+                                .flags = FLAG_H,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_inc_r8) INC A (zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3C,
+                                .registers = {[REG_A] = 0xFF},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0},
+                                // The only way to get to zero is to increment
+                                // 0xFF. This necessitates a half-carry too.
+                                .flags = FLAG_Z | FLAG_H,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_dec_r8) DEC A (non-zero, no borrow)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3D,
+                                .registers = {[REG_A] = 2},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 1},
+                                .flags = FLAG_N,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_dec_r8) DEC A (half borrow)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3D,
+                                .registers = {[REG_A] = 0x10},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x0F},
+                                .flags = FLAG_N | FLAG_H,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_dec_r8) DEC A (zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x3D,
+                                .registers = {[REG_A] = 1},
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0},
+                                .flags = FLAG_N | FLAG_Z,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
             },
 };
 
