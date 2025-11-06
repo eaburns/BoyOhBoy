@@ -141,14 +141,27 @@ static void assign_flag(Cpu *cpu, Flag f, bool value) {
 
 static bool get_flag(Cpu *cpu, Flag f) { return cpu->flags & f; }
 
+// Returns whether adding x+y would half-carry.
+static bool add_half_carries(uint8_t x, uint8_t y) {
+  return ((x & 0xF) + (y & 0xF)) >> 4;
+}
+
+// Returns whether adding x+y would carry.
+static bool add_carries(uint8_t x, uint8_t y) { return (x + y) >> 8; }
+
+// Returns whether x-y half-borrows.
+static bool sub_half_borrows(uint8_t x, uint8_t y) {
+  return ((x >> 4) & 1) && !((x - y) >> 4 & 1);
+}
+
 // Adds x to register r, setting flag N to 0 and setting H and C to the
 // appropriate carry bits.
 static void add_to_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
   uint8_t y = get_reg8(cpu, r);
   set_reg8(cpu, r, x + y);
   assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, ((x & 0x0F) + (y & 0x0F)) >> 4);
-  assign_flag(cpu, FLAG_C, (x + y) >> 8);
+  assign_flag(cpu, FLAG_H, add_half_carries(x, y));
+  assign_flag(cpu, FLAG_C, add_carries(x, y));
 }
 
 static ExecResult exec_nop(Gameboy *g, const Instruction *, int cycle) {
@@ -291,7 +304,7 @@ static ExecResult exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   set_reg8(cpu, REG_A, x + 1);
   assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
   assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, ((x & 0xF) + 1) >> 4);
+  assign_flag(cpu, FLAG_H, add_half_carries(x, 1));
   cpu->ir = fetch_pc(g);
   return DONE;
 }
@@ -302,10 +315,7 @@ static ExecResult exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   set_reg8(cpu, REG_A, x - 1);
   assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
   assign_flag(cpu, FLAG_N, true);
-  // H is set to whether there was a borrow from bit 4. Probably a better way to
-  // compute this, but this is the direct way to determine it: if bit 4 was set
-  // and now it is not, then there was a borrow. ☺
-  assign_flag(cpu, FLAG_H, ((x >> 4) & 1) && !((x - 1) >> 4 & 1));
+  assign_flag(cpu, FLAG_H, sub_half_borrows(x, 1));
   cpu->ir = fetch_pc(g);
   return DONE;
 }
