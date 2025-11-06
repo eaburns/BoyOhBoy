@@ -130,6 +130,7 @@ const char *reg16_name(Reg16 r);
 const char *cond_name(Cond c);
 
 // Get or set the value of the register.
+// It is an error to get or set REG_HL_MEM.
 uint8_t get_reg8(const Cpu *cpu, Reg8 r);
 void set_reg8(Cpu *cpu, Reg8 r, uint8_t x);
 

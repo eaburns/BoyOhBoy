@@ -1244,9 +1244,19 @@ const char *cond_name(Cond c) {
   return cond_names[c];
 }
 
-uint8_t get_reg8(const Cpu *cpu, Reg8 r) { return cpu->registers[r]; }
+uint8_t get_reg8(const Cpu *cpu, Reg8 r) {
+  if (r == REG_HL_MEM) {
+    fail("get_reg8 on REG_HL_MEM");
+  }
+  return cpu->registers[r];
+}
 
-void set_reg8(Cpu *cpu, Reg8 r, uint8_t x) { cpu->registers[r] = x; }
+void set_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
+  if (r == REG_HL_MEM) {
+    fail("set_reg8 on REG_HL_MEM");
+  }
+  cpu->registers[r] = x;
+}
 
 uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
   switch (r) {

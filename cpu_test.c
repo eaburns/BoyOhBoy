@@ -444,6 +444,9 @@ void run_reg8_get_set_tests() {
     Cpu cpu = {};
     set_reg8(&cpu, r, 1);
     for (Reg8 s = REG_B; r <= REG_A; r++) {
+      if (r == REG_HL_MEM) {
+        continue;
+      }
       uint8_t got = get_reg8(&cpu, r);
       if (s == r && got != 1) {
         fail("set_reg(%s, 1), get_reg(%s)=%d, wanted 1", reg8_name(r),
