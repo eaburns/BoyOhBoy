@@ -1396,6 +1396,81 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name = "(exec_rla) RLA (no carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x17,
+                                .registers = {[REG_A] = 0x01},
+                                .flags = FLAGS_ZNH, // no carry
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x02},
+                                .pc = 1,
+                                .ir = 1,
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_rla) RLA (carry-in)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x17,
+                                .registers = {[REG_A] = 0x01},
+                                .flags = FLAGS_ZNHC, // yes carry
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x03},
+                                .pc = 1,
+                                .ir = 1,
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_rrca) RLA (carry-out)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x17,
+                                .registers = {[REG_A] = 0xAA},
+                                .flags = FLAGS_ZNH, // no carry
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x54},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {
