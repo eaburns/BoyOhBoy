@@ -607,7 +607,10 @@ struct exec_test {
 
 // We use High RAM below for writes, since we know it's going to be writable,
 // whereas the ROM addresses won't be writable.
-enum { HIGH_RAM_START = 0xFF80 };
+enum {
+  HIGH_RAM_START = 0xFF80,
+  FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
+};
 
 static struct exec_test
     exec_tests[] =
@@ -619,11 +622,7 @@ static struct exec_test
                         .cpu = {.ir = 0x00},
                         .mem = {0x00, 0x01},
                     },
-                .want =
-                    {
-                        .cpu = {.pc = 1, .ir = 0x00},
-                        .mem = {0x00, 0x01},
-                    },
+                .want = {.cpu = {.pc = 1, .ir = 0x00}, .mem = {0x00, 0x01}},
                 .cycles = 1,
             },
             {
@@ -916,6 +915,162 @@ static struct exec_test
                                 .ir = 0x01,
                             },
                         .mem = {0x01, 0x02, 0x03, 0x04},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_add_hl_r16) ADD HL, BC (no carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x09,
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0,
+                                        [REG_L] = 0,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_NHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0,
+                                        [REG_L] = 1,
+                                    },
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_add_hl_r16) ADD HL, BC (low carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x09,
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        // Bit 11 carry.
+                                        [REG_H] = 0x0F,
+                                        [REG_L] = 0xFF,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_NHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0x10,
+                                        [REG_L] = 0,
+                                    },
+                                .flags = FLAG_H,
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_add_hl_r16) ADD HL, BC (high carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x09,
+                                .registers =
+                                    {
+                                        [REG_B] = 0x80,
+                                        [REG_C] = 0,
+                                        [REG_H] = 0x80,
+                                        [REG_L] = 0,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_NHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = 0x80,
+                                        [REG_C] = 0,
+                                        [REG_H] = 0,
+                                        [REG_L] = 0,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_add_hl_r16) ADD HL, BC (low and high carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x09,
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        // Bit 15 and 11 carry.
+                                        [REG_H] = 0xFF,
+                                        [REG_L] = 0xFF,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_NHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0,
+                                        [REG_L] = 0,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAG_H | FLAG_C,
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {1, 2, 3, 4},
                     },
                 .cycles = 2,
             },

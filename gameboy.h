@@ -47,6 +47,13 @@ typedef enum {
   C = 3,
 } Cond;
 
+typedef enum {
+  FLAG_Z = 1 << 7,
+  FLAG_N = 1 << 6,
+  FLAG_H = 1 << 5,
+  FLAG_C = 1 << 4,
+} Flag;
+
 // An opaque handle to an instruction.
 struct instruction;
 typedef struct instruction Instruction;
@@ -85,7 +92,7 @@ typedef struct {
   // Note that value at index REG_DL_MEM is always 0,
   // since that is not an actual 8-bit register.
   uint8_t registers[8];
-  uint8_t ir;
+  uint8_t flags, ir;
   uint16_t sp, pc;
 
   // The following are used for tracking the intermediate state of execution for

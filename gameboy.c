@@ -16,7 +16,7 @@ void fail(const char *fmt, ...) {
 
 bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
   return memcmp(a->cpu.registers, b->cpu.registers, sizeof(a->cpu.registers)) ==
-             0 &&
+             0 && a->cpu.flags == b->cpu.flags &&
          a->cpu.sp == b->cpu.sp && a->cpu.pc == b->cpu.pc &&
          a->cpu.ir == b->cpu.ir &&
          (a->cpu.bank == b->cpu.bank ||
@@ -33,6 +33,9 @@ void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
       fprintf(f, "registers[%s]: %d != %d\n", reg8_name(i), a->cpu.registers[i],
               b->cpu.registers[i]);
     }
+  }
+  if (a->cpu.flags != b->cpu.flags) {
+    fprintf(f, "flags: $%02x != $%02x\n", a->cpu.flags, b->cpu.flags);
   }
   if (a->cpu.sp != b->cpu.sp) {
     fprintf(f, "sp: %d != %d\n", a->cpu.sp, b->cpu.sp);

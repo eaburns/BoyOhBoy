@@ -131,6 +131,26 @@ static Reg16 decode_reg16mem(int shift, uint8_t op_code) {
   return r == 2 ? REG_HL_PLUS : (r == 3 ? REG_HL_MINUS : r);
 }
 
+static void assign_flag(Cpu *cpu, Flag f, bool value) {
+  if (value) {
+    cpu->flags |= f;
+  } else {
+    cpu->flags &= ~f;
+  }
+}
+
+static bool get_flag(Cpu *cpu, Flag f) { return cpu->flags & f; }
+
+// Adds x to register r, setting flag N to 0 and setting H and C to the
+// appropriate carry bits.
+static void add_to_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
+  uint8_t y = get_reg8(cpu, r);
+  set_reg8(cpu, r, x + y);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, ((x & 0x0F) + (y & 0x0F)) >> 4);
+  assign_flag(cpu, FLAG_C, (x + y) >> 8);
+}
+
 static ExecResult exec_nop(Gameboy *g, const Instruction *, int cycle) {
   g->cpu.ir = fetch_pc(g);
   return DONE;
@@ -249,8 +269,20 @@ static ExecResult exec_dec_r16(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_add_hl_r16(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_add_hl_r16(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
+  Cpu *cpu = &g->cpu;
+  Reg16 r = decode_reg16(instr->shift, cpu->ir);
+  uint16_t x = get_reg16(cpu, r);
+  switch (cycle) {
+  case 0:
+    add_to_reg8(cpu, REG_L, x & 0xFF);
+    return NOT_DONE;
+  default: // 1
+    add_to_reg8(cpu, REG_H, (x >> 8) + get_flag(cpu, FLAG_C));
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_inc_r8(Gameboy *, const Instruction *, int cycle) {
