@@ -310,8 +310,26 @@ static ExecResult exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_ld_r8_imm8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    Reg8 r = decode_reg8(instr->shift, cpu->ir);
+    if (r == REG_HL_MEM) {
+      Addr addr = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
+      store(g, addr, cpu->scratch[0]);
+      return NOT_DONE;
+    }
+    set_reg8(cpu, r, cpu->scratch[0]);
+    // FALLTHROUGH
+  default: // 2
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_rlca(Gameboy *, const Instruction *, int cycle) {

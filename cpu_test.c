@@ -1233,6 +1233,65 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name = "(exec_ld_r8_imm8) LD A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0x3E, .registers = {[REG_A] = 0}},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.registers = {[REG_A] = 1}, .pc = 2, .ir = 2},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_r8_imm8) LD B, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0x06, .registers = {[REG_B] = 0}},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.registers = {[REG_B] = 1}, .pc = 2, .ir = 2},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_r8_imm8) LD [HL], imm8",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x36,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                            },
+                        .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 1},
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {
