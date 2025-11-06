@@ -1310,10 +1310,13 @@ static struct exec_test
                     },
                 .want =
                     {
-                        .cpu = {.registers = {[REG_A] = 0x2},
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x2},
                                 .pc = 1,
                                 .ir = 1,
-                                .flags = 0},
+                                .flags = 0,
+                            },
                         .mem = {1, 2, 3, 4},
                     },
                 .cycles = 1,
@@ -1335,6 +1338,56 @@ static struct exec_test
                         .cpu =
                             {
                                 .registers = {[REG_A] = 0x55},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_rrca) RRCA (no carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x0F,
+                                .registers = {[REG_A] = 0x80},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x40},
+                                .pc = 1,
+                                .ir = 1,
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_rrca) RRCA (carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x0F,
+                                .registers = {[REG_A] = 0x55},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0xAA},
                                 .flags = FLAG_C,
                                 .pc = 1,
                                 .ir = 1,
