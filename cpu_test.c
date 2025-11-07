@@ -1871,6 +1871,31 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name = "(exec_cpl) CPL",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x2F,
+                                .registers = {[REG_A] = 0x00},
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0xFF},
+                                .flags = FLAG_N | FLAG_H,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {

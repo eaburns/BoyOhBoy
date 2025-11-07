@@ -422,8 +422,13 @@ static ExecResult exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_cpl(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_cpl(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  set_reg8(cpu, REG_A, ~get_reg8(cpu, REG_A));
+  assign_flag(cpu, FLAG_N, true);
+  assign_flag(cpu, FLAG_H, true);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_scf(Gameboy *, const Instruction *, int cycle) {
