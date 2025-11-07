@@ -84,21 +84,22 @@ void store(Gameboy *g, Addr addr, uint8_t x) {
 
 ExecResult cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
+
+  if (cpu->ir == 0xCB) {
+    cpu->ir = fetch_pc(g);
+    cpu->cycle++;
+    cpu->bank = cb_instructions;
+    cpu->instr = NULL; // should already be null, but just in case.
+    return NOT_DONE;
+  }
+
   if (cpu->bank == NULL) {
     cpu->bank = instructions;
   }
-  if (cpu->cycle == 0) {
-    // TODO: handle 0xCB bank switching.
+  if (cpu->instr == NULL) {
     cpu->instr = find_instruction(cpu->bank, cpu->ir);
   }
-  ExecResult result;
-  if (cpu->ir == 0xCB) {
-    cpu->ir = fetch_pc(g);
-    cpu->bank = cb_instructions;
-    result = NOT_DONE;
-  } else {
-    result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
-  }
+  ExecResult result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
   cpu->cycle++;
   if (result == DONE) {
     cpu->bank = instructions;
@@ -449,8 +450,19 @@ static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_rlc_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
+  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
+  Cpu *cpu = &g->cpu;
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  uint8_t x = get_reg8(cpu, r);
+  set_reg8(cpu, r, (x << 1) | (x >> 7));
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x >> 7);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_rrc_r8(Gameboy *, const Instruction *, int cycle) {
