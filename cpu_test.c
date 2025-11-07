@@ -2013,6 +2013,81 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_rrc) RRC B (no carry, non-zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x10},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x08},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rrc) RRC B (carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x01},
+                                .flags = FLAGS_ZNH, /* carry not set */
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x80},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C,
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rrc) RRC B (zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x00},
+                                .flags = FLAGS_NHC, /* zero not set */
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x0},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
