@@ -1546,6 +1546,331 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name = "(exec_daa) DAA (N)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x01},
+                                .flags = FLAG_N,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x01},
+                                .flags = FLAG_N,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (NH)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x11},
+                                .flags = FLAG_N | FLAG_H,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0xB /* 0x11-0x6 */},
+                                .flags = FLAG_N,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (NC)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x01},
+                                .flags = FLAG_N | FLAG_C,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0xA1 /* 0x1-0x60 */},
+                                .flags = FLAG_N | FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (NCH)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x11},
+                                .flags = FLAG_N | FLAG_C | FLAG_H,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0xAB /* 0x11-0x66 */},
+                                .flags = FLAG_N | FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (0 flags)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x01},
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x01},
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (H)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x11},
+                                .flags = FLAG_H,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x17 /* 0x11 + 0x6 */},
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (A&F > 9)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0xA},
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x10 /* 0xA + 0x6 */},
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (C)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x1},
+                                .flags = FLAG_C,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x61 /* 0x1 + 0x60 */},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (a > 0x99)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0xA1},
+                                .flags = 0,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x01 /* 0xA1 + 0x60 */},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (CH)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x11},
+                                .flags = FLAG_C | FLAG_H,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x77 /* 0x11 + 0x66 */},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (C A&F > 9)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x1A},
+                                .flags = FLAG_C,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x80 /* 0x1A + 0x66 */},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (H A > 0x99)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0xAA},
+                                .flags = FLAG_H,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x10 /* 0x1A + 0x66 */},
+                                .flags = FLAG_C,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_daa) DAA (set Z)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x27,
+                                .registers = {[REG_A] = 0x06},
+                                .flags = FLAG_H | FLAG_N,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0},
+                                .flags = FLAG_Z | FLAG_N,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {

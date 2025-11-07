@@ -394,8 +394,32 @@ static ExecResult exec_rra(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_daa(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  uint8_t adj = 0;
+  uint8_t a = get_reg8(cpu, REG_A);
+  if (get_flag(cpu, FLAG_N)) {
+    if (get_flag(cpu, FLAG_H)) {
+      adj += 0x6;
+    }
+    if (get_flag(cpu, FLAG_C)) {
+      adj += 0x60;
+    }
+    set_reg8(cpu, REG_A, a - adj);
+  } else {
+    if (get_flag(cpu, FLAG_H) || (a & 0xF) > 0x9) {
+      adj += 0x6;
+    }
+    if (get_flag(cpu, FLAG_C) || a > 0x99) {
+      adj += 0x60;
+      assign_flag(cpu, FLAG_C, true);
+    }
+    set_reg8(cpu, REG_A, a + adj);
+  }
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
+  assign_flag(cpu, FLAG_H, 0);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_cpl(Gameboy *, const Instruction *, int cycle) {
