@@ -3168,6 +3168,150 @@ static struct exec_test
                     },
                 .cycles = 3,
             },
+            {
+                .name = "(exec_jr_cond_imm8) JR NZ 1 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x20, .flags = 0},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 5, .ir = 4, .flags = 0},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR NZ 1 (false)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x20, .flags = FLAG_Z},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 4, .ir = 3, .flags = FLAG_Z},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR Z 1 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x28, .flags = FLAG_Z},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 5, .ir = 4, .flags = FLAG_Z},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR Z 1 (false)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x28, .flags = 0},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 4, .ir = 3, .flags = 0},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR NC 1 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x30, .flags = 0},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 5, .ir = 4, .flags = 0},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR NC 1 (false)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x30, .flags = FLAG_C},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 4, .ir = 3, .flags = FLAG_C},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR C 1 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x38, .flags = FLAG_C},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 5, .ir = 4, .flags = FLAG_C},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR C 1 (false)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x38, .flags = 0},
+                        .mem = {0, 1, /* imm8=*/1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 4, .ir = 3, .flags = 0},
+                        .mem = {0, 1, 1, 3, 4},
+
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_jr_cond_imm8) JR NZ -1 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 2, .ir = 0x20, .flags = 0},
+                        .mem = {0, 1, /* imm8=*/-1, 3, 4},
+
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 3, .ir = -1, .flags = 0},
+                        .mem = {0, 1, -1, 3, 4},
+
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {

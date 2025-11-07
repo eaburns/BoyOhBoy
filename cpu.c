@@ -136,6 +136,14 @@ static int decode_bit_index(int shift, uint8_t op_code) {
   return (op_code >> (shift + 3)) & 0x7;
 }
 
+static Cond decode_cond(int shift, uint8_t op_code) {
+  return (op_code >> shift) & 0x3;
+}
+
+static int decode_tgt3(int shift, uint8_t op_code) {
+  return ((op_code >> shift) & 0x7) * 8;
+}
+
 static void assign_flag(Cpu *cpu, Flag f, bool value) {
   if (value) {
     cpu->flags |= f;
@@ -144,7 +152,7 @@ static void assign_flag(Cpu *cpu, Flag f, bool value) {
   }
 }
 
-static bool get_flag(Cpu *cpu, Flag f) { return cpu->flags & f; }
+static bool get_flag(const Cpu *cpu, Flag f) { return cpu->flags & f; }
 
 // Returns whether adding x+y would half-carry.
 static bool add_half_carries(uint8_t x, uint8_t y) {
@@ -644,8 +652,39 @@ static ExecResult exec_jr_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_jr_cond_imm8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+bool eval_cond(const Cpu *cpu, Cond cc) {
+  switch (cc) {
+  case NZ:
+    return !get_flag(cpu, FLAG_Z);
+  case Z:
+    return get_flag(cpu, FLAG_Z);
+  case NC:
+    return !get_flag(cpu, FLAG_C);
+  case C:
+    return get_flag(cpu, FLAG_C);
+  default:
+    fail("impossible Cond: %d", cc);
+  }
+}
+
+static ExecResult exec_jr_cond_imm8(Gameboy *g, const Instruction *instr,
+                                    int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    if (!eval_cond(cpu, decode_cond(instr->shift, cpu->ir))) {
+      cpu->ir = fetch_pc(g);
+      return DONE;
+    }
+    cpu->pc += (int8_t)cpu->scratch[0];
+    return NOT_DONE;
+  default: // 2
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_stop(Gameboy *, const Instruction *, int cycle) {
@@ -1438,14 +1477,6 @@ const Instruction *find_instruction(const Instruction *bank, uint8_t op_code) {
     instr++;
   }
   return unknown_instruction;
-}
-
-static Cond decode_cond(int shift, uint8_t op_code) {
-  return (op_code >> shift) & 0x3;
-}
-
-static int decode_tgt3(int shift, uint8_t op_code) {
-  return ((op_code >> shift) & 0x7) * 8;
 }
 
 const char *reg8_name(Reg8 r) {
