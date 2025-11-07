@@ -613,6 +613,7 @@ struct exec_test {
 enum {
   HIGH_RAM_START = 0xFF80,
   FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
+  FLAGS_NH = FLAG_N | FLAG_H,
   FLAGS_ZNH = FLAG_Z | FLAG_N | FLAG_H,
   FLAGS_ZNHC = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
 };
@@ -2085,6 +2086,57 @@ static struct exec_test
                                 .flags = FLAG_Z,
                             },
                         .mem = {/* op code */ 0x08, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rl) RL B (no carry, non-zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x10},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {/* op code */ 0x10, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x21},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x10, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rl) RL B (carry, zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x80},
+                                .flags =
+                                    FLAGS_NH, /* carry not set; zero not set */
+                            },
+                        .mem = {/* op code */ 0x10, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x10, 2, 3, 4},
                     },
                 .cycles = 2,
             },
