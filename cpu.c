@@ -549,8 +549,18 @@ static ExecResult exec_swap_r8(Gameboy *g, const Instruction *instr,
   return exec_bit_twiddle_r8(g, instr, cycle, swap_nibbles);
 }
 
-static ExecResult exec_srl_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+// Returns SRL x, setting Z, N,  H, and C.
+static uint8_t srl(Cpu *cpu, uint8_t x) {
+  uint8_t result = x >> 1;
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x & 1);
+  return result;
+}
+
+static ExecResult exec_srl_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_bit_twiddle_r8(g, instr, cycle, srl);
 }
 
 static ExecResult exec_bit_b3_r8(Gameboy *, const Instruction *, int cycle) {

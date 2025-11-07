@@ -2681,6 +2681,101 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_srl_r8) SRL B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x80},
+                                .flags = FLAGS_ZNHC, // carry flag set
+                            },
+                        .mem = {/* op code */ 0x38, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x40},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0, // clears the carry flag
+                            },
+                        .mem = {/* op code */ 0x38, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_srl_r8) SRL B (carry, zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x01},
+                                .flags = FLAGS_NH,
+                            },
+                        .mem = {/* op code */ 0x38, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x38, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_srl_r8) SRL [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {
+                            /* op code */ 0x3E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x80,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {
+                            /* op code */ 0x3E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x40,
+                        },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
