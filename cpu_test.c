@@ -2467,7 +2467,7 @@ static struct exec_test
                 .cycles = 4,
             },
             {
-                .name = "(exec_sra_r8) SRA B",
+                .name = "(exec_sra_r8) SRA B (high bit is zero)",
                 .init =
                     {
                         .cpu =
@@ -2483,6 +2483,31 @@ static struct exec_test
                         .cpu =
                             {
                                 .registers = {[REG_B] = 0x1},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sra_r8) SRA B (high bit is one)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x80},
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0xC0},
                                 .pc = 2,
                                 .ir = 2,
                                 .flags = 0,
