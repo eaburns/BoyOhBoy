@@ -3028,6 +3028,146 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_jr_imm8) JR 0",
+                .init =
+                    {
+                        .cpu = {.pc = 0, .ir = 0x18},
+                        .mem =
+                            {
+                                [0] = 0, // pc
+                                [1] = 1,
+                                [2] = 2,
+                                [3] = 3,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2, .ir = 1},
+                        .mem =
+                            {
+                                [0] = 0,
+                                [1] = 1,
+                                [2] = 2,
+                                [3] = 3,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR 1",
+                .init =
+                    {
+                        .cpu = {.pc = 0, .ir = 0x18},
+                        .mem =
+                            {
+                                [0] = 1, // pc
+                                [1] = 1,
+                                [2] = 2,
+                                [3] = 3,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 3, .ir = 2},
+                        .mem =
+                            {
+                                [0] = 1,
+                                [1] = 1,
+                                [2] = 2,
+                                [3] = 3,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR 127",
+                .init =
+                    {
+                        .cpu = {.pc = 0, .ir = 0x18},
+                        .mem =
+                            {
+                                [0] = 127,
+                                [128] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 129, .ir = 5},
+                        .mem =
+                            {
+                                [0] = 127,
+                                [128] = 5,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR -1",
+                .init =
+                    {
+                        .cpu = {.pc = 1, .ir = 0x18},
+                        .mem =
+                            {
+                                [0] = 0,
+                                [1] = -1, // pc
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2, .ir = -1},
+                        .mem =
+                            {
+                                [0] = 0,
+                                [1] = -1,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR -128",
+                .init =
+                    {
+                        .cpu = {.pc = 200, .ir = 0x18},
+                        .mem =
+                            {
+                                [73] = 5,
+                                [200] = -128,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 74, .ir = 5},
+                        .mem =
+                            {
+                                [73] = 5,
+                                [200] = -128,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR 128 (JR -128)",
+                .init =
+                    {
+                        .cpu = {.pc = 200, .ir = 0x18},
+                        .mem =
+                            {
+                                [73] = 5,
+                                [200] = 128,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 74, .ir = 5},
+                        .mem =
+                            {
+                                [73] = 5,
+                                [200] = 128,
+                            },
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {

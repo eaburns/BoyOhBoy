@@ -628,8 +628,20 @@ static ExecResult exec_set_b3_r8(Gameboy *g, const Instruction *instr,
   return exec_res_set_b3_r8(g, instr, cycle, set_bit);
 }
 
-static ExecResult exec_jr_imm8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_jr_imm8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    cpu->pc += (int8_t)cpu->scratch[0];
+    return NOT_DONE;
+  default: // 2
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_jr_cond_imm8(Gameboy *, const Instruction *, int cycle) {
