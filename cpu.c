@@ -687,8 +687,9 @@ static ExecResult exec_jr_cond_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_stop(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_stop(Gameboy *g, const Instruction *instr, int cycle) {
+  fail("STOP instruction is not implemented");
+  return DONE; // impossible
 }
 
 static ExecResult exec_ld_r8_r8(Gameboy *, const Instruction *, int cycle) {
