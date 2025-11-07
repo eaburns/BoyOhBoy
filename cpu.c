@@ -343,56 +343,70 @@ static ExecResult exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_rlca(Gameboy *g, const Instruction *instr, int cycle) {
-  Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, (x << 1) | (x >> 7));
-  // RLCA always sets Z to 0 regardless of whether the result is 0.
-  assign_flag(cpu, FLAG_Z, false);
+// Returns RLC x, setting Z, N, H, and C.
+uint8_t rlc(Cpu *cpu, uint8_t x) {
+  uint8_t result = (x << 1) | (x >> 7);
+  assign_flag(cpu, FLAG_Z, result == 0);
   assign_flag(cpu, FLAG_N, false);
   assign_flag(cpu, FLAG_H, false);
   assign_flag(cpu, FLAG_C, x >> 7);
+  return result;
+}
+
+// Returns RRC x, setting Z, N, H, and C.
+uint8_t rrc(Cpu *cpu, uint8_t x) {
+  uint8_t result = (x >> 1) | ((x & 1) << 7);
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x & 1);
+  return result;
+}
+
+// Returns RL x, setting Z, N, H, and C.
+uint8_t rl(Cpu *cpu, uint8_t x) {
+  uint8_t result = (x << 1) | get_flag(cpu, FLAG_C);
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x >> 7);
+  return result;
+}
+
+// Returns RR x, setting Z, N, H, and C.
+uint8_t rr(Cpu *cpu, uint8_t x) {
+  uint8_t result = (x >> 1) | get_flag(cpu, FLAG_C) << 7;
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x & 1);
+  return result;
+}
+
+static ExecResult exec_rotate_a(Gameboy *g, const Instruction *instr, int cycle,
+                                uint8_t (*rotate)(Cpu *, uint8_t)) {
+  Cpu *cpu = &g->cpu;
+  set_reg8(cpu, REG_A, rotate(cpu, get_reg8(cpu, REG_A)));
+  // Register A rotations always set Z to 0 regardless of the result.
+  assign_flag(cpu, FLAG_Z, false);
   cpu->ir = fetch_pc(g);
   return DONE;
+}
+
+static ExecResult exec_rlca(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_rotate_a(g, instr, cycle, rlc);
 }
 
 static ExecResult exec_rrca(Gameboy *g, const Instruction *instr, int cycle) {
-  Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, (x >> 1) | ((x & 1) << 7));
-  // RLCA always sets Z to 0 regardless of whether the result is 0.
-  assign_flag(cpu, FLAG_Z, false);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x & 1);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_a(g, instr, cycle, rrc);
 }
 
 static ExecResult exec_rla(Gameboy *g, const Instruction *instr, int cycle) {
-  Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, (x << 1) | get_flag(cpu, FLAG_C));
-  // RLCA always sets Z to 0 regardless of whether the result is 0.
-  assign_flag(cpu, FLAG_Z, false);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x >> 7);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_a(g, instr, cycle, rl);
 }
 
 static ExecResult exec_rra(Gameboy *g, const Instruction *instr, int cycle) {
-  Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, (x >> 1) | get_flag(cpu, FLAG_C) << 7);
-  // RLCA always sets Z to 0 regardless of whether the result is 0.
-  assign_flag(cpu, FLAG_Z, false);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x & 1);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_a(g, instr, cycle, rr);
 }
 
 static ExecResult exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
@@ -450,64 +464,47 @@ static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static ExecResult exec_rotate_r8(Gameboy *g, const Instruction *instr,
+                                 int cycle, uint8_t (*rotate)(Cpu *, uint8_t)) {
   // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
   // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
   Cpu *cpu = &g->cpu;
-  Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, (x << 1) | (x >> 7));
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x >> 7);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
+  switch (cycle) {
+  case 0:
+    fail("impossible cycle 0"); // cycle 0 is reading the 0xCB prefix.
+  case 1:
+    Reg8 r = decode_reg8(instr->shift, cpu->ir);
+    if (r != REG_HL_MEM) {
+      set_reg8(cpu, r, rotate(cpu, get_reg8(cpu, r)));
+      cpu->ir = fetch_pc(g);
+      return DONE;
+    }
+    cpu->scratch[0] = fetch(g, hl);
+    return NOT_DONE;
+  case 2:
+    store(g, hl, rotate(cpu, cpu->scratch[0]));
+    return NOT_DONE;
+  default: // 3
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+}
+
+static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_rotate_r8(g, instr, cycle, rlc);
 }
 
 static ExecResult exec_rrc_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
-  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
-  Cpu *cpu = &g->cpu;
-  Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, (x >> 1) | ((x & 1) << 7));
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x & 1);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_r8(g, instr, cycle, rrc);
 }
 
 static ExecResult exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
-  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
-  Cpu *cpu = &g->cpu;
-  Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, (x << 1) | get_flag(cpu, FLAG_C));
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x >> 7);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_r8(g, instr, cycle, rl);
 }
 
 static ExecResult exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
-  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
-  Cpu *cpu = &g->cpu;
-  Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, (x >> 1) | get_flag(cpu, FLAG_C) << 7);
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  assign_flag(cpu, FLAG_C, x & 1);
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  return exec_rotate_r8(g, instr, cycle, rr);
 }
 
 static ExecResult exec_sla_r8(Gameboy *, const Instruction *, int cycle) {

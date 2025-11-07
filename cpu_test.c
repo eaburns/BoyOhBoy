@@ -2015,6 +2015,51 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_rlc_r8) RLC [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {
+                            /* op code */ 0x06,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x88,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C,
+                            },
+                        .mem = {
+                            /* op code */ 0x06,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x11,
+                        },
+                    },
+                .cycles = 4,
+            },
+            {
                 .name = "(exec_rrc_r8) RRC B (no carry, non-zero)",
                 .init =
                     {
@@ -2090,6 +2135,51 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_rrc_r8) RRC [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {
+                            /* op code */ 0x0E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x01,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C,
+                            },
+                        .mem = {
+                            /* op code */ 0x0E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x80,
+                        },
+                    },
+                .cycles = 4,
+            },
+            {
                 .name = "(exec_rl_r8) RL B (no carry, non-zero)",
                 .init =
                     {
@@ -2141,6 +2231,51 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_rl_r8) RL [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH, /* no carry */
+                            },
+                        .mem = {
+                            /* op code */ 0x16,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x80,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {
+                            /* op code */ 0x16,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x00,
+                        },
+                    },
+                .cycles = 4,
+            },
+            {
                 .name = "(exec_rr_r8) RR B (no carry, non-zero)",
                 .init =
                     {
@@ -2190,6 +2325,51 @@ static struct exec_test
                         .mem = {/* op code */ 0x18, 2, 3, 4},
                     },
                 .cycles = 2,
+            },
+            {
+                .name = "(exec_rr_r8) RR [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH, /* no carry */
+                            },
+                        .mem = {
+                            /* op code */ 0x1E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x01,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {
+                            /* op code */ 0x1E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x00,
+                        },
+                    },
+                .cycles = 4,
             },
 };
 
