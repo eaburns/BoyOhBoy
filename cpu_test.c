@@ -2379,8 +2379,7 @@ static struct exec_test
                             {
                                 .ir = 0xCB, // Op-code is at mem[pc == 0].
                                 .registers = {[REG_B] = 0x01},
-                                .flags =
-                                    FLAGS_ZNH,
+                                .flags = FLAGS_ZNH,
                             },
                         .mem = {/* op code */ 0x20, 2, 3, 4},
                     },
@@ -2405,8 +2404,7 @@ static struct exec_test
                             {
                                 .ir = 0xCB, // Op-code is at mem[pc == 0].
                                 .registers = {[REG_B] = 0x80},
-                                .flags =
-                                    FLAGS_NH,
+                                .flags = FLAGS_NH,
                             },
                         .mem = {/* op code */ 0x20, 2, 3, 4},
                     },
@@ -2476,8 +2474,7 @@ static struct exec_test
                             {
                                 .ir = 0xCB, // Op-code is at mem[pc == 0].
                                 .registers = {[REG_B] = 0x02},
-                                .flags =
-                                    FLAGS_ZNH,
+                                .flags = FLAGS_ZNH,
                             },
                         .mem = {/* op code */ 0x28, 2, 3, 4},
                     },
@@ -2502,8 +2499,7 @@ static struct exec_test
                             {
                                 .ir = 0xCB, // Op-code is at mem[pc == 0].
                                 .registers = {[REG_B] = 0x01},
-                                .flags =
-                                    FLAGS_NH,
+                                .flags = FLAGS_NH,
                             },
                         .mem = {/* op code */ 0x28, 2, 3, 4},
                     },
@@ -2561,6 +2557,101 @@ static struct exec_test
                             3,
                             4,
                             [HIGH_RAM_START] = 0x01,
+                        },
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_swap_r8) SWAP B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0xA5},
+                                .flags = FLAGS_ZNHC, // carry flag set
+                            },
+                        .mem = {/* op code */ 0x30, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x5A},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0, // clears the carry flag
+                            },
+                        .mem = {/* op code */ 0x30, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_swap_r8) SWAP B (zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x00},
+                                .flags = FLAGS_NH,
+                            },
+                        .mem = {/* op code */ 0x30, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x30, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_swap_r8) SWAP [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {
+                            /* op code */ 0x36,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x5A,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {
+                            /* op code */ 0x36,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0xA5,
                         },
                     },
                 .cycles = 4,

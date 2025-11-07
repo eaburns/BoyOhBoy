@@ -464,9 +464,9 @@ static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_shift_rotate_r8(Gameboy *g, const Instruction *instr,
-                                       int cycle,
-                                       uint8_t (*op)(Cpu *, uint8_t)) {
+static ExecResult exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
+                                      int cycle,
+                                      uint8_t (*op)(Cpu *, uint8_t)) {
   Cpu *cpu = &g->cpu;
   Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   switch (cycle) {
@@ -491,19 +491,19 @@ static ExecResult exec_shift_rotate_r8(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, rlc);
+  return exec_bit_twiddle_r8(g, instr, cycle, rlc);
 }
 
 static ExecResult exec_rrc_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, rrc);
+  return exec_bit_twiddle_r8(g, instr, cycle, rrc);
 }
 
 static ExecResult exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, rl);
+  return exec_bit_twiddle_r8(g, instr, cycle, rl);
 }
 
 static ExecResult exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, rr);
+  return exec_bit_twiddle_r8(g, instr, cycle, rr);
 }
 
 // Returns SLA x, setting Z, N,  H, and C.
@@ -517,7 +517,7 @@ static uint8_t sla(Cpu *cpu, uint8_t x) {
 }
 
 static ExecResult exec_sla_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, sla);
+  return exec_bit_twiddle_r8(g, instr, cycle, sla);
 }
 
 // Returns SRA x, setting Z, N,  H, and C.
@@ -531,11 +531,22 @@ static uint8_t sra(Cpu *cpu, uint8_t x) {
 }
 
 static ExecResult exec_sra_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_shift_rotate_r8(g, instr, cycle, sra);
+  return exec_bit_twiddle_r8(g, instr, cycle, sra);
 }
 
-static ExecResult exec_swap_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+// Returns SWAP x, setting Z, N,  H, and C.
+static uint8_t swap_nibbles(Cpu *cpu, uint8_t x) {
+  uint8_t result = x >> 4 | (x & 0xFF) << 4;
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, false);
+  return result;
+}
+
+static ExecResult exec_swap_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
+  return exec_bit_twiddle_r8(g, instr, cycle, swap_nibbles);
 }
 
 static ExecResult exec_srl_r8(Gameboy *, const Instruction *, int cycle) {
