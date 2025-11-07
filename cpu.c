@@ -335,8 +335,7 @@ static ExecResult exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
   case 1:
     Reg8 r = decode_reg8(instr->shift, cpu->ir);
     if (r == REG_HL_MEM) {
-      Addr addr = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
-      store(g, addr, cpu->scratch[0]);
+      store(g, get_reg16(cpu, REG_HL), cpu->scratch[0]);
       return NOT_DONE;
     }
     set_reg8(cpu, r, cpu->scratch[0]);
@@ -472,7 +471,6 @@ static ExecResult exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
                                       int cycle,
                                       uint8_t (*op)(Cpu *, uint8_t)) {
   Cpu *cpu = &g->cpu;
-  Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   switch (cycle) {
   case 0:
     fail("impossible cycle 0"); // cycle 0 is reading the 0xCB prefix.
@@ -483,10 +481,10 @@ static ExecResult exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
       cpu->ir = fetch_pc(g);
       return DONE;
     }
-    cpu->scratch[0] = fetch(g, hl);
+    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
     return NOT_DONE;
   case 2:
-    store(g, hl, op(cpu, cpu->scratch[0]));
+    store(g, get_reg16(cpu, REG_HL), op(cpu, cpu->scratch[0]));
     return NOT_DONE;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -570,7 +568,6 @@ static ExecResult exec_srl_r8(Gameboy *g, const Instruction *instr, int cycle) {
 static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
                                  int cycle) {
   Cpu *cpu = &g->cpu;
-  Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
   int bit = decode_bit_index(instr->shift, cpu->ir);
   switch (cycle) {
@@ -581,7 +578,7 @@ static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
       assign_flag(cpu, FLAG_Z, (get_reg8(cpu, r) >> bit) ^ 1);
       break;
     }
-    cpu->scratch[0] = fetch(g, hl);
+    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
     return NOT_DONE;
   default: // 2
     assign_flag(cpu, FLAG_Z, (cpu->scratch[0] >> bit) ^ 1);
