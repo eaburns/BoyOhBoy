@@ -2962,6 +2962,72 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_set_b3_r8) SET 2 B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x00},
+                            },
+                        .mem = {/* op code */ 0xD0, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x04},
+                                .pc = 2,
+                                .ir = 2,
+                            },
+                        .mem = {/* op code */ 0xD0, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_set_b3_r8) SET 2 [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {
+                            /* op code */ 0xd6,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x00,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                            },
+                        .mem = {
+                            /* op code */ 0xD6,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x04,
+                        },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {

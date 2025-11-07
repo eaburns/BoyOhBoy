@@ -590,8 +590,8 @@ static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
   return DONE;
 }
 
-static ExecResult exec_res_b3_r8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static ExecResult exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
+                                     int cycle, uint8_t (*op)(int, uint8_t)) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
   int bit = decode_bit_index(instr->shift, cpu->ir);
@@ -600,14 +600,14 @@ static ExecResult exec_res_b3_r8(Gameboy *g, const Instruction *instr,
     fail("impossible cycle 0"); // cycle 0 is reading the 0xCB prefix.
   case 1:
     if (r != REG_HL_MEM) {
-      set_reg8(cpu, r, get_reg8(cpu, r) & ~(1 << bit));
+      set_reg8(cpu, r, op(bit, get_reg8(cpu, r)));
       cpu->ir = fetch_pc(g);
       return DONE;
     }
     cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
     return NOT_DONE;
   case 2:
-    store(g, get_reg16(cpu, REG_HL), cpu->scratch[0] & ~(1 << bit));
+    store(g, get_reg16(cpu, REG_HL), op(bit, cpu->scratch[0]));
     return NOT_DONE;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -615,8 +615,17 @@ static ExecResult exec_res_b3_r8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_set_b3_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+uint8_t res_bit(int bit, uint8_t x) { return x & ~(1 << bit); }
+
+static ExecResult exec_res_b3_r8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
+  return exec_res_set_b3_r8(g, instr, cycle, res_bit);
+}
+uint8_t set_bit(int bit, uint8_t x) { return x | (1 << bit); }
+
+static ExecResult exec_set_b3_r8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
+  return exec_res_set_b3_r8(g, instr, cycle, set_bit);
 }
 
 static ExecResult exec_jr_imm8(Gameboy *, const Instruction *, int cycle) {
