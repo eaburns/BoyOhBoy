@@ -1940,7 +1940,7 @@ static struct exec_test
                 .cycles = 1,
             },
             {
-                .name = "(exec_rlc) RLC B (no carry, non-zero)",
+                .name = "(exec_rlc_r8) RLC B (no carry, non-zero)",
                 .init =
                     {
                         .cpu =
@@ -1965,7 +1965,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rlc) RLC B (carry)",
+                .name = "(exec_rlc_r8) RLC B (carry)",
                 .init =
                     {
                         .cpu =
@@ -1990,7 +1990,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rlc) RLC B (zero)",
+                .name = "(exec_rlc_r8) RLC B (zero)",
                 .init =
                     {
                         .cpu =
@@ -2015,7 +2015,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rrc) RRC B (no carry, non-zero)",
+                .name = "(exec_rrc_r8) RRC B (no carry, non-zero)",
                 .init =
                     {
                         .cpu =
@@ -2040,7 +2040,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rrc) RRC B (carry)",
+                .name = "(exec_rrc_r8) RRC B (carry)",
                 .init =
                     {
                         .cpu =
@@ -2065,7 +2065,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rrc) RRC B (zero)",
+                .name = "(exec_rrc_r8) RRC B (zero)",
                 .init =
                     {
                         .cpu =
@@ -2090,7 +2090,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rl) RL B (no carry, non-zero)",
+                .name = "(exec_rl_r8) RL B (no carry, non-zero)",
                 .init =
                     {
                         .cpu =
@@ -2115,7 +2115,7 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_rl) RL B (carry, zero)",
+                .name = "(exec_rl_r8) RL B (carry, zero)",
                 .init =
                     {
                         .cpu =
@@ -2137,6 +2137,57 @@ static struct exec_test
                                 .flags = FLAG_C | FLAG_Z,
                             },
                         .mem = {/* op code */ 0x10, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rr_r8) RR B (no carry, non-zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x10},
+                                .flags = FLAGS_ZNHC,
+                            },
+                        .mem = {/* op code */ 0x18, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x88},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x18, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_rr_r8) RR B (carry, zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x01},
+                                .flags =
+                                    FLAGS_NH, /* carry not set; zero not set */
+                            },
+                        .mem = {/* op code */ 0x18, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x18, 2, 3, 4},
                     },
                 .cycles = 2,
             },

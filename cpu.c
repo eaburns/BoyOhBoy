@@ -495,8 +495,19 @@ static ExecResult exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_rr_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
+  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
+  Cpu *cpu = &g->cpu;
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  uint8_t x = get_reg8(cpu, r);
+  set_reg8(cpu, r, (x >> 1) | get_flag(cpu, FLAG_C) << 7);
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x & 1);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_sla_r8(Gameboy *, const Instruction *, int cycle) {
