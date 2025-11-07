@@ -1896,6 +1896,48 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name = "(exec_scf) SCF",
+                .init =
+                    {
+                        .cpu = {.ir = 0x37, .flags = FLAG_N | FLAG_H},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.flags = FLAG_C, .pc = 1, .ir = 1},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ccf) CCF !true",
+                .init =
+                    {
+                        .cpu = {.ir = 0x3F, .flags = FLAG_N | FLAG_H | FLAG_C},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.flags = 0, .pc = 1, .ir = 1},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ccf) CCF !false",
+                .init =
+                    {
+                        .cpu = {.ir = 0x3F, .flags = FLAG_N | FLAG_H},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu = {.flags = FLAG_C, .pc = 1, .ir = 1},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {

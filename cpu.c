@@ -431,12 +431,22 @@ static ExecResult exec_cpl(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_scf(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_scf(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, true);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
-static ExecResult exec_ccf(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, !get_flag(cpu, FLAG_C));
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_rlc_r8(Gameboy *, const Instruction *, int cycle) {
