@@ -132,6 +132,10 @@ static Reg16 decode_reg16mem(int shift, uint8_t op_code) {
   return r == 2 ? REG_HL_PLUS : (r == 3 ? REG_HL_MINUS : r);
 }
 
+static int decode_bit_index(int shift, uint8_t op_code) {
+  return (op_code >> (shift + 3)) & 0x7;
+}
+
 static void assign_flag(Cpu *cpu, Flag f, bool value) {
   if (value) {
     cpu->flags |= f;
@@ -563,8 +567,30 @@ static ExecResult exec_srl_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, srl);
 }
 
-static ExecResult exec_bit_b3_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
+  Cpu *cpu = &g->cpu;
+  Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  int bit = decode_bit_index(instr->shift, cpu->ir);
+  switch (cycle) {
+  case 0:
+    fail("impossible cycle 0"); // cycle 0 is reading the 0xCB prefix.
+  case 1:
+    if (r != REG_HL_MEM) {
+      assign_flag(cpu, FLAG_Z, (get_reg8(cpu, r) >> bit) ^ 1);
+      break;
+    }
+    cpu->scratch[0] = fetch(g, hl);
+    return NOT_DONE;
+  default: // 2
+    assign_flag(cpu, FLAG_Z, (cpu->scratch[0] >> bit) ^ 1);
+    break;
+  }
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_res_b3_r8(Gameboy *, const Instruction *, int cycle) {
@@ -1273,7 +1299,8 @@ const Instruction *unknown_instruction = &_unknown_instruction;
 const Instruction *instructions = _instructions;
 const Instruction *cb_instructions = _cb_instructions;
 
-// Returns the number of bytes following the instruction opcode for the operand.
+// Returns the number of bytes following the instruction opcode for the
+// operand.
 static int operand_size(Operand operand) {
   switch (operand) {
   case NONE:
@@ -1380,10 +1407,6 @@ static Cond decode_cond(int shift, uint8_t op_code) {
 
 static int decode_tgt3(int shift, uint8_t op_code) {
   return ((op_code >> shift) & 0x7) * 8;
-}
-
-static int decode_bit_index(int shift, uint8_t op_code) {
-  return (op_code >> (shift + 3)) & 0x7;
 }
 
 const char *reg8_name(Reg8 r) {
@@ -1551,7 +1574,8 @@ const Instruction *format_instruction(char *out, int size, const Mem mem,
                                       Addr addr) {
   const Instruction *bank = instructions;
   if (mem[addr] == 0x76) {
-    // This would normally be LD [HL], [HL], but it is special-cased to be HALT.
+    // This would normally be LD [HL], [HL], but it is special-cased to be
+    // HALT.
     snprintf(out, size, "HALT");
     return find_instruction(bank, mem[addr]);
   }

@@ -2801,6 +2801,101 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_bit_b3_r8) BIT 2 B (1)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x04},
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x50, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x04},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x50, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_bit_b3_r8) BIT 2 B (0)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = ~0x04},
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x50, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = ~0x04},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x50, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_bit_b3_r8) BIT 2 [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {
+                            /* op code */ 0x56,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x04,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {
+                            /* op code */ 0x56,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x04,
+                        },
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {
