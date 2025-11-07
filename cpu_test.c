@@ -2562,6 +2562,31 @@ static struct exec_test
                 .cycles = 4,
             },
             {
+                .name = "(exec_swap_r8) SWAP A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_A] = 0xA5},
+                                .flags = FLAGS_NH,
+                            },
+                        .mem = {/* op code */ 0x37, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_A] = 0x5A},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x37, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_swap_r8) SWAP B",
                 .init =
                     {
