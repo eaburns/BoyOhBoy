@@ -464,10 +464,9 @@ static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_rotate_r8(Gameboy *g, const Instruction *instr,
-                                 int cycle, uint8_t (*rotate)(Cpu *, uint8_t)) {
-  // This is a 0xCB-prefixed instruction. Reading 0xCB takes 1 cycle in
-  // cpu_mcycle before this 1 cycle, making this a 2 cycle instruction.
+static ExecResult exec_shift_rotate_r8(Gameboy *g, const Instruction *instr,
+                                       int cycle,
+                                       uint8_t (*op)(Cpu *, uint8_t)) {
   Cpu *cpu = &g->cpu;
   Addr hl = get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   switch (cycle) {
@@ -476,14 +475,14 @@ static ExecResult exec_rotate_r8(Gameboy *g, const Instruction *instr,
   case 1:
     Reg8 r = decode_reg8(instr->shift, cpu->ir);
     if (r != REG_HL_MEM) {
-      set_reg8(cpu, r, rotate(cpu, get_reg8(cpu, r)));
+      set_reg8(cpu, r, op(cpu, get_reg8(cpu, r)));
       cpu->ir = fetch_pc(g);
       return DONE;
     }
     cpu->scratch[0] = fetch(g, hl);
     return NOT_DONE;
   case 2:
-    store(g, hl, rotate(cpu, cpu->scratch[0]));
+    store(g, hl, op(cpu, cpu->scratch[0]));
     return NOT_DONE;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -492,27 +491,47 @@ static ExecResult exec_rotate_r8(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_rotate_r8(g, instr, cycle, rlc);
+  return exec_shift_rotate_r8(g, instr, cycle, rlc);
 }
 
 static ExecResult exec_rrc_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_rotate_r8(g, instr, cycle, rrc);
+  return exec_shift_rotate_r8(g, instr, cycle, rrc);
 }
 
 static ExecResult exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_rotate_r8(g, instr, cycle, rl);
+  return exec_shift_rotate_r8(g, instr, cycle, rl);
 }
 
 static ExecResult exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_rotate_r8(g, instr, cycle, rr);
+  return exec_shift_rotate_r8(g, instr, cycle, rr);
 }
 
-static ExecResult exec_sla_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+// Returns SLA x, setting Z, N,  H, and C.
+static uint8_t sla(Cpu *cpu, uint8_t x) {
+  uint8_t result = x << 1;
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x >> 7);
+  return result;
 }
 
-static ExecResult exec_sra_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_sla_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_shift_rotate_r8(g, instr, cycle, sla);
+}
+
+// Returns SRA x, setting Z, N,  H, and C.
+static uint8_t sra(Cpu *cpu, uint8_t x) {
+  uint8_t result = x >> 1 | (x & 0x80);
+  assign_flag(cpu, FLAG_Z, result == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, x & 1);
+  return result;
+}
+
+static ExecResult exec_sra_r8(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_shift_rotate_r8(g, instr, cycle, sra);
 }
 
 static ExecResult exec_swap_r8(Gameboy *, const Instruction *, int cycle) {

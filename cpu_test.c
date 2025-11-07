@@ -2371,6 +2371,200 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_sla_r8) SLA B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x01},
+                                .flags =
+                                    FLAGS_ZNH,
+                            },
+                        .mem = {/* op code */ 0x20, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x02},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x20, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sla_r8) SLA B (carry, zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x80},
+                                .flags =
+                                    FLAGS_NH,
+                            },
+                        .mem = {/* op code */ 0x20, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x20, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sla_r8) SLA [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {
+                            /* op code */ 0x26,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x01,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {
+                            /* op code */ 0x26,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x02,
+                        },
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_sra_r8) SRA B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x02},
+                                .flags =
+                                    FLAGS_ZNH,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x1},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sra_r8) SRA B (carry, zero)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x01},
+                                .flags =
+                                    FLAGS_NH,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_C | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x28, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sra_r8) SRA [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {
+                            /* op code */ 0x2E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x02,
+                        },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = 0,
+                            },
+                        .mem = {
+                            /* op code */ 0x2E,
+                            2,
+                            3,
+                            4,
+                            [HIGH_RAM_START] = 0x01,
+                        },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
