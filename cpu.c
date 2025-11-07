@@ -692,8 +692,40 @@ static ExecResult exec_stop(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE; // impossible
 }
 
-static ExecResult exec_ld_r8_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
+  Cpu *cpu = &g->cpu;
+  Reg8 src = decode_reg8(instr->shift, cpu->ir);
+  Reg8 dst = decode_reg8_dst(instr->shift, cpu->ir);
+
+  if (src == REG_HL_MEM && dst == REG_HL_MEM) {
+    // LD [HL], [HL] is HALT
+    fail("impossible LD [HL], [HL]");
+  }
+
+  if (src != REG_HL_MEM && dst != REG_HL_MEM) {
+    set_reg8(cpu, dst, get_reg8(cpu, src));
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+
+  if (src == REG_HL_MEM) {
+    if (cycle == 0) {
+      cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+      return NOT_DONE;
+    }
+    set_reg8(cpu, dst, cpu->scratch[0]);
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+
+  // dst == REG_HL_MEM
+  if (cycle == 0) {
+    store(g, get_reg16(cpu, REG_HL), get_reg8(cpu, src));
+    return NOT_DONE;
+  }
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_halt(Gameboy *, const Instruction *, int cycle) {

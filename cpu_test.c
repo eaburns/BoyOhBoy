@@ -3312,6 +3312,171 @@ static struct exec_test
                     },
                 .cycles = 3,
             },
+            {
+                .name = "(exec_ld_r8_r8) LD B, B",
+                .init = {.cpu = {.ir = 0x40, .registers = {[REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1, .registers = {[REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, C",
+                .init = {.cpu = {.ir = 0x41,
+                                 .registers = {[REG_B] = 0, [REG_C] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_C] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, D",
+                .init = {.cpu = {.ir = 0x42,
+                                 .registers = {[REG_B] = 0, [REG_D] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_D] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, E",
+                .init = {.cpu = {.ir = 0x43,
+                                 .registers = {[REG_B] = 0, [REG_E] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_E] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, H",
+                .init = {.cpu = {.ir = 0x44,
+                                 .registers = {[REG_B] = 0, [REG_H] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_H] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, L",
+                .init = {.cpu = {.ir = 0x45,
+                                 .registers = {[REG_B] = 0, [REG_L] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_L] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x46,
+                                .registers =
+                                    {
+                                        [REG_B] = 0,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_B] = 2,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD B, A",
+                .init = {.cpu = {.ir = 0x47,
+                                 .registers = {[REG_B] = 0, [REG_A] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_B] = 2, [REG_A] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD C, B",
+                .init = {.cpu = {.ir = 0x48, .registers = {[REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_C] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD D, B",
+                .init = {.cpu = {.ir = 0x50,
+                                 .registers = {[REG_D] = 0, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_D] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD E, B",
+                .init = {.cpu = {.ir = 0x58,
+                                 .registers = {[REG_E] = 0, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_E] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD H, B",
+                .init = {.cpu = {.ir = 0x60,
+                                 .registers = {[REG_H] = 0, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_H] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD L, B",
+                .init = {.cpu = {.ir = 0x68,
+                                 .registers = {[REG_L] = 0, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_L] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD [HL], B",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x70,
+                                .registers =
+                                    {
+                                        [REG_B] = 2,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 0},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_B] = 2,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ld_r8_r8) LD A, B",
+                .init = {.cpu = {.ir = 0x78,
+                                 .registers = {[REG_A] = 0, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 2, [REG_B] = 2}}},
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {
