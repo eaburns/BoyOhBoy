@@ -159,8 +159,18 @@ static bool add_half_carries(uint8_t x, uint8_t y) {
   return ((x & 0xF) + (y & 0xF)) >> 4;
 }
 
+// Returns whether adding x+y+z would half-carry.
+static bool add3_half_carries(uint8_t x, uint8_t y, uint8_t z) {
+  return ((x & 0xF) + (y & 0xF) + (z & 0xF)) >> 4;
+}
+
 // Returns whether adding x+y would carry.
 static bool add_carries(uint8_t x, uint8_t y) { return (x + y) >> 8; }
+
+// Returns whether adding x+y+z would carry.
+static bool add3_carries(uint8_t x, uint8_t y, uint8_t z) {
+  return (x + y + z) >> 8;
+}
 
 // Returns whether x-y half-borrows.
 static bool sub_half_borrows(uint8_t x, uint8_t y) {
@@ -729,17 +739,57 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_halt(Gameboy *, const Instruction *, int cycle) {
-	// TODO: implement HALT
-	fail("HALT is not yet implemented.");
-	return DONE; // impossible
+  // TODO: implement HALT
+  fail("HALT is not yet implemented.");
+  return DONE; // impossible
 }
 
-static ExecResult exec_add_a_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
+                               uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
+  Cpu *cpu = &g->cpu;
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  if (r != REG_HL_MEM) {
+    set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), get_reg8(cpu, r)));
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+
+  if (cycle == 0) {
+    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+    return NOT_DONE;
+  }
+  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
-static ExecResult exec_adc_a_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static uint8_t add_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t res = a + x;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, add_half_carries(a, x));
+  assign_flag(cpu, FLAG_C, add_carries(a, x));
+  return res;
+}
+
+static ExecResult exec_add_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
+  return exec_op_a_r8(g, instr, cycle, add_a);
+}
+
+static uint8_t adc_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t c = get_flag(cpu, FLAG_C);
+  uint8_t res = a + x + c;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, add3_half_carries(a, x, c));
+  assign_flag(cpu, FLAG_C, add3_carries(a, x, c));
+  return res;
+}
+
+static ExecResult exec_adc_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
+  return exec_op_a_r8(g, instr, cycle, adc_a);
 }
 
 static ExecResult exec_sub_a_r8(Gameboy *, const Instruction *, int cycle) {

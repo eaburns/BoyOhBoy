@@ -3477,6 +3477,190 @@ static struct exec_test
                                  .registers = {[REG_A] = 2, [REG_B] = 2}}},
                 .cycles = 1,
             },
+            {
+                .name = "(exec_add_a_r8) ADD A, B",
+                .init =
+                    {.cpu =
+                         {.ir = 0x80,
+                          .registers = {[REG_A] = 1, [REG_B] = 2},
+                          .flags = FLAG_N /* should clear N */ |
+                                   FLAG_C /* shouldn't add C to the result */}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 3, [REG_B] = 2},
+                                 .flags = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_add_a_r8) ADD A, B (half carry)",
+                .init = {.cpu = {.ir = 0x80,
+                                 .registers = {[REG_A] = 1, [REG_B] = 0xF}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 0xF},
+                                 .flags = FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_add_a_r8) ADD A, B (carry)",
+                .init = {.cpu =
+                             {.ir = 0x80,
+                              .registers = {[REG_A] = 0xF1, [REG_B] = 0x80}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x71, [REG_B] = 0x80},
+                                 .flags = FLAG_C}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_add_a_r8) ADD A, B (carry and half_carry)",
+                .init = {.cpu =
+                             {.ir = 0x80,
+                              .registers = {[REG_A] = 0xFF, [REG_B] = 0x81}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x80, [REG_B] = 0x81},
+                                 .flags = FLAG_C | FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_add_a_r8) ADD A, B (zero)",
+                .init = {.cpu = {.ir = 0x80,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0},
+                                 .flags = FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_add_a_r8) ADD A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x86,
+                                .registers =
+                                    {
+                                        [REG_A] = 1,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags =
+                                    FLAG_N /* should clear N */ |
+                                    FLAG_C /* shouldn't add C to the result */,
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 3,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (carry in)",
+                .init = {.cpu =
+                             {
+                                 .ir = 0x88,
+                                 .registers = {[REG_A] = 1, [REG_B] = 2},
+                                 .flags = FLAG_C | FLAG_N /* should clear N */
+                             }},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 4, [REG_B] = 2},
+                                 .flags = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (no carry in)",
+                .init = {.cpu =
+                             {
+                                 .ir = 0x88,
+                                 .registers = {[REG_A] = 1, [REG_B] = 2},
+                                 .flags = FLAG_N /* should clear N */
+                             }},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 3, [REG_B] = 2},
+                                 .flags = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (half carry)",
+                .init = {.cpu = {.ir = 0x88,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0xF},
+                                 .flags = FLAG_C}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 0xF},
+                                 .flags = FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (carry)",
+                .init = {.cpu = {.ir = 0x88,
+                                 .registers = {[REG_A] = 0xF0, [REG_B] = 0x80},
+                                 .flags = FLAG_C}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x71, [REG_B] = 0x80},
+                                 .flags = FLAG_C}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (carry and half_carry)",
+                .init = {.cpu = {.ir = 0x88,
+                                 .registers = {[REG_A] = 0xFF, [REG_B] = 0x80},
+                                 .flags = FLAG_C}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x80, [REG_B] = 0x80},
+                                 .flags = FLAG_C | FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, B (zero)",
+                .init = {.cpu = {.ir = 0x88,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0},
+                                 .flags = FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_adc_a_r8) ADC A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x8E,
+                                .registers =
+                                    {
+                                        [REG_A] = 1,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_N /* should clear N */ | FLAG_C,
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 4,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 2},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
