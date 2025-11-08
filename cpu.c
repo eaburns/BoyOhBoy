@@ -876,9 +876,16 @@ static ExecResult exec_or_a_r8(Gameboy *g, const Instruction *instr,
   return exec_op_a_r8(g, instr, cycle, or_a);
 }
 
+// This is CP for "Compare".
+// It's just like sub, but just set the flags, and don't change A.
+static uint8_t cp_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  sub_a(cpu, a, x);
+  return a;
+}
+
 static ExecResult exec_cp_a_r8(Gameboy *g, const Instruction *instr,
                                int cycle) {
-  return false;
+  return exec_op_a_r8(g, instr, cycle, cp_a);
 }
 
 static ExecResult exec_add_a_imm8(Gameboy *g, const Instruction *instr,

@@ -3976,6 +3976,76 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_cp_a_r8) CP A, B",
+                .init = {.cpu = {.ir = 0xB8,
+                                 .registers = {[REG_A] = 3, [REG_B] = 1}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 3, [REG_B] = 1},
+                                 .flags = FLAG_N}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_cp_a_r8) CP A, B (half borrow)",
+                .init = {.cpu = {.ir = 0xB8,
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 1}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 1},
+                                 .flags = FLAG_N | FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_cp_a_r8) CP A, B (borrow)",
+                .init = {.cpu = {.ir = 0xB8,
+                                 .registers = {[REG_A] = 0x1, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x1, [REG_B] = 2},
+                                 .flags = FLAG_N | FLAG_C}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_cp_a_r8) CP A, B (zero)",
+                .init = {.cpu = {.ir = 0xB8,
+                                 .registers = {[REG_A] = 2, [REG_B] = 2}}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 2, [REG_B] = 2},
+                                 .flags = FLAG_N | FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_cp_a_r8) CP A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xBE,
+                                .registers =
+                                    {
+                                        [REG_A] = 3,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_C,
+                            },
+                        .mem = {[HIGH_RAM_START] = 1},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 3,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_N,
+                            },
+                        .mem = {[HIGH_RAM_START] = 1},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
