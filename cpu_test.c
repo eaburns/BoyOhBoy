@@ -4845,6 +4845,20 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_ldh_imm8mem_a) LDH [imm8], A",
+                .init =
+                    {
+                        .cpu = {.ir = 0xE0, .registers = {[REG_A] = 2}},
+                        .mem = {4},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2, .registers = {[REG_A] = 2}},
+                        .mem = {4, [0xFF04] = 2},
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {
