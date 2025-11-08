@@ -138,7 +138,6 @@ void set_reg8(Cpu *cpu, Reg8 r, uint8_t x);
 // Get or set the value of the register.
 // Getting or setting REG_HL_PLUS and REG_HL_MINUS are equivalent to using
 // REG_HL.
-// TODO: Getting or setting REG_AF is not yet supported.
 uint16_t get_reg16(const Cpu *cpu, Reg16 r);
 void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
 void set_reg16(Cpu *cpu, Reg16 r, uint16_t x);

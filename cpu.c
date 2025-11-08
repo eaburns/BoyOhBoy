@@ -1111,7 +1111,22 @@ static ExecResult exec_rst_tgt3(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,
                                int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch(g, cpu->sp);
+    cpu->sp++;
+    return NOT_DONE;
+  case 1:
+    cpu->scratch[1] = fetch(g, cpu->sp);
+    cpu->sp++;
+    return NOT_DONE;
+  default: // 2
+    Reg16 r = decode_reg16stk(instr->shift, cpu->ir);
+    set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_push_r16(Gameboy *g, const Instruction *instr,
@@ -1858,6 +1873,10 @@ void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
     break;
   case REG_SP:
     cpu->sp = (uint16_t)high << 8 | low;
+    break;
+  case REG_AF:
+    set_reg8(cpu, REG_A, high);
+    cpu->flags = low;
     break;
   default:
     fail("invalid argument to set_reg16: %d", r);

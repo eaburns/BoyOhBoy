@@ -4656,6 +4656,83 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_pop_r16) POP BC",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC1, .sp = 0xFFFD},
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_B] = 2, [REG_C] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_pop_r16) POP DE",
+                .init =
+                    {
+                        .cpu = {.ir = 0xD1, .sp = 0xFFFD},
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_D] = 2, [REG_E] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_pop_r16) POP HL",
+                .init =
+                    {
+                        .cpu = {.ir = 0xE1, .sp = 0xFFFD},
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_H] = 2, [REG_L] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_pop_r16) POP AF (Z)",
+                .init =
+                    {
+                        .cpu = {.ir = 0xF1, .sp = 0xFFFD},
+                        .mem = {[0xFFFD] = FLAG_Z, [0xFFFE] = 2},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_A] = 2},
+                                .flags = FLAG_Z,
+                            },
+                        .mem = {[0xFFFD] = FLAG_Z, [0xFFFE] = 2},
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {
