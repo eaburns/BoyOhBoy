@@ -4423,6 +4423,31 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_jp_hl) JP HL",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xE9,
+                                .registers = {[REG_H] = HIGH_RAM_START >> 8,
+                                              [REG_L] = HIGH_RAM_START & 0xFF},
+                            },
+                        .mem = {[HIGH_RAM_START] = 5},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .registers = {[REG_H] = HIGH_RAM_START >> 8,
+                                              [REG_L] = HIGH_RAM_START & 0xFF},
+                            },
+                        .mem = {[HIGH_RAM_START] = 5},
+                    },
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {

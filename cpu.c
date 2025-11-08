@@ -1038,7 +1038,10 @@ static ExecResult exec_jp_imm16(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  cpu->pc = get_reg16(cpu, REG_HL);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_call_cond_imm16(Gameboy *, const Instruction *,
