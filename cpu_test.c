@@ -4334,6 +4334,95 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_jp_cond_imm16) JP NZ HIGH_RAM_START (not taken)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC2,
+                                .flags = FLAG_Z,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0,
+                                .pc = 3,
+                                .flags = FLAG_Z,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jp_cond_imm16) JP NZ HIGH_RAM_START (taken)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC2,
+                                .flags = 0,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_jp_imm16) JP HIGH_RAM_START",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC3},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = HIGH_RAM_START + 1},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {

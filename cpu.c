@@ -994,21 +994,47 @@ static ExecResult exec_ret_reti(Gameboy *g, const Instruction *instr, int cycle,
 }
 
 static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_ret_reti(g, instr, cycle, false);
+  return exec_ret_reti(g, instr, cycle, /*is_reti=*/false);
 }
 
 static ExecResult exec_reti(Gameboy *g, const Instruction *instr, int cycle) {
-  return exec_ret_reti(g, instr, cycle, true);
+  return exec_ret_reti(g, instr, cycle, /*is_reti=*/true);
 }
 
-static ExecResult exec_jp_cond_imm16(Gameboy *, const Instruction *,
+static ExecResult exec_jp(Gameboy *g, const Instruction *instr, int cycle,
+                          bool check_cond) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    cpu->scratch[1] = fetch_pc(g);
+    return NOT_DONE;
+  case 2:
+    if (check_cond) {
+      bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
+      if (!cc) {
+        cpu->ir = fetch_pc(g);
+        return DONE;
+      }
+    }
+    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    return NOT_DONE;
+  default: // 3
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+}
+
+static ExecResult exec_jp_cond_imm16(Gameboy *g, const Instruction *instr,
                                      int cycle) {
-  return false;
+  return exec_jp(g, instr, cycle, /* check_cond=*/true);
 }
 
 static ExecResult exec_jp_imm16(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  return exec_jp(g, instr, cycle, /* check_conde=*/false);
 }
 
 static ExecResult exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
