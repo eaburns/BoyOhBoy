@@ -5116,14 +5116,14 @@ static struct exec_test
             },
 };
 
-void run_exec_tests() {
-  for (int i = 0; i < sizeof(exec_tests) / sizeof(exec_tests[0]); i++) {
+void _run_exec_tests(struct exec_test exec_tests[], int n) {
+  for (int i = 0; i < n; i++) {
     struct exec_test *test = &exec_tests[i];
     Gameboy g = test->init;
     int cycles = 0;
     do {
       cycles++;
-    } while (cycles < 10 && cpu_mcycle(&g));
+    } while (cycles < 10 && cpu_mcycle(&g) == NOT_DONE);
     if (cycles != test->cycles) {
       fail("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
     }
@@ -5132,6 +5132,10 @@ void run_exec_tests() {
       fail("%s: Gameboy state does not match expected", test->name);
     }
   }
+}
+
+void run_exec_tests() {
+  _run_exec_tests(exec_tests, sizeof(exec_tests) / sizeof(exec_tests[0]));
 }
 
 void run_ei_delayed_test() {
@@ -5148,7 +5152,7 @@ void run_ei_delayed_test() {
   int cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (cpu->ime) {
     fail("EI set the IME right away");
   }
@@ -5157,7 +5161,7 @@ void run_ei_delayed_test() {
   cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (!cpu->ime) {
     fail("NOP after EI did not set IME");
   }
@@ -5179,7 +5183,7 @@ void run_ei_di_test() {
   int cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (cpu->ime) {
     fail("EI set the IME right away");
   }
@@ -5188,7 +5192,7 @@ void run_ei_di_test() {
   cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (cpu->ime) {
     fail("EI after EI set the IME right away");
   }
@@ -5197,7 +5201,7 @@ void run_ei_di_test() {
   cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (cpu->ime) {
     fail("DI after EI set the IME");
   }
@@ -5206,9 +5210,758 @@ void run_ei_di_test() {
   cycles = 0;
   do {
     cycles++;
-  } while (cycles < 10 && cpu_mcycle(&g));
+  } while (cpu_mcycle(&g) == NOT_DONE);
   if (cpu->ime) {
     fail("NOP after DI set the IME");
+  }
+}
+
+static struct exec_test
+    call_interrupt_tests[] =
+        {
+            {
+                .name = "ime = false",
+                .init =
+                    {
+                        .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.pc = 1},
+                        .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "IE = false",
+                .init =
+                    {
+                        .cpu = {.ime = true},
+                        .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.pc = 1, .ime = true},
+                        .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "call interrupt 0",
+                .init =
+                    {
+                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
+                        .mem =
+                            {
+                                [0x40] = 7,
+                                [MEM_IF] = 1 << 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.ir = 7, .pc = 0x41, .sp = 8, .ime = false},
+                        .mem =
+                            {
+                                [8] = 0xA,
+                                [9] = 0x5,
+                                [0x40] = 7,
+                                [MEM_IF] = 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .cycles = 5,
+            },
+            {
+                .name = "call interrupt 1",
+                .init =
+                    {
+                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
+                        .mem =
+                            {
+                                [0x48] = 7,
+                                [MEM_IF] = 1 << 1,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.ir = 7, .pc = 0x49, .sp = 8, .ime = false},
+                        .mem =
+                            {
+                                [8] = 0xA,
+                                [9] = 0x5,
+                                [0x48] = 7,
+                                [MEM_IF] = 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .cycles = 5,
+            },
+            {
+                .name = "call interrupt 2",
+                .init =
+                    {
+                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
+                        .mem =
+                            {
+                                [0x50] = 7,
+                                [MEM_IF] = 1 << 2,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.ir = 7, .pc = 0x51, .sp = 8, .ime = false},
+                        .mem =
+                            {
+                                [8] = 0xA,
+                                [9] = 0x5,
+                                [0x50] = 7,
+                                [MEM_IF] = 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .cycles = 5,
+            },
+            {
+                .name = "call interrupt 3",
+                .init =
+                    {
+                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
+                        .mem =
+                            {
+                                [0x58] = 7,
+                                [MEM_IF] = 1 << 3,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.ir = 7, .pc = 0x59, .sp = 8, .ime = false},
+                        .mem =
+                            {
+                                [8] = 0xA,
+                                [9] = 0x5,
+                                [0x58] = 7,
+                                [MEM_IF] = 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .cycles = 5,
+            },
+            {
+                .name = "call interrupt 4",
+                .init =
+                    {
+                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
+                        .mem =
+                            {
+                                [0x60] = 7,
+                                [MEM_IF] = 1 << 4,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .want =
+                    {
+                        // interrupt not called, NOP executed.
+                        .cpu = {.ir = 7, .pc = 0x61, .sp = 8, .ime = false},
+                        .mem =
+                            {
+                                [8] = 0xA,
+                                [9] = 0x5,
+                                [0x60] = 7,
+                                [MEM_IF] = 0,
+                                [MEM_IE] = 0xFF,
+                            },
+                    },
+                .cycles = 5,
+            },
+};
+
+void run_call_interrupt_tests() {
+  _run_exec_tests(call_interrupt_tests, sizeof(call_interrupt_tests) /
+                                            sizeof(call_interrupt_tests[0]));
+}
+
+void run_wake_from_halt_ime_true_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_true_test: never halted");
+  }
+
+  // Stays halted until there is a pending interrupt.
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
+         "interrupt 1");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
+         "interrupt 2");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
+         "interrupt 3");
+  }
+
+  g.mem[MEM_IF] = 1;
+
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want = {
+      .cpu =
+          {
+              .pc = 0x41,
+              .ir = 8,
+              .sp = 8,
+              .ime = false,
+          },
+      .mem =
+          {
+              [8] = 0xA,
+              [9] = 0x5,
+              [0x40] = 8,
+              [0x050A] = 0x0 /* NOP */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    fail("run_wake_from_halt_ime_true_test");
+  }
+}
+
+void run_wake_from_halt_ime_false_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* IRC A */,
+              [0x050B] = 9,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_false_test: never halted");
+  }
+
+  // Stays halted until there is a pending interrupt.
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
+         "an interrupt 1");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
+         "an interrupt 2");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
+         "an interrupt 3");
+  }
+
+  Gameboy want0 = {
+      .cpu =
+          {
+              .pc = 0x050B,
+              .ir = 0x3C,
+              .sp = 10,
+              .ime = false,
+              .halted = true,
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* INC A */,
+              [0x050B] = 9,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want0)) {
+    gameboy_print_diff(stderr, &g, &want0);
+    fail("run_wake_from_halt_ime_false_test, bad halted state");
+  }
+
+  g.mem[MEM_IF] = 1;
+
+  // INC A.
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want = {
+      .cpu =
+          {
+              .pc = 0x050C,
+              .ir = 9,
+              .sp = 10,
+              .ime = false,
+              .registers = {[REG_A] = 1},
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* INC A */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    fail("run_wake_from_halt_ime_false_test");
+  }
+}
+
+void run_halt_bug_double_read_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* INC A */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) == HALT) {
+    fail("run_halt_bug_double_read_test: halted");
+  }
+
+  Gameboy want0 = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x3C,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* INC A */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want0)) {
+    gameboy_print_diff(stderr, &g, &want0);
+    fail("run_halt_bug_double_read_test: bad state after halt");
+  }
+
+  // But we immediately wake up from the halt.
+  // We execute the INC A at 0x050A, but PC was not incremented.
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want = {
+      .cpu =
+          {
+              .pc = 0x050B,
+              .ir = 0x3C,
+              .sp = 10,
+              .ime = false,
+              .registers = {[REG_A] = 1},
+          },
+      .mem =
+          {
+              [0x40] = 8,
+              [0x050A] = 0x3C /* INC A */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    fail("run_halt_bug_double_read_test");
+  }
+}
+
+void run_halt_bug_ei_halt_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0xFB /* EI */,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x050A] = 0x76 /* HALT */,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) != DONE) {
+    fail("run_halt_bug_ei_halt_test: EI didn't finish");
+  }
+
+  Gameboy want0 = {
+      .cpu =
+          {
+              // For all preceding besides EI, we will re-read
+              // the instruction after HALT and execute it.
+              // But for EI, we will enter an interupt handler,
+              // and the return address pushed for that handler
+              // will be the address of HALT itself, one less.
+              // Since we aren't actually pushing in parallel
+              // with incrementing PC, this is handled as a special case.
+              // The PC here is 0x050A (HALT) instead of 0x050B,
+              // the address after HALT.
+              .pc = 0x050B,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = false,
+              .ei_pend = true,
+          },
+      .mem =
+          {
+              [0x050A] = 0x76 /* HALT */,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want0)) {
+    gameboy_print_diff(stderr, &g, &want0);
+    fail("run_halt_bug_ei_halt_test: bad state after EI");
+  }
+
+  if (cpu_mcycle(&g) != DONE) {
+    fail("run_halt_bug_ei_halt_test: HALT didn't finish");
+  }
+
+  Gameboy want = {
+      .cpu =
+          {
+              // For all preceding besides EI, we will re-read
+              // the instruction after HALT and execute it.
+              // But for EI, we will enter an interupt handler,
+              // and the return address pushed for that handler
+              // will be the address of HALT itself, one less.
+              // Since we aren't actually pushing in parallel
+              // with incrementing PC, this is handled as a special case.
+              // The PC here is 0x050A (HALT) instead of 0x050B,
+              // the address after HALT.
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x050A] = 0x76 /* HALT */,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    fail("run_halt_bug_ei_halt_test: bad state after HALT");
+  }
+}
+
+void run_halt_bug_rst_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) == HALT) {
+    fail("run_halt_bug_rst_test: halted");
+  }
+
+  Gameboy want0 = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0xC7,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want0)) {
+    gameboy_print_diff(stderr, &g, &want0);
+    fail("run_halt_bug_rst_test: bad state after halt");
+  }
+
+  // But we immediately wake up from the halt.
+  // We execute the RST $00 at 0x050A,
+  // but PC was not incremented.
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = 0,
+              .sp = 8,
+              .ime = false,
+          },
+      .mem =
+          {
+              // Return will be to 0x0A05, the RST itself,
+              // so when the routine returns, it will be called again.
+              [8] = 0x0A,
+              [9] = 0x05,
+              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050B] = 9,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    fail("run_halt_bug_rst_test");
+  }
+}
+
+void run_halt_call_interrupt_and_reti() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_call_interrupt_and_reti: never halted");
+  }
+
+  // Stays halted until there is a pending interrupt.
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
+         "interrupt 1");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
+         "interrupt 2");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
+         "interrupt 3");
+  }
+
+  g.mem[MEM_IF] = 1;
+
+  // Call the interrupt handler.
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want_interrupt = {
+      .cpu =
+          {
+              .pc = 0x41,
+              .ir = 0xD9,
+              .sp = 8,
+              .ime = false,
+          },
+      .mem =
+          {
+              [8] = 0xA,
+              [9] = 0x5,
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_interrupt)) {
+    gameboy_print_diff(stderr, &g, &want_interrupt);
+    fail("run_halt_call_interrupt_and_reti: failed to call the interrupt.");
+  }
+
+  // RETI
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want_reti_done = {
+      .cpu =
+          {
+              .pc = 0x050B,
+              .ir = 0x3C,
+              .sp = 10,
+              .ime = true,
+          },
+      .mem =
+          {
+              [8] = 0xA,
+              [9] = 0x5,
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_reti_done)) {
+    gameboy_print_diff(stderr, &g, &want_reti_done);
+    fail("run_halt_call_interrupt_and_reti: failed to call RETI.");
+  }
+
+  // INC A
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want_inca_done = {
+      .cpu =
+          {
+              .pc = 0x050C,
+              .ir = 0,
+              .sp = 10,
+              .ime = true,
+              .registers = {[REG_A] = 1},
+          },
+      .mem =
+          {
+              [8] = 0xA,
+              [9] = 0x5,
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_inca_done)) {
+    gameboy_print_diff(stderr, &g, &want_inca_done);
+    fail("run_halt_call_interrupt_and_reti: failed to call INC A.");
+  }
+}
+
+void run_halt_ignore_interrupt_and_resume() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x050A,
+              .ir = 0x76 /* HALT */,
+              .sp = 10,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_ignore_interrupt_and_resume: never halted");
+  }
+
+  // Stays halted until there is a pending interrupt.
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
+         "until an "
+         "interrupt 1");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
+         "until an "
+         "interrupt 2");
+  }
+  if (cpu_mcycle(&g) != HALT) {
+    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
+         "until an "
+         "interrupt 3");
+  }
+
+  g.mem[MEM_IF] = 1;
+
+  // INC A
+  while (cpu_mcycle(&g) == NOT_DONE)
+    ;
+
+  Gameboy want_inca_done = {
+      .cpu =
+          {
+              .pc = 0x050C,
+              .ir = 0,
+              .sp = 10,
+              .ime = false,
+              .registers = {[REG_A] = 1},
+          },
+      .mem =
+          {
+              [0x40] = 0xD9 /* RETI */,
+              [0x050A] = 0x3C /* INC A */,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_inca_done)) {
+    gameboy_print_diff(stderr, &g, &want_inca_done);
+    fail("run_halt_ignore_interrupt_and_resume: failed to call INC A.");
   }
 }
 
@@ -5220,5 +5973,13 @@ int main() {
   run_exec_tests();
   run_ei_delayed_test();
   run_ei_di_test();
+  run_call_interrupt_tests();
+  run_wake_from_halt_ime_true_test();
+  run_wake_from_halt_ime_false_test();
+  run_halt_bug_double_read_test();
+  run_halt_bug_ei_halt_test();
+  run_halt_bug_rst_test();
+  run_halt_call_interrupt_and_reti();
+  run_halt_ignore_interrupt_and_resume();
   return 0;
 }

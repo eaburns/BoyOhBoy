@@ -84,8 +84,58 @@ void store(Gameboy *g, Addr addr, uint8_t x) {
 
 enum { EI = 0xFB };
 
+int get_if(const Gameboy *g) {
+  int i = 0;
+  for (i = 0; i <= 4 && (g->mem[MEM_IF] & (1 << i)) == 0; i++)
+    ;
+  if (i > 4) {
+    fail("call_interrupt called with no interrupts pending");
+  }
+  return i;
+}
+
+static ExecResult call_interrupt(Gameboy *g, int cycle) {
+  Cpu *cpu = &g->cpu;
+  // Now, I'm not 100% sure what happens each cycle, since I couldn't find
+  // documents about it. It takes 5 cycles to call the interrupt handler.
+  // Here's one possibility, based on the CALL instruction.
+  switch (cycle) {
+  case 0:
+    cpu->sp--;
+    return NOT_DONE;
+  case 1:
+    store(g, cpu->sp, cpu->pc >> 8);
+    cpu->sp--;
+    return NOT_DONE;
+  case 2:
+    store(g, cpu->sp, cpu->pc & 0xFF);
+    return NOT_DONE;
+  case 3:
+    cpu->pc = 0x40 + 8 * get_if(g);
+    return NOT_DONE;
+  default: // 4
+    g->mem[MEM_IF] &= ~(1 << get_if(g));
+    g->cpu.ime = false;
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+}
+
 ExecResult cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
+  if (cpu->halted && g->mem[MEM_IF] == 0) {
+    return HALT;
+  }
+  if (cpu->halted) {
+    // wake up
+    cpu->halted = false; // wake up, if halted.
+  }
+
+  ExecResult result;
+  if (cpu->ime && (g->mem[MEM_IF] & g->mem[MEM_IE])) {
+    result = call_interrupt(g, cpu->cycle);
+    goto done;
+  }
 
   if (cpu->ir == 0xCB) {
     cpu->ir = fetch_pc(g);
@@ -94,20 +144,21 @@ ExecResult cpu_mcycle(Gameboy *g) {
     cpu->instr = NULL; // should already be null, but just in case.
     return NOT_DONE;
   }
-
   if (cpu->bank == NULL) {
     cpu->bank = instructions;
   }
   if (cpu->instr == NULL) {
     cpu->instr = find_instruction(cpu->bank, cpu->ir);
   }
-  ExecResult result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
+  result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
   if (cpu->instr->op_code != EI && cpu->ei_pend) {
     cpu->ei_pend = false;
     cpu->ime = true;
   }
+
+done:
   cpu->cycle++;
-  if (result == DONE) {
+  if (result != NOT_DONE) {
     cpu->bank = instructions;
     cpu->instr = NULL;
     cpu->cycle = 0;
@@ -758,9 +809,35 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_halt(Gameboy *g, const Instruction *instr, int cycle) {
-  // TODO: implement HALT
-  fail("HALT is not yet implemented.");
-  return DONE; // impossible
+  Cpu *cpu = &g->cpu;
+
+  if (!cpu->ime && (g->mem[MEM_IF] & g->mem[MEM_IE])) {
+    // Despite returning right away due to a pending interrupt,
+    // IR is set to PC without incrementing.
+    // This is "the HALT bug".
+    //
+    // As a special case, if the instruction before HALT is EI
+    // then the return address pushed for the interrupt handler
+    // will be the address of HALT itself, not the address after.
+    // So we actually decrement PC here to point to HALT
+    // instead of the byte after it for the upcoming PUSH.
+    if (cpu->ei_pend) {
+      cpu->pc--;
+    } else {
+      cpu->ir = fetch(g, cpu->pc);
+    }
+    return DONE;
+  }
+
+  cpu->halted = true;
+  // If IME, then when we wake up, we will call an interrupt handler.
+  // Returning from that handler will pop PC, set IR, and PC++.
+  // If !IME, then when we wake up, execution continues as normal,
+  // so we set IR and PC++ here.
+  if (!cpu->ime) {
+    cpu->ir = fetch_pc(g);
+  }
+  return HALT;
 }
 
 static ExecResult exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
@@ -1469,6 +1546,13 @@ static const Instruction _instructions[] = {
         .operand1 = IMM8,
         .exec = exec_stop,
     },
+    // HALT must come before LD R8_DST, R8,
+    // because LD [HL], [HL] shares an op-code with HALT.
+    {
+        .mnemonic = "HALT",
+        .op_code = 0x76,
+        .exec = exec_halt,
+    },
     {
         .mnemonic = "LD",
         .op_code = 0x40,
@@ -1476,11 +1560,6 @@ static const Instruction _instructions[] = {
         .operand2 = R8,
         .shift = 0,
         .exec = exec_ld_r8_r8,
-    },
-    {
-        .mnemonic = "HALT",
-        .op_code = 0x76,
-        .exec = exec_halt,
     },
     {
         .mnemonic = "ADD",

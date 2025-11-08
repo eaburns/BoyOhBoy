@@ -20,6 +20,7 @@ bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
          a->cpu.flags == b->cpu.flags && a->cpu.sp == b->cpu.sp &&
          a->cpu.pc == b->cpu.pc && a->cpu.ir == b->cpu.ir &&
          a->cpu.ime == b->cpu.ime && a->cpu.ei_pend == b->cpu.ei_pend &&
+         a->cpu.halted == b->cpu.halted &&
          (a->cpu.bank == b->cpu.bank ||
           a->cpu.bank == NULL && b->cpu.bank == instructions ||
           a->cpu.bank == instructions && b->cpu.bank == NULL) &&
@@ -56,6 +57,9 @@ void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
   }
   if (a->cpu.ei_pend != b->cpu.ei_pend) {
     fprintf(f, "ei_pend: %d != %d\n", a->cpu.ei_pend, b->cpu.ei_pend);
+  }
+  if (a->cpu.halted != b->cpu.halted) {
+    fprintf(f, "halted: %d != %d\n", a->cpu.halted, b->cpu.halted);
   }
   if (!(a->cpu.bank == b->cpu.bank ||
         a->cpu.bank == NULL && b->cpu.bank == instructions ||

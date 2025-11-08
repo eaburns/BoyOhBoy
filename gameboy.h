@@ -7,7 +7,14 @@
 // Aborts with a message printf-style message.
 void fail(const char *fmt, ...);
 
-enum { MEM_SIZE = 0xFFFF };
+enum {
+  // The memory address of the IF (interrupts pending) flags.
+  MEM_IF = 0xFF0F,
+  // The memory address of the IE (interrupts enabled) flags.
+  MEM_IE = 0xFFFF,
+
+  MEM_SIZE = 0x10000,
+};
 
 typedef uint8_t Mem[MEM_SIZE];
 
@@ -94,7 +101,7 @@ typedef struct {
   uint8_t registers[8];
   uint8_t flags, ir;
   uint16_t sp, pc;
-  bool ime, ei_pend;
+  bool ime, ei_pend, halted;
 
   // The following are used for tracking the intermediate state of execution for
   // a single instruction.
@@ -147,7 +154,7 @@ typedef struct {
   Mem mem;
 } Gameboy;
 
-typedef enum { DONE, NOT_DONE } ExecResult;
+typedef enum { DONE, NOT_DONE, HALT } ExecResult;
 
 // Executes a single M-Cycle of the CPU.
 ExecResult cpu_mcycle(Gameboy *g);
