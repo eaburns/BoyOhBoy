@@ -4920,6 +4920,60 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_add_sp_imm8) ADD SP, 1",
+                .init = {.cpu = {.ir = 0xE8}, .mem = {1}},
+                .want = {.cpu = {.pc = 2, .sp = 1}, .mem = {1}},
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_add_sp_imm8) ADD SP, -1",
+                .init = {.cpu = {.ir = 0xE8}, .mem = {-1}},
+                .want = {.cpu = {.pc = 2, .sp = 0xFFFF}, .mem = {-1}},
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_add_sp_imm8) ADD SP, -128",
+                .init = {.cpu = {.ir = 0xE8}, .mem = {-128}},
+                .want = {.cpu = {.pc = 2, .sp = 0xFF80}, .mem = {-128}},
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_add_sp_imm8) ADD SP, imm8 (half carry)",
+                .init = {.cpu = {.ir = 0xE8, .sp = 0xF}, .mem = {1}},
+                .want =
+                    {
+                        .cpu = {.pc = 2, .sp = 0x10, .flags = FLAG_H},
+                        .mem = {1},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_add_sp_imm8) ADD SP, imm8 (carry)",
+                .init = {.cpu = {.ir = 0xE8, .sp = 0xF0}, .mem = {0x10}},
+                .want =
+                    {
+                        .cpu = {.pc = 2, .sp = 0x0100, .flags = FLAG_C},
+                        .mem = {0x10},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name =
+                    "(exec_add_sp_imm8) ADD SP, imm8 (carry and half carry)",
+                .init = {.cpu = {.ir = 0xE8, .sp = 0xFF}, .mem = {0x11}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0x0110,
+                                .flags = FLAG_C | FLAG_H,
+                            },
+                        .mem = {0x11},
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {

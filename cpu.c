@@ -1250,7 +1250,27 @@ static ExecResult exec_ld_a_imm16mem(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
                                    int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    int8_t x = cpu->scratch[0];
+    cpu->scratch[1] = (cpu->sp + x) & 0xFF;
+    assign_flag(cpu, FLAG_Z, false);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
+    assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
+    return NOT_DONE;
+  case 2:
+    cpu->scratch[0] = (cpu->sp + (int8_t)cpu->scratch[0]) >> 8;
+    return NOT_DONE;
+  default: // 3
+    cpu->sp = (uint16_t)cpu->scratch[0] << 8 | cpu->scratch[1];
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
