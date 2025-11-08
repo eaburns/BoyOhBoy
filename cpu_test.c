@@ -4263,6 +4263,41 @@ static struct exec_test
                     },
                 .cycles = 5,
             },
+            {
+                .name = "(exec_ret) RET",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC9,
+                                .sp = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .sp = 3,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
