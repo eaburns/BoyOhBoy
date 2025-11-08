@@ -1090,7 +1090,23 @@ static ExecResult exec_call_imm16(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_rst_tgt3(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->sp--;
+    return NOT_DONE;
+  case 1:
+    store(g, cpu->sp, cpu->pc >> 8);
+    cpu->sp--;
+    return NOT_DONE;
+  case 2:
+    store(g, cpu->sp, cpu->pc & 0xFF);
+    cpu->pc = decode_tgt3(instr->shift, cpu->ir);
+    return NOT_DONE;
+  default: // 3
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,

@@ -4544,6 +4544,118 @@ static struct exec_test
                     },
                 .cycles = 6,
             },
+            {
+                .name = "(exec_rst_tgt3) RST $00",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC7, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x00] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x00 + 1, .sp = 0xFFFC},
+                        .mem = {[0x00] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $08",
+                .init =
+                    {
+                        .cpu = {.ir = 0xCF, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x08] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x08 + 1, .sp = 0xFFFC},
+                        .mem = {[0x08] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $10",
+                .init =
+                    {
+                        .cpu = {.ir = 0xD7, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x10] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x10 + 1, .sp = 0xFFFC},
+                        .mem = {[0x10] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $18",
+                .init =
+                    {
+                        .cpu = {.ir = 0xDF, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x18] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x18 + 1, .sp = 0xFFFC},
+                        .mem = {[0x18] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $20",
+                .init =
+                    {
+                        .cpu = {.ir = 0xE7, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x20] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x20 + 1, .sp = 0xFFFC},
+                        .mem = {[0x20] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $28",
+                .init =
+                    {
+                        .cpu = {.ir = 0xEF, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x28] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x28 + 1, .sp = 0xFFFC},
+                        .mem = {[0x28] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $30",
+                .init =
+                    {
+                        .cpu = {.ir = 0xF7, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x30] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x30 + 1, .sp = 0xFFFC},
+                        .mem = {[0x30] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_rst_tgt3) RST $30",
+                .init =
+                    {
+                        .cpu = {.ir = 0xFF, .pc = 12, .sp = 0xFFFE},
+                        .mem = {[0x38] = 5, [0xFFFC] = 1, [0xFFFD] = 0},
+                    },
+                .want =
+                    {
+                        .cpu = {.ir = 5, .pc = 0x38 + 1, .sp = 0xFFFC},
+                        .mem = {[0x38] = 5, [0xFFFC] = 12, [0xFFFD] = 0},
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
