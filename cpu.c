@@ -172,9 +172,22 @@ static bool add3_carries(uint8_t x, uint8_t y, uint8_t z) {
   return (x + y + z) >> 8;
 }
 
+// Returns whether x-y borrows.
+static bool sub_borrows(uint8_t x, uint8_t y) { return y > x; }
+
+// Returns whether x-y-c borrows.
+static bool sub3_borrows(uint8_t x, uint8_t y, uint8_t z) {
+  return (y + z) > x;
+}
+
 // Returns whether x-y half-borrows.
 static bool sub_half_borrows(uint8_t x, uint8_t y) {
   return ((x >> 4) & 1) && !((x - y) >> 4 & 1);
+}
+
+// Returns whether x-y-z half-borrows.
+static bool sub3_half_borrows(uint8_t x, uint8_t y, uint8_t z) {
+  return sub_half_borrows(x, y) || sub_half_borrows(x - y, z);
 }
 
 // Adds x to register r, setting flag N to 0 and setting H and C to the
@@ -792,12 +805,33 @@ static ExecResult exec_adc_a_r8(Gameboy *g, const Instruction *instr,
   return exec_op_a_r8(g, instr, cycle, adc_a);
 }
 
-static ExecResult exec_sub_a_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static uint8_t sub_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t res = a - x;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, true);
+  assign_flag(cpu, FLAG_H, sub_half_borrows(a, x));
+  assign_flag(cpu, FLAG_C, sub_borrows(a, x));
+  return res;
 }
 
-static ExecResult exec_sbc_a_r8(Gameboy *, const Instruction *, int cycle) {
-  return false;
+static ExecResult exec_sub_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
+  return exec_op_a_r8(g, instr, cycle, sub_a);
+}
+
+static uint8_t sbc_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t c = get_flag(cpu, FLAG_C);
+  uint8_t res = a - x - c;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, true);
+  assign_flag(cpu, FLAG_H, sub3_half_borrows(a, x, c));
+  assign_flag(cpu, FLAG_C, sub3_borrows(a, x, c));
+  return res;
+}
+
+static ExecResult exec_sbc_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
+  return exec_op_a_r8(g, instr, cycle, sbc_a);
 }
 
 static ExecResult exec_and_a_r8(Gameboy *, const Instruction *, int cycle) {
