@@ -4733,6 +4733,97 @@ static struct exec_test
                     },
                 .cycles = 3,
             },
+            {
+                .name = "(exec_push_r16) PUSH BC",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC5,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_B] = 2, [REG_C] = 1},
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFD,
+                                .registers = {[REG_B] = 2, [REG_C] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_push_r16) PUSH DE",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xD5,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_D] = 2, [REG_E] = 1},
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFD,
+                                .registers = {[REG_D] = 2, [REG_E] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_push_r16) PUSH DE",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xE5,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_H] = 2, [REG_L] = 1},
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0xFFFD,
+                                .registers = {[REG_H] = 2, [REG_L] = 1},
+                            },
+                        .mem = {[0xFFFD] = 1, [0xFFFE] = 2},
+                    },
+                .cycles = 4,
+            },
+            {
+                .name = "(exec_push_r16) PUSH AF",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xF5,
+                                .sp = 0xFFFF,
+                                .registers = {[REG_A] = 2},
+                                .flags = FLAG_Z,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 1,
+                                .sp = 0xFFFD,
+                                .registers = {[REG_A] = 2},
+                                .flags = FLAG_Z},
+                        .mem = {[0xFFFD] = FLAG_Z, [0xFFFE] = 2},
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {

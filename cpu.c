@@ -1131,7 +1131,24 @@ static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_push_r16(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  Reg16 r = decode_reg16stk(instr->shift, cpu->ir);
+  uint16_t x = get_reg16(cpu, r);
+  switch (cycle) {
+  case 0:
+    cpu->sp--;
+    return NOT_DONE;
+  case 1:
+    store(g, cpu->sp, x >> 8);
+    cpu->sp--;
+    return NOT_DONE;
+  case 2:
+    store(g, cpu->sp, x & 0xFF);
+    return NOT_DONE;
+  default: // 3
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_ldh_cmem_a(Gameboy *g, const Instruction *instr,
@@ -1849,6 +1866,8 @@ uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
     return (uint16_t)get_reg8(cpu, REG_H) << 8 | get_reg8(cpu, REG_L);
   case REG_SP:
     return cpu->sp;
+  case REG_AF:
+    return (uint16_t)get_reg8(cpu, REG_A) << 8 | cpu->flags;
   default:
     fail("invalid argument to get_reg16: %d", r);
   }
