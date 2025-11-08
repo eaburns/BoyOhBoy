@@ -4974,6 +4974,100 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP+1",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0x0101}, .mem = {1}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0x0101,
+                                .registers = {[REG_H] = 0x01, [REG_L] = 2},
+                            },
+                        .mem = {1},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP-1",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0}, .mem = {-1}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0,
+                                .registers = {[REG_H] = 0xFF, [REG_L] = 0xFF},
+                            },
+                        .mem = {-1},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP-128",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0}, .mem = {-128}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0,
+                                .registers = {[REG_H] = 0xFF, [REG_L] = 0x80},
+                            },
+                        .mem = {-128},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP+n (half carry)",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0xF}, .mem = {1}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0xF,
+                                .registers = {[REG_H] = 0, [REG_L] = 0x10},
+                                .flags = FLAG_H,
+                            },
+                        .mem = {1},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP+n (carry)",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0xF0}, .mem = {0x10}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0xF0,
+                                .registers = {[REG_H] = 0x01, [REG_L] = 0x00},
+                                .flags = FLAG_C,
+                            },
+                        .mem = {0x10},
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_ld_hl_sp_plus_imm8) LD HL, SP+n (carry and half "
+                        "carry)",
+                .init = {.cpu = {.ir = 0xF8, .sp = 0xFF}, .mem = {0x11}},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 2,
+                                .sp = 0xFF,
+                                .registers = {[REG_H] = 0x01, [REG_L] = 0x10},
+                                .flags = FLAG_C | FLAG_H,
+                            },
+                        .mem = {0x11},
+                    },
+                .cycles = 3,
+            },
 };
 
 void run_exec_tests() {

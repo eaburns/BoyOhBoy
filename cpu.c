@@ -1275,7 +1275,23 @@ static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
                                           int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    int8_t x = cpu->scratch[0];
+    assign_flag(cpu, FLAG_Z, false);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
+    assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
+    return NOT_DONE;
+  default: // 2
+    set_reg16(cpu, REG_HL, cpu->sp + (int8_t)cpu->scratch[0]);
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_ld_sp_hl(Gameboy *g, const Instruction *instr,
