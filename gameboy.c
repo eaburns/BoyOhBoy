@@ -40,7 +40,8 @@ void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
     fprintf(f, "flags: $%02x != $%02x\n", a->cpu.flags, b->cpu.flags);
   }
   if (a->cpu.sp != b->cpu.sp) {
-    fprintf(f, "sp: %d != %d\n", a->cpu.sp, b->cpu.sp);
+    fprintf(f, "sp: %d ($%02x) != %d ($%02x)\n", a->cpu.sp, a->cpu.sp,
+            b->cpu.sp, b->cpu.sp);
   }
   if (a->cpu.pc != b->cpu.pc) {
     fprintf(f, "pc: %d ($%02x) != %d ($%02x)\n", a->cpu.pc, a->cpu.pc,
