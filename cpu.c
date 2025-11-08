@@ -943,7 +943,30 @@ static ExecResult exec_cp_a_imm8(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
+  switch (cycle) {
+  case 0:
+    return NOT_DONE;
+  case 1:
+    if (!cc) {
+      cpu->ir = fetch_pc(g);
+      return DONE;
+    }
+    cpu->scratch[0] = fetch(g, cpu->sp);
+    cpu->sp++;
+    return NOT_DONE;
+  case 2:
+    cpu->scratch[1] = fetch(g, cpu->sp);
+    cpu->sp++;
+    return NOT_DONE;
+  case 3:
+    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    return NOT_DONE;
+  default: // 4
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {

@@ -4190,6 +4190,79 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_ret_cond) RET NZ (not taken)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC0,
+                                .flags = FLAG_Z,
+                                .sp = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0,
+                                .pc = 1,
+                                .flags = FLAG_Z,
+                                .sp = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_ret_cond) RET NZ (taken)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xC0,
+                                .flags = 0,
+                                .sp = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .sp = 3,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 5,
+            },
 };
 
 void run_exec_tests() {
