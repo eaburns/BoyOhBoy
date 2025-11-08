@@ -4824,6 +4824,27 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_ldh_cmem_a) LDH [C], A",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xE2,
+                                .registers = {[REG_A] = 2, [REG_C] = 4},
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers = {[REG_A] = 2, [REG_C] = 4},
+                            },
+                        .mem = {[0xFF04] = 2},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
