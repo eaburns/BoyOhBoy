@@ -3815,6 +3815,167 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_and_a_r8) AND A, B",
+                .init = {.cpu = {.ir = 0xA0,
+                                 .registers = {[REG_A] = 0xFF, [REG_B] = 0xAA},
+                                 .flags = FLAG_N | FLAG_C | FLAG_Z}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0xAA, [REG_B] = 0xAA},
+                                 .flags = FLAG_H}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_and_a_r8) AND A, B (zero)",
+                .init = {.cpu = {.ir = 0xA0,
+                                 .registers = {[REG_A] = 0x55, [REG_B] = 0xAA},
+                                 .flags = FLAG_N | FLAG_C}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0xAA},
+                                 .flags = FLAG_H | FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_and_a_r8) AND A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xA6,
+                                .registers =
+                                    {
+                                        [REG_A] = 0xFF,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                            },
+                        .mem = {[HIGH_RAM_START] = 0xAA},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 0xAA,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_H,
+                            },
+                        .mem = {[HIGH_RAM_START] = 0xAA},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_xor_a_r8) XOR A, B",
+                .init = {.cpu = {.ir = 0xA8,
+                                 .registers = {[REG_A] = 0xF0, [REG_B] = 0xFF},
+                                 .flags = FLAG_N | FLAG_C | FLAG_Z | FLAG_H}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0x0F, [REG_B] = 0xFF},
+                                 .flags = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_xor_a_r8) XOR A, B (zero)",
+                .init = {.cpu = {.ir = 0xA8,
+                                 .registers = {[REG_A] = 0xFF, [REG_B] = 0xFF},
+                                 .flags = FLAG_N | FLAG_C | FLAG_H}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0xFF},
+                                 .flags = FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_xor_a_r8) XOR A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xAE,
+                                .registers =
+                                    {
+                                        [REG_A] = 0xFF,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
+                            },
+                        .mem = {[HIGH_RAM_START] = 0xAA},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 0x55,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = 0,
+                            },
+                        .mem = {[HIGH_RAM_START] = 0xAA},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_or_a_r8) OR A, B",
+                .init = {.cpu = {.ir = 0xB0,
+                                 .registers = {[REG_A] = 0xF0, [REG_B] = 0x0F},
+                                 .flags = FLAG_N | FLAG_C | FLAG_Z | FLAG_H}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0xFF, [REG_B] = 0x0F},
+                                 .flags = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_or_a_r8) OR A, B (zero)",
+                .init = {.cpu = {.ir = 0xB0,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0},
+                                 .flags = FLAG_N | FLAG_C | FLAG_H}},
+                .want = {.cpu = {.pc = 1,
+                                 .registers = {[REG_A] = 0, [REG_B] = 0},
+                                 .flags = FLAG_Z}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_or_a_r8) OR A, [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xB6,
+                                .registers =
+                                    {
+                                        [REG_A] = 0xF0,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
+                            },
+                        .mem = {[HIGH_RAM_START] = 0x0F},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .registers =
+                                    {
+                                        [REG_A] = 0xFF,
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = 0,
+                            },
+                        .mem = {[HIGH_RAM_START] = 0x0F},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {

@@ -834,19 +834,46 @@ static ExecResult exec_sbc_a_r8(Gameboy *g, const Instruction *instr,
   return exec_op_a_r8(g, instr, cycle, sbc_a);
 }
 
+static uint8_t and_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t res = a & x;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, true);
+  assign_flag(cpu, FLAG_C, false);
+  return res;
+}
+
 static ExecResult exec_and_a_r8(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  return exec_op_a_r8(g, instr, cycle, and_a);
+}
+
+static uint8_t xor_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t res = a ^ x;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, false);
+  return res;
 }
 
 static ExecResult exec_xor_a_r8(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  return exec_op_a_r8(g, instr, cycle, xor_a);
+}
+
+static uint8_t or_a(Cpu *cpu, uint8_t a, uint8_t x) {
+  uint8_t res = a | x;
+  assign_flag(cpu, FLAG_Z, res == 0);
+  assign_flag(cpu, FLAG_N, false);
+  assign_flag(cpu, FLAG_H, false);
+  assign_flag(cpu, FLAG_C, false);
+  return res;
 }
 
 static ExecResult exec_or_a_r8(Gameboy *g, const Instruction *instr,
                                int cycle) {
-  return false;
+  return exec_op_a_r8(g, instr, cycle, or_a);
 }
 
 static ExecResult exec_cp_a_r8(Gameboy *g, const Instruction *instr,
