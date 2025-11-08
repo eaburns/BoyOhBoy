@@ -4906,6 +4906,20 @@ static struct exec_test
                     },
                 .cycles = 3,
             },
+            {
+                .name = "(exec_ld_a_imm16mem) LD A, [imm16]",
+                .init =
+                    {
+                        .cpu = {.ir = 0xFA, .registers = {[REG_A] = 3}},
+                        .mem = {2, 1, [0x0102] = 5},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 3, .registers = {[REG_A] = 5}},
+                        .mem = {2, 1, [0x0102] = 5},
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
