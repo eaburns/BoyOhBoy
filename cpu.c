@@ -888,44 +888,57 @@ static ExecResult exec_cp_a_r8(Gameboy *g, const Instruction *instr,
   return exec_op_a_r8(g, instr, cycle, cp_a);
 }
 
+static ExecResult exec_op_a_imm8(Gameboy *g, const Instruction *instr,
+                                 int cycle,
+                                 uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
+  Cpu *cpu = &g->cpu;
+  if (cycle == 0) {
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  }
+  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
+  cpu->ir = fetch_pc(g);
+  return DONE;
+}
+
 static ExecResult exec_add_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, add_a);
 }
 
 static ExecResult exec_adc_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, adc_a);
 }
 
 static ExecResult exec_sub_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, sub_a);
 }
 
 static ExecResult exec_sbc_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, sbc_a);
 }
 
 static ExecResult exec_and_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, and_a);
 }
 
 static ExecResult exec_xor_a_imm8(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, xor_a);
 }
 
 static ExecResult exec_or_a_imm8(Gameboy *g, const Instruction *instr,
                                  int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, or_a);
 }
 
 static ExecResult exec_cp_a_imm8(Gameboy *g, const Instruction *instr,
                                  int cycle) {
-  return false;
+  return exec_op_a_imm8(g, instr, cycle, cp_a);
 }
 
 static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,

@@ -4046,6 +4046,150 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_add_a_imm8) ADD A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC6,
+                                .registers = {[REG_A] = 1},
+                                .flags = FLAG_N | FLAG_C},
+                        .mem = {2},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 3},
+                                .flags = 0},
+                        .mem = {2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_adc_a_imm8) ADC A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xCE,
+                                .registers = {[REG_A] = 1},
+                                .flags = FLAG_N | FLAG_C},
+                        .mem = {2},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 4},
+                                .flags = 0},
+                        .mem = {2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sub_a_imm8) SUB A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xD6,
+                                .registers = {[REG_A] = 4},
+                                .flags = FLAG_C},
+                        .mem = {2},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 2},
+                                .flags = FLAG_N},
+                        .mem = {2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_sbc_a_imm8) SBC A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xDE,
+                                .registers = {[REG_A] = 4},
+                                .flags = FLAG_C},
+                        .mem = {2},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 1},
+                                .flags = FLAG_N},
+                        .mem = {2},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_and_a_imm8) AND A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xE6,
+                                .registers = {[REG_A] = 0xFF},
+                                .flags = FLAG_N | FLAG_C},
+                        .mem = {0xF},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 0xF},
+                                .flags = FLAG_H},
+                        .mem = {0xF},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_xor_a_imm8) XOR A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xEE,
+                                .registers = {[REG_A] = 0xFF},
+                                .flags = FLAG_N | FLAG_C | FLAG_H},
+                        .mem = {0xF},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 0xF0},
+                                .flags = 0},
+                        .mem = {0xF},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_or_a_imm8) OR A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xF6,
+                                .registers = {[REG_A] = 0xAA},
+                                .flags = FLAG_N | FLAG_C | FLAG_H},
+                        .mem = {0x55},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 0xFF},
+                                .flags = 0},
+                        .mem = {0x55},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_cp_a_imm8) CP A, imm8",
+                .init =
+                    {
+                        .cpu = {.ir = 0xFE,
+                                .registers = {[REG_A] = 4},
+                                .flags = FLAG_C},
+                        .mem = {5},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 4},
+                                .flags = FLAG_N | FLAG_C},
+                        .mem = {5},
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {
