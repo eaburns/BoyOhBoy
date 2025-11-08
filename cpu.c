@@ -969,7 +969,8 @@ static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
+static ExecResult exec_ret_reti(Gameboy *g, const Instruction *instr, int cycle,
+                                bool is_reti) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
@@ -982,6 +983,9 @@ static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
     return NOT_DONE;
   case 2:
     cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    if (is_reti) {
+      cpu->ime = 1;
+    }
     return NOT_DONE;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -989,8 +993,12 @@ static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
   }
 }
 
+static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
+  return exec_ret_reti(g, instr, cycle, false);
+}
+
 static ExecResult exec_reti(Gameboy *g, const Instruction *instr, int cycle) {
-  return false;
+  return exec_ret_reti(g, instr, cycle, true);
 }
 
 static ExecResult exec_jp_cond_imm16(Gameboy *, const Instruction *,

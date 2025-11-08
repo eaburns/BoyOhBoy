@@ -94,6 +94,7 @@ typedef struct {
   uint8_t registers[8];
   uint8_t flags, ir;
   uint16_t sp, pc;
+  bool ime;
 
   // The following are used for tracking the intermediate state of execution for
   // a single instruction.

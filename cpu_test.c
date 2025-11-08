@@ -4298,6 +4298,42 @@ static struct exec_test
                     },
                 .cycles = 4,
             },
+            {
+                .name = "(exec_reti) RETI",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xD9,
+                                .sp = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .sp = 3,
+                                .ime = 1,
+                            },
+                        .mem =
+                            {
+                                0,
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .cycles = 4,
+            },
 };
 
 void run_exec_tests() {
