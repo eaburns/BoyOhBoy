@@ -4448,6 +4448,102 @@ static struct exec_test
                     },
                 .cycles = 1,
             },
+            {
+                .name =
+                    "(exec_call_cond_imm16) CALL NZ HIGH_RAM_START (not taken)",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC4, .sp = 0xFFFE, .flags = FLAG_Z},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                5,
+                                [HIGH_RAM_START] = 0,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {.ir = 5, .pc = 3, .sp = 0xFFFE, .flags = FLAG_Z},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                5,
+                                [HIGH_RAM_START] = 0,
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_call_cond_imm16) CALL NZ HIGH_RAM_START (taken)",
+                .init =
+                    {
+                        .cpu = {.ir = 0xC4, .sp = 0xFFFE},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .sp = 0xFFFC,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0,
+                                [HIGH_RAM_START] = 5,
+                                // pc = 2
+                                [0xFFFC] = 2,
+                                [0xFFFD] = 0,
+                            },
+                    },
+                .cycles = 6,
+            },
+            {
+                .name = "(exec_call_imm16) CALL HIGH_RAM_START",
+                .init =
+                    {
+                        .cpu = {.ir = 0xCD, .sp = 0xFFFE},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0,
+                                [HIGH_RAM_START] = 5,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .ir = 5,
+                                .pc = HIGH_RAM_START + 1,
+                                .sp = 0xFFFC,
+                            },
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                0,
+                                [HIGH_RAM_START] = 5,
+                                // pc = 2
+                                [0xFFFC] = 2,
+                                [0xFFFD] = 0,
+                            },
+                    },
+                .cycles = 6,
+            },
 };
 
 void run_exec_tests() {

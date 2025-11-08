@@ -1044,14 +1044,48 @@ static ExecResult exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_call_cond_imm16(Gameboy *, const Instruction *,
+static ExecResult exec_call(Gameboy *g, const Instruction *instr, int cycle,
+                            bool check_cond) {
+  Cpu *cpu = &g->cpu;
+  switch (cycle) {
+  case 0:
+    cpu->scratch[0] = fetch_pc(g);
+    return NOT_DONE;
+  case 1:
+    cpu->scratch[1] = fetch_pc(g);
+    return NOT_DONE;
+  case 2:
+    if (check_cond) {
+      bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
+      if (!cc) {
+        cpu->ir = fetch_pc(g);
+        return DONE;
+      }
+    }
+    cpu->sp--;
+    return NOT_DONE;
+  case 3:
+    store(g, cpu->sp, cpu->pc >> 8);
+    cpu->sp--;
+    return NOT_DONE;
+  case 4:
+    store(g, cpu->sp, cpu->pc & 0xFF);
+    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    return NOT_DONE;
+  default: // 5
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+}
+
+static ExecResult exec_call_cond_imm16(Gameboy *g, const Instruction *instr,
                                        int cycle) {
-  return false;
+  return exec_call(g, instr, cycle, /*check_cond=*/true);
 }
 
 static ExecResult exec_call_imm16(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  return exec_call(g, instr, cycle, /*check_cond=*/false);
 }
 
 static ExecResult exec_rst_tgt3(Gameboy *g, const Instruction *instr,
