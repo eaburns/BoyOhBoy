@@ -57,7 +57,7 @@ struct instruction {
 
   // Executes the next cycle of the instruction.
   // Returns whether the instruction is complete.
-  ExecResult (*exec)(Gameboy *, const Instruction *, int cycle);
+  ExecResult (*exec)(Gameboy *g, const Instruction *instr, int cycle);
 };
 
 // Reads the byte at the given memory address.
@@ -751,7 +751,7 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
   return DONE;
 }
 
-static ExecResult exec_halt(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_halt(Gameboy *g, const Instruction *instr, int cycle) {
   // TODO: implement HALT
   fail("HALT is not yet implemented.");
   return DONE; // impossible
@@ -834,63 +834,76 @@ static ExecResult exec_sbc_a_r8(Gameboy *g, const Instruction *instr,
   return exec_op_a_r8(g, instr, cycle, sbc_a);
 }
 
-static ExecResult exec_and_a_r8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_and_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_xor_a_r8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_xor_a_r8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_or_a_r8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_or_a_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return false;
 }
 
-static ExecResult exec_cp_a_r8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_cp_a_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return false;
 }
 
-static ExecResult exec_add_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_add_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_adc_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_adc_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_sub_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_sub_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_sbc_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_sbc_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_and_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_and_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_xor_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_xor_a_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_or_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_or_a_imm8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
   return false;
 }
 
-static ExecResult exec_cp_a_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_cp_a_imm8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
   return false;
 }
 
-static ExecResult exec_ret_cond(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_ret(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
   return false;
 }
 
-static ExecResult exec_reti(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_reti(Gameboy *g, const Instruction *instr, int cycle) {
   return false;
 }
 
@@ -899,11 +912,12 @@ static ExecResult exec_jp_cond_imm16(Gameboy *, const Instruction *,
   return false;
 }
 
-static ExecResult exec_jp_imm16(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_jp_imm16(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_jp_hl(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
   return false;
 }
 
@@ -912,23 +926,28 @@ static ExecResult exec_call_cond_imm16(Gameboy *, const Instruction *,
   return false;
 }
 
-static ExecResult exec_call_imm16(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_call_imm16(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
-static ExecResult exec_rst_tgt3(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_rst_tgt3(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_pop_r16(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return false;
 }
 
-static ExecResult exec_push_r16(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_push_r16(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_ldh_cmem_a(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ldh_cmem_a(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
@@ -942,7 +961,8 @@ static ExecResult exec_ld_imm16mem_a(Gameboy *, const Instruction *,
   return false;
 }
 
-static ExecResult exec_ldh_a_cmem(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ldh_a_cmem(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   return false;
 }
 
@@ -956,7 +976,8 @@ static ExecResult exec_ld_a_imm16mem(Gameboy *, const Instruction *,
   return false;
 }
 
-static ExecResult exec_add_sp_imm8(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   return false;
 }
 
@@ -965,15 +986,16 @@ static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *, const Instruction *,
   return false;
 }
 
-static ExecResult exec_ld_sp_hl(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ld_sp_hl(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return false;
 }
 
-static ExecResult exec_di(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_di(Gameboy *g, const Instruction *instr, int cycle) {
   return false;
 }
 
-static ExecResult exec_ei(Gameboy *, const Instruction *, int cycle) {
+static ExecResult exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
   return false;
 }
 
