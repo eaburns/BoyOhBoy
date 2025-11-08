@@ -729,7 +729,9 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_halt(Gameboy *, const Instruction *, int cycle) {
-  return false;
+	// TODO: implement HALT
+	fail("HALT is not yet implemented.");
+	return DONE; // impossible
 }
 
 static ExecResult exec_add_a_r8(Gameboy *, const Instruction *, int cycle) {
