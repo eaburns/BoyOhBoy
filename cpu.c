@@ -1200,7 +1200,14 @@ static ExecResult exec_ld_imm16mem_a(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_ldh_a_cmem(Gameboy *g, const Instruction *instr,
                                   int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  if (cycle == 0) {
+    cpu->scratch[0] = fetch(g, 0xFF00 | get_reg8(cpu, REG_C));
+    return NOT_DONE;
+  }
+  set_reg8(cpu, REG_A, cpu->scratch[0]);
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_ldh_a_imm8mem(Gameboy *g, const Instruction *instr,
