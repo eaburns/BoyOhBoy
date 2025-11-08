@@ -82,6 +82,8 @@ void store(Gameboy *g, Addr addr, uint8_t x) {
   g->mem[addr] = x;
 }
 
+enum { EI = 0xFB };
+
 ExecResult cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
 
@@ -100,6 +102,10 @@ ExecResult cpu_mcycle(Gameboy *g) {
     cpu->instr = find_instruction(cpu->bank, cpu->ir);
   }
   ExecResult result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
+  if (cpu->instr->op_code != EI && cpu->ei_pend) {
+    cpu->ei_pend = false;
+    cpu->ime = true;
+  }
   cpu->cycle++;
   if (result == DONE) {
     cpu->bank = instructions;
@@ -1306,11 +1312,18 @@ static ExecResult exec_ld_sp_hl(Gameboy *g, const Instruction *instr,
 }
 
 static ExecResult exec_di(Gameboy *g, const Instruction *instr, int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  cpu->ime = false;
+  cpu->ei_pend = false;
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  cpu->ei_pend = true;
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static const Instruction _unknown_instruction = {.mnemonic = "UNKNOWN"};

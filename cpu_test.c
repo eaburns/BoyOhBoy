@@ -5096,6 +5096,24 @@ static struct exec_test
                     },
                 .cycles = 2,
             },
+            {
+                .name = "(exec_di) DI",
+                .init = {.cpu = {.ir = 0xF3, .ime = 1}},
+                .want = {.cpu = {.pc = 1, .ime = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_di) DI cancels EI",
+                .init = {.cpu = {.ir = 0xF3, .ime = 0, .ei_pend = true}},
+                .want = {.cpu = {.pc = 1, .ime = 0}},
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_di) EI",
+                .init = {.cpu = {.ir = 0xFB, .ime = 0}},
+                .want = {.cpu = {.pc = 1, .ime = 0, .ei_pend = true}},
+                .cycles = 1,
+            },
 };
 
 void run_exec_tests() {
@@ -5116,11 +5134,91 @@ void run_exec_tests() {
   }
 }
 
+void run_ei_delayed_test() {
+  Gameboy g = {
+      .cpu = {.ir = 0xFB /* EI */},
+      .mem =
+          {
+              0x00 /* NOP */,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  // Execute first EI in the IR.
+  int cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (cpu->ime) {
+    fail("EI set the IME right away");
+  }
+
+  // Execute NOP at address 0.
+  cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (!cpu->ime) {
+    fail("NOP after EI did not set IME");
+  }
+}
+
+void run_ei_di_test() {
+  Gameboy g = {
+      .cpu = {.ir = 0xFB /* EI */},
+      .mem =
+          {
+              0xFB /* EI */,
+              0xF3 /* DI */,
+              0x00 /* NOP */,
+          },
+  };
+  Cpu *cpu = &g.cpu;
+
+  // Execute first EI in the IR.
+  int cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (cpu->ime) {
+    fail("EI set the IME right away");
+  }
+
+  // Execute EI at address 0.
+  cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (cpu->ime) {
+    fail("EI after EI set the IME right away");
+  }
+
+  // Execute DI at address 1.
+  cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (cpu->ime) {
+    fail("DI after EI set the IME");
+  }
+
+  // Execute NOP at address 2.
+  cycles = 0;
+  do {
+    cycles++;
+  } while (cycles < 10 && cpu_mcycle(&g));
+  if (cpu->ime) {
+    fail("NOP after DI set the IME");
+  }
+}
+
 int main() {
   run_snprint_tests();
   run_cb_snprint_tests();
   run_reg8_get_set_tests();
   run_reg16_get_set_tests();
   run_exec_tests();
+  run_ei_delayed_test();
+  run_ei_di_test();
   return 0;
 }
