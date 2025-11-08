@@ -5068,6 +5068,34 @@ static struct exec_test
                     },
                 .cycles = 3,
             },
+            {
+                .name = "(exec_ld_sp_hl) LD SP, HL",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xF9,
+                                .registers =
+                                    {
+                                        [REG_H] = 0xF,
+                                        [REG_L] = 0xA,
+                                    },
+                            }},
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .pc = 1,
+                                .sp = 0x0F0A,
+                                .registers =
+                                    {
+                                        [REG_H] = 0xF,
+                                        [REG_L] = 0xA,
+                                    },
+                            },
+                    },
+                .cycles = 2,
+            },
 };
 
 void run_exec_tests() {

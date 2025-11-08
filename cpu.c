@@ -1296,7 +1296,13 @@ static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
 
 static ExecResult exec_ld_sp_hl(Gameboy *g, const Instruction *instr,
                                 int cycle) {
-  return false;
+  Cpu *cpu = &g->cpu;
+  if (cycle == 0) {
+    cpu->sp = get_reg16(cpu, REG_HL);
+    return NOT_DONE;
+  }
+  cpu->ir = fetch_pc(g);
+  return DONE;
 }
 
 static ExecResult exec_di(Gameboy *g, const Instruction *instr, int cycle) {
