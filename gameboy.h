@@ -94,6 +94,21 @@ enum { INSTRUCTION_STR_MAX = 32 };
 const Instruction *format_instruction(char *out, int size, const Mem mem,
                                       Addr addr);
 
+typedef enum {
+  // An instruction just finished, and we have fetch IR for the next
+  // instruction.
+  DONE,
+  // An instruction is in the middle of executing.
+  EXECUTING,
+  // The CPU is in the middle of calling an interrupt.
+  INTERRUPTING,
+  // The CPU is halted.
+  HALTED,
+} CpuState;
+
+// Returns the name of the state.
+const char *cpu_state_name(CpuState s);
+
 typedef struct {
   // The 8-bit registers, indexed by the Reg8 enum.
   // Note that value at index REG_DL_MEM is always 0,
@@ -101,28 +116,10 @@ typedef struct {
   uint8_t registers[8];
   uint8_t flags, ir;
   uint16_t sp, pc;
-  bool ime, ei_pend, halted;
-
-  // The following are used for tracking the intermediate state of execution for
-  // a single instruction.
-  // The initial state at the start of a new instruction is:
-  //  - ir contains the op code byte, loaded by the previous previous
-  //  instruction,
-  //  - bank == instructions,
-  //  - instr == NULL,
-  //  - cycle == 0,
-  //  - scratch == {}.
-  // cpu_mcycle runs the next cycle of the current instruction.
-  // If cycle==0, it first sets instr to the Instruction in ir.
-  // It then calls instr->exec().
-  // If instr->exec() returns NOT_DONE, then it returns.
-  // If instr->exec() returns DONE, then it resets bank, instr, cycle, and
-  // scratch to their initial states; the just-returned call to instr->exec() is
-  // responsible for fetching ir for the next instruction.
+  bool ime, ei_pend;
+  CpuState state;
 
   // The current instruction bank, either instructions or cb_instructions.
-  // If bank==NULL, it is set to instructions by cpu_mcycle, so there is no need
-  // to explicitly initialize it.
   const Instruction *bank;
   // The current instruction in ir.
   const Instruction *instr;
@@ -154,10 +151,8 @@ typedef struct {
   Mem mem;
 } Gameboy;
 
-typedef enum { DONE, NOT_DONE, HALTED } ExecResult;
-
-// Executes a single M-Cycle of the CPU.
-ExecResult cpu_mcycle(Gameboy *g);
+// Executes a single "M cycle" of the CPU.
+void cpu_mcycle(Gameboy *g);
 
 // Returns whether two Gameboy states are equal.
 bool gameboy_eq(const Gameboy *a, const Gameboy *b);

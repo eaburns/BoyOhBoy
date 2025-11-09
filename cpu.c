@@ -57,7 +57,7 @@ struct instruction {
 
   // Executes the next cycle of the instruction.
   // Returns whether the instruction is complete.
-  ExecResult (*exec)(Gameboy *g, const Instruction *instr, int cycle);
+  CpuState (*exec)(Gameboy *g, const Instruction *instr, int cycle);
 };
 
 // Reads the byte at the given memory address.
@@ -89,30 +89,31 @@ int get_if(const Gameboy *g) {
   for (i = 0; i <= 4 && (g->mem[MEM_IF] & (1 << i)) == 0; i++)
     ;
   if (i > 4) {
-    fail("call_interrupt called with no interrupts pending");
+    fail("no interrupts pending");
   }
   return i;
 }
 
-static ExecResult call_interrupt(Gameboy *g, int cycle) {
+static CpuState call_interrupt(Gameboy *g, int cycle) {
   Cpu *cpu = &g->cpu;
-  // Now, I'm not 100% sure what happens each cycle, since I couldn't find
-  // documents about it. It takes 5 cycles to call the interrupt handler.
-  // Here's one possibility, based on the CALL instruction.
   switch (cycle) {
   case 0:
-    cpu->sp--;
-    return NOT_DONE;
+    // The current instruction about to execute is the one we want to return to.
+    // PC was already incremented when the current instruction was fetched into
+    // IR, so we need to decrement here to adjust.
+    cpu->pc--;
+    return INTERRUPTING;
   case 1:
+    cpu->sp--;
+    return INTERRUPTING;
+  case 2:
     store(g, cpu->sp, cpu->pc >> 8);
     cpu->sp--;
-    return NOT_DONE;
-  case 2:
-    store(g, cpu->sp, cpu->pc & 0xFF);
-    return NOT_DONE;
+    return INTERRUPTING;
   case 3:
+    store(g, cpu->sp, cpu->pc & 0xFF);
     cpu->pc = 0x40 + 8 * get_if(g);
-    return NOT_DONE;
+    return INTERRUPTING;
   default: // 4
     g->mem[MEM_IF] &= ~(1 << get_if(g));
     g->cpu.ime = false;
@@ -121,28 +122,34 @@ static ExecResult call_interrupt(Gameboy *g, int cycle) {
   }
 }
 
-ExecResult cpu_mcycle(Gameboy *g) {
+static bool interrupts_pending(const Gameboy *g) {
+  return g->mem[MEM_IF] & g->mem[MEM_IE];
+}
+
+void cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
-  if (cpu->halted && g->mem[MEM_IF] == 0) {
-    return HALT;
-  }
-  if (cpu->halted) {
-    // wake up
-    cpu->halted = false; // wake up, if halted.
+
+  if (cpu->state == HALTED) {
+    // Wake up and execute a NOP.
+    cpu->ir = 0x0;
+    cpu->state = EXECUTING;
   }
 
-  ExecResult result;
-  if (cpu->ime && (g->mem[MEM_IF] & g->mem[MEM_IE])) {
-    result = call_interrupt(g, cpu->cycle);
+  if (cpu->state == DONE && cpu->ime && interrupts_pending(g)) {
+    cpu->state = INTERRUPTING;
+  }
+
+  if (cpu->state == INTERRUPTING) {
+    cpu->state = call_interrupt(g, cpu->cycle);
     goto done;
   }
 
   if (cpu->ir == 0xCB) {
     cpu->ir = fetch_pc(g);
-    cpu->cycle++;
     cpu->bank = cb_instructions;
     cpu->instr = NULL; // should already be null, but just in case.
-    return NOT_DONE;
+    cpu->state = EXECUTING;
+    goto done;
   }
   if (cpu->bank == NULL) {
     cpu->bank = instructions;
@@ -150,21 +157,23 @@ ExecResult cpu_mcycle(Gameboy *g) {
   if (cpu->instr == NULL) {
     cpu->instr = find_instruction(cpu->bank, cpu->ir);
   }
-  result = cpu->instr->exec(g, cpu->instr, cpu->cycle);
+  cpu->state = cpu->instr->exec(g, cpu->instr, cpu->cycle);
   if (cpu->instr->op_code != EI && cpu->ei_pend) {
     cpu->ei_pend = false;
     cpu->ime = true;
   }
 
 done:
+  if (cpu->state == HALTED && interrupts_pending(g)) {
+    cpu->state = DONE;
+  }
   cpu->cycle++;
-  if (result != NOT_DONE) {
+  if (cpu->state == DONE || cpu->state == HALTED) {
     cpu->bank = instructions;
     cpu->instr = NULL;
     cpu->cycle = 0;
     memset(cpu->scratch, 0, sizeof(cpu->scratch));
   }
-  return result;
 }
 
 static Reg8 decode_reg8(int shift, uint8_t op_code) {
@@ -257,21 +266,21 @@ static void add_to_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
   assign_flag(cpu, FLAG_C, add_carries(x, y));
 }
 
-static ExecResult exec_nop(Gameboy *g, const Instruction *, int cycle) {
+static CpuState exec_nop(Gameboy *g, const Instruction *, int cycle) {
   g->cpu.ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_ld_r16_imm16(Gameboy *g, const Instruction *instr,
-                                    int cycle) {
+static CpuState exec_ld_r16_imm16(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     Reg16 r = decode_reg16(instr->shift, cpu->ir);
     set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
@@ -280,8 +289,8 @@ static ExecResult exec_ld_r16_imm16(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_ld_r16mem_a(Gameboy *g, const Instruction *instr,
-                                   int cycle) {
+static CpuState exec_ld_r16mem_a(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
@@ -294,15 +303,15 @@ static ExecResult exec_ld_r16mem_a(Gameboy *g, const Instruction *instr,
       set_reg16(cpu, r, addr - 1);
     }
     store(g, addr, a);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 1
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ld_a_r16mem(Gameboy *g, const Instruction *instr,
-                                   int cycle) {
+static CpuState exec_ld_a_r16mem(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
@@ -315,15 +324,15 @@ static ExecResult exec_ld_a_r16mem(Gameboy *g, const Instruction *instr,
     } else if (r == REG_HL_MINUS) {
       set_reg16(cpu, r, addr - 1);
     }
-    return NOT_DONE;
+    return EXECUTING;
   default: // 1
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
-                                      int cycle) {
+static CpuState exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
+                                    int cycle) {
   Cpu *cpu = &g->cpu;
   uint16_t sp = get_reg16(cpu, REG_SP);
   // Addr is only valid on cycles 2, 3, and 4,
@@ -332,13 +341,13 @@ static ExecResult exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     store(g, addr, sp & 0xFF);
-    return NOT_DONE;
+    return EXECUTING;
   case 3:
     store(g, addr + 1, sp >> 8);
   default: // 4
@@ -347,43 +356,41 @@ static ExecResult exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_inc_r16(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_inc_r16(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     Reg16 r = decode_reg16(instr->shift, cpu->ir);
     set_reg16(cpu, r, get_reg16(cpu, r) + 1);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 1
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_dec_r16(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_dec_r16(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     Reg16 r = decode_reg16(instr->shift, cpu->ir);
     set_reg16(cpu, r, get_reg16(cpu, r) - 1);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 1
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_add_hl_r16(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_add_hl_r16(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   Cpu *cpu = &g->cpu;
   Reg16 r = decode_reg16(instr->shift, cpu->ir);
   uint16_t x = get_reg16(cpu, r);
   switch (cycle) {
   case 0:
     add_to_reg8(cpu, REG_L, x & 0xFF);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 1
     add_to_reg8(cpu, REG_H, (x >> 8) + get_flag(cpu, FLAG_C));
     cpu->ir = fetch_pc(g);
@@ -391,7 +398,7 @@ static ExecResult exec_add_hl_r16(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   uint8_t x = get_reg8(cpu, REG_A);
   set_reg8(cpu, REG_A, x + 1);
@@ -402,7 +409,7 @@ static ExecResult exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   uint8_t x = get_reg8(cpu, REG_A);
   set_reg8(cpu, REG_A, x - 1);
@@ -413,18 +420,18 @@ static ExecResult exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     Reg8 r = decode_reg8(instr->shift, cpu->ir);
     if (r == REG_HL_MEM) {
       store(g, get_reg16(cpu, REG_HL), cpu->scratch[0]);
-      return NOT_DONE;
+      return EXECUTING;
     }
     set_reg8(cpu, r, cpu->scratch[0]);
     // FALLTHROUGH
@@ -474,8 +481,8 @@ uint8_t rr(Cpu *cpu, uint8_t x) {
   return result;
 }
 
-static ExecResult exec_rotate_a(Gameboy *g, const Instruction *instr, int cycle,
-                                uint8_t (*rotate)(Cpu *, uint8_t)) {
+static CpuState exec_rotate_a(Gameboy *g, const Instruction *instr, int cycle,
+                              uint8_t (*rotate)(Cpu *, uint8_t)) {
   Cpu *cpu = &g->cpu;
   set_reg8(cpu, REG_A, rotate(cpu, get_reg8(cpu, REG_A)));
   // Register A rotations always set Z to 0 regardless of the result.
@@ -484,23 +491,23 @@ static ExecResult exec_rotate_a(Gameboy *g, const Instruction *instr, int cycle,
   return DONE;
 }
 
-static ExecResult exec_rlca(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rlca(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_rotate_a(g, instr, cycle, rlc);
 }
 
-static ExecResult exec_rrca(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rrca(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_rotate_a(g, instr, cycle, rrc);
 }
 
-static ExecResult exec_rla(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rla(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_rotate_a(g, instr, cycle, rl);
 }
 
-static ExecResult exec_rra(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rra(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_rotate_a(g, instr, cycle, rr);
 }
 
-static ExecResult exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   uint8_t adj = 0;
   uint8_t a = get_reg8(cpu, REG_A);
@@ -528,7 +535,7 @@ static ExecResult exec_daa(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_cpl(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_cpl(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   set_reg8(cpu, REG_A, ~get_reg8(cpu, REG_A));
   assign_flag(cpu, FLAG_N, true);
@@ -537,7 +544,7 @@ static ExecResult exec_cpl(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_scf(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_scf(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   assign_flag(cpu, FLAG_N, false);
   assign_flag(cpu, FLAG_H, false);
@@ -546,7 +553,7 @@ static ExecResult exec_scf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   assign_flag(cpu, FLAG_N, false);
   assign_flag(cpu, FLAG_H, false);
@@ -555,9 +562,8 @@ static ExecResult exec_ccf(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
-                                      int cycle,
-                                      uint8_t (*op)(Cpu *, uint8_t)) {
+static CpuState exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
+                                    int cycle, uint8_t (*op)(Cpu *, uint8_t)) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
@@ -570,29 +576,29 @@ static ExecResult exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
       return DONE;
     }
     cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     store(g, get_reg16(cpu, REG_HL), op(cpu, cpu->scratch[0]));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rlc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, rlc);
 }
 
-static ExecResult exec_rrc_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rrc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, rrc);
 }
 
-static ExecResult exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rl_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, rl);
 }
 
-static ExecResult exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_rr_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, rr);
 }
 
@@ -606,7 +612,7 @@ static uint8_t sla(Cpu *cpu, uint8_t x) {
   return result;
 }
 
-static ExecResult exec_sla_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_sla_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, sla);
 }
 
@@ -620,7 +626,7 @@ static uint8_t sra(Cpu *cpu, uint8_t x) {
   return result;
 }
 
-static ExecResult exec_sra_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_sra_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, sra);
 }
 
@@ -634,8 +640,7 @@ static uint8_t swap_nibbles(Cpu *cpu, uint8_t x) {
   return result;
 }
 
-static ExecResult exec_swap_r8(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_swap_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, swap_nibbles);
 }
 
@@ -649,12 +654,12 @@ static uint8_t srl(Cpu *cpu, uint8_t x) {
   return result;
 }
 
-static ExecResult exec_srl_r8(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_srl_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_bit_twiddle_r8(g, instr, cycle, srl);
 }
 
-static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static CpuState exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
   int bit = decode_bit_index(instr->shift, cpu->ir);
@@ -667,7 +672,7 @@ static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
       break;
     }
     cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     assign_flag(cpu, FLAG_Z, (cpu->scratch[0] >> bit) ^ 1);
     break;
@@ -678,8 +683,8 @@ static ExecResult exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
   return DONE;
 }
 
-static ExecResult exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
-                                     int cycle, uint8_t (*op)(int, uint8_t)) {
+static CpuState exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
+                                   int cycle, uint8_t (*op)(int, uint8_t)) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
   int bit = decode_bit_index(instr->shift, cpu->ir);
@@ -693,10 +698,10 @@ static ExecResult exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
       return DONE;
     }
     cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     store(g, get_reg16(cpu, REG_HL), op(bit, cpu->scratch[0]));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
@@ -705,27 +710,26 @@ static ExecResult exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
 
 uint8_t res_bit(int bit, uint8_t x) { return x & ~(1 << bit); }
 
-static ExecResult exec_res_b3_r8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static CpuState exec_res_b3_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return exec_res_set_b3_r8(g, instr, cycle, res_bit);
 }
 uint8_t set_bit(int bit, uint8_t x) { return x | (1 << bit); }
 
-static ExecResult exec_set_b3_r8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static CpuState exec_set_b3_r8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return exec_res_set_b3_r8(g, instr, cycle, set_bit);
 }
 
-static ExecResult exec_jr_imm8(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_jr_imm8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->pc += (int8_t)cpu->scratch[0];
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
     return DONE;
@@ -747,33 +751,32 @@ bool eval_cond(const Cpu *cpu, Cond cc) {
   }
 }
 
-static ExecResult exec_jr_cond_imm8(Gameboy *g, const Instruction *instr,
-                                    int cycle) {
+static CpuState exec_jr_cond_imm8(Gameboy *g, const Instruction *instr,
+                                  int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     if (!eval_cond(cpu, decode_cond(instr->shift, cpu->ir))) {
       cpu->ir = fetch_pc(g);
       return DONE;
     }
     cpu->pc += (int8_t)cpu->scratch[0];
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_stop(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_stop(Gameboy *g, const Instruction *instr, int cycle) {
   fail("STOP instruction is not implemented");
   return DONE; // impossible
 }
 
-static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_ld_r8_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   Reg8 src = decode_reg8(instr->shift, cpu->ir);
   Reg8 dst = decode_reg8_dst(instr->shift, cpu->ir);
@@ -792,7 +795,7 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
   if (src == REG_HL_MEM) {
     if (cycle == 0) {
       cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
-      return NOT_DONE;
+      return EXECUTING;
     }
     set_reg8(cpu, dst, cpu->scratch[0]);
     cpu->ir = fetch_pc(g);
@@ -802,46 +805,19 @@ static ExecResult exec_ld_r8_r8(Gameboy *g, const Instruction *instr,
   // dst == REG_HL_MEM
   if (cycle == 0) {
     store(g, get_reg16(cpu, REG_HL), get_reg8(cpu, src));
-    return NOT_DONE;
+    return EXECUTING;
   }
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_halt(Gameboy *g, const Instruction *instr, int cycle) {
-  Cpu *cpu = &g->cpu;
-
-  if (!cpu->ime && (g->mem[MEM_IF] & g->mem[MEM_IE])) {
-    // Despite returning right away due to a pending interrupt,
-    // IR is set to PC without incrementing.
-    // This is "the HALT bug".
-    //
-    // As a special case, if the instruction before HALT is EI
-    // then the return address pushed for the interrupt handler
-    // will be the address of HALT itself, not the address after.
-    // So we actually decrement PC here to point to HALT
-    // instead of the byte after it for the upcoming PUSH.
-    if (cpu->ei_pend) {
-      cpu->pc--;
-    } else {
-      cpu->ir = fetch(g, cpu->pc);
-    }
-    return DONE;
-  }
-
-  cpu->halted = true;
-  // If IME, then when we wake up, we will call an interrupt handler.
-  // Returning from that handler will pop PC, set IR, and PC++.
-  // If !IME, then when we wake up, execution continues as normal,
-  // so we set IR and PC++ here.
-  if (!cpu->ime) {
-    cpu->ir = fetch_pc(g);
-  }
-  return HALT;
+static CpuState exec_halt(Gameboy *g, const Instruction *instr, int cycle) {
+  g->cpu.ir = fetch(g, g->cpu.pc); // Don't increment PC.
+  return HALTED;
 }
 
-static ExecResult exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
-                               uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
+static CpuState exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
+                             uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
   if (r != REG_HL_MEM) {
@@ -852,7 +828,7 @@ static ExecResult exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
 
   if (cycle == 0) {
     cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
-    return NOT_DONE;
+    return EXECUTING;
   }
   set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
   cpu->ir = fetch_pc(g);
@@ -868,8 +844,7 @@ static uint8_t add_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_add_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_add_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, add_a);
 }
 
@@ -883,8 +858,7 @@ static uint8_t adc_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_adc_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_adc_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, adc_a);
 }
 
@@ -897,8 +871,7 @@ static uint8_t sub_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_sub_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_sub_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, sub_a);
 }
 
@@ -912,8 +885,7 @@ static uint8_t sbc_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_sbc_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_sbc_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, sbc_a);
 }
 
@@ -926,8 +898,7 @@ static uint8_t and_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_and_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_and_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, and_a);
 }
 
@@ -940,8 +911,7 @@ static uint8_t xor_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_xor_a_r8(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_xor_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, xor_a);
 }
 
@@ -954,8 +924,7 @@ static uint8_t or_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return res;
 }
 
-static ExecResult exec_or_a_r8(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_or_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, or_a);
 }
 
@@ -966,71 +935,68 @@ static uint8_t cp_a(Cpu *cpu, uint8_t a, uint8_t x) {
   return a;
 }
 
-static ExecResult exec_cp_a_r8(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_cp_a_r8(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_op_a_r8(g, instr, cycle, cp_a);
 }
 
-static ExecResult exec_op_a_imm8(Gameboy *g, const Instruction *instr,
-                                 int cycle,
-                                 uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
+static CpuState exec_op_a_imm8(Gameboy *g, const Instruction *instr, int cycle,
+                               uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   }
   set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_add_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_add_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, add_a);
 }
 
-static ExecResult exec_adc_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_adc_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, adc_a);
 }
 
-static ExecResult exec_sub_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_sub_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, sub_a);
 }
 
-static ExecResult exec_sbc_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_sbc_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, sbc_a);
 }
 
-static ExecResult exec_and_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_and_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, and_a);
 }
 
-static ExecResult exec_xor_a_imm8(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_xor_a_imm8(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_op_a_imm8(g, instr, cycle, xor_a);
 }
 
-static ExecResult exec_or_a_imm8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static CpuState exec_or_a_imm8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return exec_op_a_imm8(g, instr, cycle, or_a);
 }
 
-static ExecResult exec_cp_a_imm8(Gameboy *g, const Instruction *instr,
-                                 int cycle) {
+static CpuState exec_cp_a_imm8(Gameboy *g, const Instruction *instr,
+                               int cycle) {
   return exec_op_a_imm8(g, instr, cycle, cp_a);
 }
 
-static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_ret_cond(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
   switch (cycle) {
   case 0:
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     if (!cc) {
       cpu->ir = fetch_pc(g);
@@ -1038,62 +1004,62 @@ static ExecResult exec_ret_cond(Gameboy *g, const Instruction *instr,
     }
     cpu->scratch[0] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     cpu->scratch[1] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   case 3:
     cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
-    return NOT_DONE;
+    return EXECUTING;
   default: // 4
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ret_reti(Gameboy *g, const Instruction *instr, int cycle,
-                                bool is_reti) {
+static CpuState exec_ret_reti(Gameboy *g, const Instruction *instr, int cycle,
+                              bool is_reti) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
     if (is_reti) {
       cpu->ime = 1;
     }
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_ret(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_ret_reti(g, instr, cycle, /*is_reti=*/false);
 }
 
-static ExecResult exec_reti(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_reti(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_ret_reti(g, instr, cycle, /*is_reti=*/true);
 }
 
-static ExecResult exec_jp(Gameboy *g, const Instruction *instr, int cycle,
-                          bool check_cond) {
+static CpuState exec_jp(Gameboy *g, const Instruction *instr, int cycle,
+                        bool check_cond) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     if (check_cond) {
       bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
@@ -1103,40 +1069,39 @@ static ExecResult exec_jp(Gameboy *g, const Instruction *instr, int cycle,
       }
     }
     cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_jp_cond_imm16(Gameboy *g, const Instruction *instr,
-                                     int cycle) {
+static CpuState exec_jp_cond_imm16(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   return exec_jp(g, instr, cycle, /* check_cond=*/true);
 }
 
-static ExecResult exec_jp_imm16(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_jp_imm16(Gameboy *g, const Instruction *instr, int cycle) {
   return exec_jp(g, instr, cycle, /* check_conde=*/false);
 }
 
-static ExecResult exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_jp_hl(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   cpu->pc = get_reg16(cpu, REG_HL);
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_call(Gameboy *g, const Instruction *instr, int cycle,
-                            bool check_cond) {
+static CpuState exec_call(Gameboy *g, const Instruction *instr, int cycle,
+                          bool check_cond) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     if (check_cond) {
       bool cc = eval_cond(cpu, decode_cond(instr->shift, cpu->ir));
@@ -1146,64 +1111,62 @@ static ExecResult exec_call(Gameboy *g, const Instruction *instr, int cycle,
       }
     }
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 3:
     store(g, cpu->sp, cpu->pc >> 8);
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 4:
     store(g, cpu->sp, cpu->pc & 0xFF);
     cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
-    return NOT_DONE;
+    return EXECUTING;
   default: // 5
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_call_cond_imm16(Gameboy *g, const Instruction *instr,
-                                       int cycle) {
+static CpuState exec_call_cond_imm16(Gameboy *g, const Instruction *instr,
+                                     int cycle) {
   return exec_call(g, instr, cycle, /*check_cond=*/true);
 }
 
-static ExecResult exec_call_imm16(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_call_imm16(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   return exec_call(g, instr, cycle, /*check_cond=*/false);
 }
 
-static ExecResult exec_rst_tgt3(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_rst_tgt3(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     store(g, cpu->sp, cpu->pc >> 8);
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     store(g, cpu->sp, cpu->pc & 0xFF);
     cpu->pc = decode_tgt3(instr->shift, cpu->ir);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,
-                               int cycle) {
+static CpuState exec_pop_r16(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch(g, cpu->sp);
     cpu->sp++;
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     Reg16 r = decode_reg16stk(instr->shift, cpu->ir);
     set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
@@ -1212,97 +1175,96 @@ static ExecResult exec_pop_r16(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_push_r16(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_push_r16(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   Reg16 r = decode_reg16stk(instr->shift, cpu->ir);
   uint16_t x = get_reg16(cpu, r);
   switch (cycle) {
   case 0:
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     store(g, cpu->sp, x >> 8);
     cpu->sp--;
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     store(g, cpu->sp, x & 0xFF);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ldh_cmem_a(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_ldh_cmem_a(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
     store(g, 0xFF00 | get_reg8(cpu, REG_C), get_reg8(cpu, REG_A));
-    return NOT_DONE;
+    return EXECUTING;
   }
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_ldh_imm8mem_a(Gameboy *g, const Instruction *instr,
-                                     int cycle) {
+static CpuState exec_ldh_imm8mem_a(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     store(g, 0xFF00 | cpu->scratch[0], get_reg8(cpu, REG_A));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ld_imm16mem_a(Gameboy *g, const Instruction *instr,
-                                     int cycle) {
+static CpuState exec_ld_imm16mem_a(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
     store(g, addr, get_reg8(cpu, REG_A));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
     return DONE;
   }
 }
 
-static ExecResult exec_ldh_a_cmem(Gameboy *g, const Instruction *instr,
-                                  int cycle) {
+static CpuState exec_ldh_a_cmem(Gameboy *g, const Instruction *instr,
+                                int cycle) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
     cpu->scratch[0] = fetch(g, 0xFF00 | get_reg8(cpu, REG_C));
-    return NOT_DONE;
+    return EXECUTING;
   }
   set_reg8(cpu, REG_A, cpu->scratch[0]);
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_ldh_a_imm8mem(Gameboy *g, const Instruction *instr,
-                                     int cycle) {
+static CpuState exec_ldh_a_imm8mem(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch(g, 0xFF00 | cpu->scratch[0]);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     set_reg8(cpu, REG_A, cpu->scratch[1]);
     cpu->ir = fetch_pc(g);
@@ -1310,20 +1272,20 @@ static ExecResult exec_ldh_a_imm8mem(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_ld_a_imm16mem(Gameboy *g, const Instruction *instr,
-                                     int cycle) {
+static CpuState exec_ld_a_imm16mem(Gameboy *g, const Instruction *instr,
+                                   int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     cpu->scratch[1] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
     cpu->scratch[0] = fetch(g, addr);
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     set_reg8(cpu, REG_A, cpu->scratch[0]);
     cpu->ir = fetch_pc(g);
@@ -1331,13 +1293,13 @@ static ExecResult exec_ld_a_imm16mem(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
-                                   int cycle) {
+static CpuState exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
+                                 int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     int8_t x = cpu->scratch[0];
     cpu->scratch[1] = (cpu->sp + x) & 0xFF;
@@ -1345,10 +1307,10 @@ static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
     assign_flag(cpu, FLAG_N, false);
     assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
     assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
-    return NOT_DONE;
+    return EXECUTING;
   case 2:
     cpu->scratch[0] = (cpu->sp + (int8_t)cpu->scratch[0]) >> 8;
-    return NOT_DONE;
+    return EXECUTING;
   default: // 3
     cpu->sp = (uint16_t)cpu->scratch[0] << 8 | cpu->scratch[1];
     cpu->ir = fetch_pc(g);
@@ -1356,20 +1318,20 @@ static ExecResult exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
-                                          int cycle) {
+static CpuState exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
+                                        int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
     cpu->scratch[0] = fetch_pc(g);
-    return NOT_DONE;
+    return EXECUTING;
   case 1:
     int8_t x = cpu->scratch[0];
     assign_flag(cpu, FLAG_Z, false);
     assign_flag(cpu, FLAG_N, false);
     assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
     assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
-    return NOT_DONE;
+    return EXECUTING;
   default: // 2
     set_reg16(cpu, REG_HL, cpu->sp + (int8_t)cpu->scratch[0]);
     cpu->ir = fetch_pc(g);
@@ -1377,18 +1339,17 @@ static ExecResult exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
   }
 }
 
-static ExecResult exec_ld_sp_hl(Gameboy *g, const Instruction *instr,
-                                int cycle) {
+static CpuState exec_ld_sp_hl(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
     cpu->sp = get_reg16(cpu, REG_HL);
-    return NOT_DONE;
+    return EXECUTING;
   }
   cpu->ir = fetch_pc(g);
   return DONE;
 }
 
-static ExecResult exec_di(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_di(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   cpu->ime = false;
   cpu->ei_pend = false;
@@ -1396,7 +1357,7 @@ static ExecResult exec_di(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static ExecResult exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
+static CpuState exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   cpu->ei_pend = true;
   cpu->ir = fetch_pc(g);
@@ -2024,6 +1985,21 @@ const Instruction *find_instruction(const Instruction *bank, uint8_t op_code) {
     instr++;
   }
   return unknown_instruction;
+}
+
+const char *cpu_state_name(CpuState s) {
+  switch (s) {
+  case DONE:
+    return "DONE";
+  case EXECUTING:
+    return "EXECUTING";
+  case INTERRUPTING:
+    return "INTERRUPTING";
+  case HALTED:
+    return "HALTED";
+  done:
+    fail("unknown CpuState: %d", s);
+  }
 }
 
 const char *reg8_name(Reg8 r) {

@@ -37,7 +37,8 @@ static int step(Gameboy *g) {
     if (cycles == 10) {
       fail("too many cycles");
     }
-  } while (cpu_mcycle(g) == NOT_DONE);
+    cpu_mcycle(g);
+  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
   return cycles;
 }
 
@@ -5245,7 +5246,7 @@ static struct exec_test
                         .cpu = {.ir = 7, .pc = 0x41, .sp = 8, .ime = false},
                         .mem =
                             {
-                                [8] = 0xA,
+                                [8] = 0x9,
                                 [9] = 0x5,
                                 [0x40] = 7,
                                 [MEM_IF] = 0,
@@ -5272,7 +5273,7 @@ static struct exec_test
                         .cpu = {.ir = 7, .pc = 0x49, .sp = 8, .ime = false},
                         .mem =
                             {
-                                [8] = 0xA,
+                                [8] = 0x9,
                                 [9] = 0x5,
                                 [0x48] = 7,
                                 [MEM_IF] = 0,
@@ -5299,7 +5300,7 @@ static struct exec_test
                         .cpu = {.ir = 7, .pc = 0x51, .sp = 8, .ime = false},
                         .mem =
                             {
-                                [8] = 0xA,
+                                [8] = 0x9,
                                 [9] = 0x5,
                                 [0x50] = 7,
                                 [MEM_IF] = 0,
@@ -5326,7 +5327,7 @@ static struct exec_test
                         .cpu = {.ir = 7, .pc = 0x59, .sp = 8, .ime = false},
                         .mem =
                             {
-                                [8] = 0xA,
+                                [8] = 0x9,
                                 [9] = 0x5,
                                 [0x58] = 7,
                                 [MEM_IF] = 0,
@@ -5353,7 +5354,7 @@ static struct exec_test
                         .cpu = {.ir = 7, .pc = 0x61, .sp = 8, .ime = false},
                         .mem =
                             {
-                                [8] = 0xA,
+                                [8] = 0x9,
                                 [9] = 0x5,
                                 [0x60] = 7,
                                 [MEM_IF] = 0,
@@ -5369,399 +5370,24 @@ void run_call_interrupt_tests() {
                                             sizeof(call_interrupt_tests[0]));
 }
 
-void run_wake_from_halt_ime_true_test() {
-  Gameboy g = {
-      .cpu = {.pc = 0x050A, .ir = HALT, .sp = 10, .ime = true},
-      .mem = {[0x40] = 8, [MEM_IE] = 0xFF},
-  };
-
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("never halted");
-  }
-  // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 1");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 2");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 3");
-  }
-
-  // Wake up.
-  g.mem[MEM_IF] = 1;
-  step(&g);
-
-  Gameboy want = {
-      .cpu =
-          {
-              .pc = 0x41,
-              .ir = 8,
-              .sp = 8,
-              .ime = false,
-          },
-      .mem =
-          {
-              [8] = 0xA,
-              [9] = 0x5,
-              [0x40] = 8,
-              [0x050A] = NOP,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("diff");
-  }
-}
-
-void run_wake_from_halt_ime_false_test() {
+void run_call_interrupt_and_reti_test() {
   Gameboy g = {
       .cpu =
           {
-              .pc = 0x050A,
-              .ir = HALT,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("never halted");
-  }
-  // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 1");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 2");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 3");
-  }
-
-  Gameboy want0 = {
-      .cpu =
-          {
-              .pc = 0x050B,
+              .pc = 0x0A06,
               .ir = INCA,
-              .sp = 10,
-              .ime = false,
-              .halted = true,
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want0)) {
-    gameboy_print_diff(stderr, &g, &want0);
-    FAIL("bad halted state");
-  }
-
-  // Wake up.
-  g.mem[MEM_IF] = 1;
-  step(&g); // INC A.
-
-  Gameboy want = {
-      .cpu =
-          {
-              .pc = 0x050C,
-              .ir = 9,
-              .sp = 10,
-              .ime = false,
-              .registers = {[REG_A] = 1},
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("diff");
-  }
-}
-
-void run_halt_bug_double_read_test() {
-  Gameboy g = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = HALT,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-
-  if (cpu_mcycle(&g) == HALTED) {
-    FAIL("halted");
-  }
-
-  Gameboy want0 = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = INCA,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want0)) {
-    gameboy_print_diff(stderr, &g, &want0);
-    FAIL("bad state after halt");
-  }
-
-  // But we immediately wake up from the halt.
-  // We execute the INC A at 0x050A, but PC was not incremented.
-  step(&g);
-
-  Gameboy want = {
-      .cpu =
-          {
-              .pc = 0x050B,
-              .ir = INCA,
-              .sp = 10,
-              .ime = false,
-              .registers = {[REG_A] = 1},
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [0x050A] = INCA,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("diff");
-  }
-}
-
-void run_halt_bug_ei_halt_test() {
-  Gameboy g = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = EI,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x050A] = HALT,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-
-  if (cpu_mcycle(&g) != DONE) {
-    FAIL("EI didn't finish");
-  }
-
-  Gameboy want0 = {
-      .cpu =
-          {
-              // For all preceding besides EI, we will re-read
-              // the instruction after HALT and execute it.
-              // But for EI, we will enter an interupt handler,
-              // and the return address pushed for that handler
-              // will be the address of HALT itself, one less.
-              // Since we aren't actually pushing in parallel
-              // with incrementing PC, this is handled as a special case.
-              // The PC here is 0x050A (HALT) instead of 0x050B,
-              // the address after HALT.
-              .pc = 0x050B,
-              .ir = HALT,
-              .sp = 10,
-              .ime = false,
-              .ei_pend = true,
-          },
-      .mem =
-          {
-              [0x050A] = HALT,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want0)) {
-    gameboy_print_diff(stderr, &g, &want0);
-    FAIL("bad state after EI");
-  }
-
-  if (cpu_mcycle(&g) != DONE) {
-    FAIL("HALT didn't finish");
-  }
-
-  Gameboy want = {
-      .cpu =
-          {
-              // For all preceding besides EI, we will re-read
-              // the instruction after HALT and execute it.
-              // But for EI, we will enter an interupt handler,
-              // and the return address pushed for that handler
-              // will be the address of HALT itself, one less.
-              // Since we aren't actually pushing in parallel
-              // with incrementing PC, this is handled as a special case.
-              // The PC here is 0x050A (HALT) instead of 0x050B,
-              // the address after HALT.
-              .pc = 0x050A,
-              .ir = HALT,
-              .sp = 10,
-              .ime = true,
-          },
-      .mem =
-          {
-              [0x050A] = HALT,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("bad state after HALT");
-  }
-}
-
-void run_halt_bug_rst_test() {
-  Gameboy g = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = HALT,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x050A] = RST0,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-
-  if (cpu_mcycle(&g) == HALTED) {
-    FAIL("halted");
-  }
-
-  Gameboy want0 = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = RST0,
-              .sp = 10,
-              .ime = false,
-          },
-      .mem =
-          {
-              [0x050A] = RST0,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want0)) {
-    gameboy_print_diff(stderr, &g, &want0);
-    FAIL("bad state after halt");
-  }
-
-  // But we immediately wake up from the halt.
-  // We execute the RST $00 at 0x050A,
-  // but PC was not incremented.
-  step(&g);
-
-  Gameboy want = {
-      .cpu =
-          {
-              .pc = 1,
-              .ir = 0,
-              .sp = 8,
-              .ime = false,
-          },
-      .mem =
-          {
-              // Return will be to 0x0A05, the RST itself,
-              // so when the routine returns, it will be called again.
-              [8] = 0x0A,
-              [9] = 0x05,
-              [0x050A] = RST0,
-              [0x050B] = 9,
-              [MEM_IF] = 1,
-              [MEM_IE] = 0xFF,
-          },
-  };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("diff");
-  }
-}
-
-void run_halt_call_interrupt_and_reti() {
-  Gameboy g = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = HALT,
-              .sp = 10,
+              .sp = 100,
               .ime = true,
           },
       .mem =
           {
               [0x40] = RETI,
-              [0x050A] = INCA,
+              [0x0A05] = INCA,
+              [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
 
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("never halted");
-  }
-  // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 1");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 2");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 3");
-  }
-
-  // Wakeup and call the interrupt handler.
-  g.mem[MEM_IF] = 1;
   step(&g);
 
   Gameboy want_interrupt = {
@@ -5769,128 +5395,417 @@ void run_halt_call_interrupt_and_reti() {
           {
               .pc = 0x41,
               .ir = RETI,
-              .sp = 8,
+              .sp = 98,
               .ime = false,
+              .state = DONE,
           },
       .mem =
           {
-              [8] = 0xA,
-              [9] = 0x5,
               [0x40] = RETI,
-              [0x050A] = INCA,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want_interrupt)) {
     gameboy_print_diff(stderr, &g, &want_interrupt);
-    FAIL("failed to call the interrupt.");
+    FAIL("unexpected interrupt state");
   }
 
-  step(&g); // RETI
+  // Should RETI to the INCA.
+  step(&g);
 
-  Gameboy want_reti_done = {
+  Gameboy want_after_reti = {
       .cpu =
           {
-              .pc = 0x050B,
+              .pc = 0x0A06,
               .ir = INCA,
-              .sp = 10,
+              .sp = 100,
               .ime = true,
+              .state = DONE,
           },
       .mem =
           {
-              [8] = 0xA,
-              [9] = 0x5,
               [0x40] = RETI,
-              [0x050A] = INCA,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_reti_done)) {
-    gameboy_print_diff(stderr, &g, &want_reti_done);
-    FAIL("failed to call RETI.");
+  if (!gameboy_eq(&g, &want_after_reti)) {
+    gameboy_print_diff(stderr, &g, &want_after_reti);
+    FAIL("unexpected after reti state");
   }
 
-  step(&g); // INC A
+  // Should INCA.
+  step(&g);
 
-  Gameboy want_inca_done = {
+  Gameboy want_after_inca = {
       .cpu =
           {
-              .pc = 0x050C,
+              .pc = 0x0A07,
               .ir = 0,
-              .sp = 10,
+              .sp = 100,
               .ime = true,
+              .state = DONE,
               .registers = {[REG_A] = 1},
           },
       .mem =
           {
-              [8] = 0xA,
-              [9] = 0x5,
               [0x40] = RETI,
-              [0x050A] = INCA,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_inca_done)) {
-    gameboy_print_diff(stderr, &g, &want_inca_done);
-    FAIL("failed to call INC A.");
+  if (!gameboy_eq(&g, &want_after_inca)) {
+    gameboy_print_diff(stderr, &g, &want_after_inca);
+    FAIL("unexpected after reti state");
   }
 }
 
-void run_halt_ignore_interrupt_and_resume() {
+void run_halt_ime_false_pending_false_test() {
   Gameboy g = {
       .cpu =
           {
-              .pc = 0x050A,
+              .pc = 0,
               .ir = HALT,
-              .sp = 10,
+              .sp = 100,
               .ime = false,
           },
       .mem =
           {
-              [0x40] = RETI,
-              [0x050A] = INCA,
+              [0] = INCA,
+              [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
           },
   };
 
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("never halted");
-  }
-  // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 1");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 2");
-  }
-  if (cpu_mcycle(&g) != HALTED) {
-    FAIL("expected to remain halted until an interrupt 3");
-  }
+  cpu_mcycle(&g);
 
-  // Wakeup and INC A.
-  g.mem[MEM_IF] = 1;
-  step(&g);
-
-  Gameboy want_inca_done = {
+  Gameboy want_halted = {
       .cpu =
           {
-              .pc = 0x050C,
-              .ir = 0,
-              .sp = 10,
+              .pc = 0,
+              .ir = INCA,
+              .sp = 100,
               .ime = false,
-              .registers = {[REG_A] = 1},
+              .state = HALTED,
           },
       .mem =
           {
-              [0x40] = RETI,
-              [0x050A] = INCA,
+              [0] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_halted)) {
+    gameboy_print_diff(stderr, &g, &want_halted);
+    FAIL("unexpected halted state");
+  }
+
+  // Wake up.
+  g.mem[MEM_IF] = 1;
+  cpu_mcycle(&g); // should execute a NOP and re-fetch IR=INCA
+
+  Gameboy want_awake = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = INCA,
+              .sp = 100,
+              .ime = false,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0] = INCA,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_inca_done)) {
-    gameboy_print_diff(stderr, &g, &want_inca_done);
-    FAIL("failed to call INC A.");
+  if (!gameboy_eq(&g, &want_awake)) {
+    gameboy_print_diff(stderr, &g, &want_awake);
+    FAIL("unexpected awake state");
+  }
+}
+
+void run_halt_ime_false_pending_true_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0,
+              .ir = HALT,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = INCA,
+              [MEM_IF] = 1 << 4,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  cpu_mcycle(&g);
+
+  Gameboy want = {
+      .cpu =
+          {
+              // We never halt in this situation, but instead, we immediately
+              // wake up. PC was never incremented, IR is set to INCA, but PC
+              // still points to INCA. We will read INCA twice.
+              //
+              // This is "the HALT bug".
+              .pc = 0,
+              .ir = INCA,
+              .sp = 100,
+              .ime = false,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0] = INCA,
+              [MEM_IF] = 1 << 4,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want)) {
+    gameboy_print_diff(stderr, &g, &want);
+    FAIL("unexpected end state");
+  }
+
+  cpu_mcycle(&g);
+
+  Gameboy want_inca_1 = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = INCA,
+              .sp = 100,
+              .ime = false,
+              .state = DONE,
+              .registers = {[REG_A] = 1},
+          },
+      .mem =
+          {
+              [0] = INCA,
+              [MEM_IF] = 1 << 4,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_inca_1)) {
+    gameboy_print_diff(stderr, &g, &want_inca_1);
+    FAIL("unexpected end state");
+  }
+
+  cpu_mcycle(&g);
+
+  Gameboy want_inca_2 = {
+      .cpu =
+          {
+              .pc = 2,
+              .ir = 0,
+              .sp = 100,
+              .ime = false,
+              .state = DONE,
+              .registers = {[REG_A] = 2},
+          },
+      .mem =
+          {
+              [0] = INCA,
+              [MEM_IF] = 1 << 4,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_inca_2)) {
+    gameboy_print_diff(stderr, &g, &want_inca_2);
+    FAIL("unexpected end state");
+  }
+}
+
+void run_halt_ime_true_pending_false_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x0A05,
+              .ir = HALT,
+              .sp = 100,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  cpu_mcycle(&g);
+
+  Gameboy want_halted = {
+      .cpu =
+          {
+              .pc = 0x0A05,
+              .ir = INCA,
+              .sp = 100,
+              .ime = true,
+              .state = HALTED,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_halted)) {
+    gameboy_print_diff(stderr, &g, &want_halted);
+    FAIL("unexpected halted state");
+  }
+
+  // Wake up.
+  g.mem[MEM_IF] = 1;
+  cpu_mcycle(&g); // should execute a NOP and re-fetch IR=INCA
+
+  Gameboy want_awake = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = INCA,
+              .sp = 100,
+              .ime = true,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_awake)) {
+    gameboy_print_diff(stderr, &g, &want_awake);
+    FAIL("unexpected awake state");
+  }
+
+  // After the NOP, we should call the interrupt.
+  step(&g);
+
+  Gameboy want_awake2 = {
+      .cpu =
+          {
+              .pc = 0x41,
+              .ir = RETI,
+              .sp = 98,
+              .ime = false,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              // In this case, the NOP fetched, so the return address of the
+              // interrupt should be INCA.
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_awake2)) {
+    gameboy_print_diff(stderr, &g, &want_awake2);
+    FAIL("unexpected awake state");
+  }
+}
+
+void run_halt_ime_true_pending_true_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x0A05,
+              .ir = HALT,
+              .sp = 100,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  // We should never HALT. Instead, we call the interrupt, and the return
+  // address points to the HALT instruction.
+  step(&g); // should call the interrupt.
+
+  Gameboy want_awake = {
+      .cpu =
+          {
+              .pc = 0x41,
+              .ir = RETI,
+              .sp = 98,
+              .ime = false,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [98] = 0x04,
+              [99] = 0x0A,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_awake)) {
+    gameboy_print_diff(stderr, &g, &want_awake);
+    FAIL("unexpected awake state");
+  }
+
+  // Should RETI to the HALT.
+  step(&g);
+
+  Gameboy want_awake2 = {
+      .cpu =
+          {
+              .pc = 0x0A05,
+              .ir = HALT,
+              .sp = 100,
+              .ime = true,
+              .state = DONE,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [98] = 0x04,
+              [99] = 0x0A,
+              [0x0A04] = HALT,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_awake2)) {
+    gameboy_print_diff(stderr, &g, &want_awake2);
+    FAIL("unexpected awake2 state");
   }
 }
 
@@ -5903,12 +5818,14 @@ int main() {
   run_ei_delayed_test();
   run_ei_di_test();
   run_call_interrupt_tests();
-  run_wake_from_halt_ime_true_test();
-  run_wake_from_halt_ime_false_test();
-  run_halt_bug_double_read_test();
-  run_halt_bug_ei_halt_test();
-  run_halt_bug_rst_test();
-  run_halt_call_interrupt_and_reti();
-  run_halt_ignore_interrupt_and_resume();
+
+  run_call_interrupt_and_reti_test();
+
+  // Test the four cases of HALT and interrupts.
+  run_halt_ime_false_pending_false_test();
+  run_halt_ime_false_pending_true_test();
+  run_halt_ime_true_pending_false_test();
+  run_halt_ime_true_pending_true_test();
+
   return 0;
 }
