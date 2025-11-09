@@ -25,6 +25,7 @@ enum {
   INCA = 0x3C,
   HALT = 0x76,
   RST0 = 0xC7,
+  RET = 0xC9,
   RETI = 0xD9,
   DI = 0xF3,
   EI = 0xFB,
@@ -5487,7 +5488,7 @@ void run_halt_ime_false_pending_false_test() {
           },
   };
 
-  cpu_mcycle(&g);
+  step(&g);
 
   Gameboy want_halted = {
       .cpu =
@@ -5512,7 +5513,7 @@ void run_halt_ime_false_pending_false_test() {
 
   // Wake up.
   g.mem[MEM_IF] = 1;
-  cpu_mcycle(&g); // should execute a NOP and re-fetch IR=INCA
+  step(&g); // should execute a NOP and re-fetch IR=INCA
 
   Gameboy want_awake = {
       .cpu =
@@ -5553,7 +5554,7 @@ void run_halt_ime_false_pending_true_test() {
           },
   };
 
-  cpu_mcycle(&g);
+  step(&g);
 
   Gameboy want = {
       .cpu =
@@ -5581,7 +5582,7 @@ void run_halt_ime_false_pending_true_test() {
     FAIL("unexpected end state");
   }
 
-  cpu_mcycle(&g);
+  step(&g);
 
   Gameboy want_inca_1 = {
       .cpu =
@@ -5605,7 +5606,7 @@ void run_halt_ime_false_pending_true_test() {
     FAIL("unexpected end state");
   }
 
-  cpu_mcycle(&g);
+  step(&g);
 
   Gameboy want_inca_2 = {
       .cpu =
@@ -5630,6 +5631,276 @@ void run_halt_ime_false_pending_true_test() {
   }
 }
 
+void run_halt_after_ei_ime_false_pending_true_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x0A05,
+              .ir = EI,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  step(&g);
+
+  Gameboy want_after_ei = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = HALT,
+              .sp = 100,
+              .ime = false,
+              .ei_pend = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_ei)) {
+    gameboy_print_diff(stderr, &g, &want_after_ei);
+    FAIL("unexpected after EI state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_halt = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = 0, // 0 after HALT; doesn't matter what it is.
+              .sp = 100,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_halt)) {
+    gameboy_print_diff(stderr, &g, &want_after_halt);
+    FAIL("unexpected after HALT state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_interrupt = {
+      .cpu =
+          {
+              .pc = 0x41,
+              .ir = RETI,
+              .sp = 98,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_interrupt)) {
+    gameboy_print_diff(stderr, &g, &want_after_interrupt);
+    FAIL("unexpected after interrupt state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_reti = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = HALT,
+              .sp = 100,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_reti)) {
+    gameboy_print_diff(stderr, &g, &want_after_reti);
+    FAIL("unexpected after interrupt state");
+  }
+
+  step(&g);
+
+  Gameboy want_second_halt = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = 0,
+              .sp = 100,
+              .ime = true,
+              .state = HALTED,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A04] = EI,
+              [0x0A05] = HALT,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_second_halt)) {
+    gameboy_print_diff(stderr, &g, &want_second_halt);
+    FAIL("unexpected after interrupt state");
+  }
+}
+
+void run_halt_then_rst_ime_false_pending_true_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = HALT,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = RET,
+              [0x0A05] = HALT,
+              [0x0A06] = RST0,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  step(&g);
+
+  Gameboy want_after_halt = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = RST0,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = RET,
+              [0x0A05] = HALT,
+              [0x0A06] = RST0,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_halt)) {
+    gameboy_print_diff(stderr, &g, &want_after_halt);
+    FAIL("unexpected halted state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_rst = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = RET,
+              .sp = 98,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = RET,
+              [0x0A05] = HALT,
+              [0x0A06] = RST0,
+              [98] = 0x06,
+              [99] = 0xA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_rst)) {
+    gameboy_print_diff(stderr, &g, &want_after_rst);
+    FAIL("unexpected rst state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_ret = {
+      .cpu =
+          {
+              .pc = 0x0A07,
+              .ir = RST0,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = RET,
+              [0x0A05] = HALT,
+              [0x0A06] = RST0,
+              [98] = 0x06,
+              [99] = 0xA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_ret)) {
+    gameboy_print_diff(stderr, &g, &want_after_ret);
+    FAIL("unexpected ret state");
+  }
+
+  step(&g);
+
+  Gameboy want_after_rst_again = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = RET,
+              .sp = 98,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = RET,
+              [0x0A05] = HALT,
+              [0x0A06] = RST0,
+              [98] = 0x07,
+              [99] = 0xA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_rst_again)) {
+    gameboy_print_diff(stderr, &g, &want_after_rst_again);
+    FAIL("unexpected rst state");
+  }
+}
+
 void run_halt_ime_true_pending_false_test() {
   Gameboy g = {
       .cpu =
@@ -5649,7 +5920,7 @@ void run_halt_ime_true_pending_false_test() {
           },
   };
 
-  cpu_mcycle(&g);
+  step(&g);
 
   Gameboy want_halted = {
       .cpu =
@@ -5676,7 +5947,7 @@ void run_halt_ime_true_pending_false_test() {
 
   // Wake up.
   g.mem[MEM_IF] = 1;
-  cpu_mcycle(&g); // should execute a NOP and re-fetch IR=INCA
+  step(&g); // should execute a NOP and re-fetch IR=INCA
 
   Gameboy want_awake = {
       .cpu =
@@ -5824,6 +6095,8 @@ int main() {
   // Test the four cases of HALT and interrupts.
   run_halt_ime_false_pending_false_test();
   run_halt_ime_false_pending_true_test();
+  run_halt_after_ei_ime_false_pending_true_test();
+  run_halt_then_rst_ime_false_pending_true_test();
   run_halt_ime_true_pending_false_test();
   run_halt_ime_true_pending_true_test();
 
