@@ -130,6 +130,9 @@ void cpu_mcycle(Gameboy *g) {
   Cpu *cpu = &g->cpu;
 
   if (cpu->state == HALTED) {
+    if (!interrupts_pending(g)) {
+      return;
+    }
     // Wake up and execute a NOP.
     cpu->ir = 0x0;
     cpu->state = EXECUTING;

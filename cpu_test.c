@@ -5471,6 +5471,78 @@ void run_call_interrupt_and_reti_test() {
   }
 }
 
+void run_halt_stays_halted_test() {
+  Gameboy g = {
+      .cpu =
+          {
+              .pc = 1,
+              .ir = HALT,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = HALT,
+              [1] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+
+  // Should stay halted, so long as there are no pending interrupts.
+
+  for (int i = 0; i < 10; i++) {
+    step(&g);
+    Gameboy want_halted = {
+        .cpu =
+            {
+                .pc = 1,
+                .ir = INCA,
+                .sp = 100,
+                .ime = false,
+                // No interrupts, so stay halted.
+                .state = HALTED,
+            },
+        .mem =
+            {
+                [0] = HALT,
+                [1] = INCA,
+                [MEM_IF] = 0,
+                [MEM_IE] = 0xFF,
+            },
+    };
+    if (!gameboy_eq(&g, &want_halted)) {
+      gameboy_print_diff(stderr, &g, &want_halted);
+      FAIL("unexpected halted state count %d", i);
+    }
+  }
+
+  // Now wake up and execute the NOP to reestablish IR and PC.
+  g.mem[MEM_IF] = 1;
+  step(&g);
+
+  Gameboy want_awake = {
+      .cpu =
+          {
+              .pc = 2,
+              .ir = INCA,
+              .sp = 100,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0] = HALT,
+              [1] = INCA,
+              [MEM_IF] = 1,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_awake)) {
+    gameboy_print_diff(stderr, &g, &want_awake);
+    FAIL("unexpected awake state");
+  }
+}
+
 void run_halt_ime_false_pending_false_test() {
   Gameboy g = {
       .cpu =
@@ -6092,7 +6164,8 @@ int main() {
 
   run_call_interrupt_and_reti_test();
 
-  // Test the four cases of HALT and interrupts.
+  // Test various cases of HALT and interrupts.
+  run_halt_stays_halted_test();
   run_halt_ime_false_pending_false_test();
   run_halt_ime_false_pending_true_test();
   run_halt_after_ei_ime_false_pending_true_test();
