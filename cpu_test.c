@@ -5383,8 +5383,9 @@ void run_call_interrupt_and_reti_test() {
       .mem =
           {
               [0x40] = RETI,
+              [0x48] = RETI,
               [0x0A05] = INCA,
-              [MEM_IF] = 1,
+              [MEM_IF] = 3,
               [MEM_IE] = 0xFF,
           },
   };
@@ -5403,10 +5404,11 @@ void run_call_interrupt_and_reti_test() {
       .mem =
           {
               [0x40] = RETI,
+              [0x48] = RETI,
               [98] = 0x05,
               [99] = 0x0A,
               [0x0A05] = INCA,
-              [MEM_IF] = 0,
+              [MEM_IF] = 2,
               [MEM_IE] = 0xFF,
           },
   };
@@ -5430,6 +5432,34 @@ void run_call_interrupt_and_reti_test() {
       .mem =
           {
               [0x40] = RETI,
+              [0x48] = RETI,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A05] = INCA,
+              [MEM_IF] = 2,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_after_reti)) {
+    gameboy_print_diff(stderr, &g, &want_after_reti);
+    FAIL("unexpected after reti state");
+  }
+
+  // Now the next interrupt.
+  step(&g);
+
+  Gameboy want_second_interrupt = {
+      .cpu =
+          {
+              .pc = 0x49,
+              .ir = RETI,
+              .sp = 98,
+              .ime = false,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x48] = RETI,
               [98] = 0x05,
               [99] = 0x0A,
               [0x0A05] = INCA,
@@ -5437,9 +5467,36 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_reti)) {
-    gameboy_print_diff(stderr, &g, &want_after_reti);
-    FAIL("unexpected after reti state");
+  if (!gameboy_eq(&g, &want_second_interrupt)) {
+    gameboy_print_diff(stderr, &g, &want_second_interrupt);
+    FAIL("unexpected after second interrupt");
+  }
+
+  // RETI again
+  step(&g);
+
+  Gameboy want_second_reti = {
+      .cpu =
+          {
+              .pc = 0x0A06,
+              .ir = INCA,
+              .sp = 100,
+              .ime = true,
+          },
+      .mem =
+          {
+              [0x40] = RETI,
+              [0x48] = RETI,
+              [98] = 0x05,
+              [99] = 0x0A,
+              [0x0A05] = INCA,
+              [MEM_IF] = 0,
+              [MEM_IE] = 0xFF,
+          },
+  };
+  if (!gameboy_eq(&g, &want_second_reti)) {
+    gameboy_print_diff(stderr, &g, &want_second_reti);
+    FAIL("unexpected after second reti");
   }
 
   // Should INCA.
@@ -5458,6 +5515,7 @@ void run_call_interrupt_and_reti_test() {
       .mem =
           {
               [0x40] = RETI,
+              [0x48] = RETI,
               [98] = 0x05,
               [99] = 0x0A,
               [0x0A05] = INCA,
@@ -5467,7 +5525,7 @@ void run_call_interrupt_and_reti_test() {
   };
   if (!gameboy_eq(&g, &want_after_inca)) {
     gameboy_print_diff(stderr, &g, &want_after_inca);
-    FAIL("unexpected after reti state");
+    FAIL("unexpected after inca state");
   }
 }
 
