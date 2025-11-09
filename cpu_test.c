@@ -3,6 +3,44 @@
 #include <stdio.h>
 #include <string.h>
 
+// Calls fail with the current function name prefixed to the format string.
+#define FAIL(...)                                                              \
+  do {                                                                         \
+    fprintf(stderr, "%s: ", __func__);                                         \
+    fail(__VA_ARGS__);                                                         \
+  } while (0)
+
+enum {
+  // Memory addresses.
+  HIGH_RAM_START = 0xFF80,
+
+  // Flag combinations.
+  FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
+  FLAGS_NH = FLAG_N | FLAG_H,
+  FLAGS_ZNH = FLAG_Z | FLAG_N | FLAG_H,
+  FLAGS_ZNHC = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
+
+  // Instructions.
+  NOP = 0x0,
+  INCA = 0x3C,
+  HALT = 0x76,
+  RST0 = 0xC7,
+  RETI = 0xD9,
+  DI = 0xF3,
+  EI = 0xFB,
+};
+
+static int step(Gameboy *g) {
+  int cycles = 0;
+  do {
+    cycles++;
+    if (cycles == 10) {
+      fail("too many cycles");
+    }
+  } while (cpu_mcycle(g) == NOT_DONE);
+  return cycles;
+}
+
 struct snprint_test {
   uint8_t op;
   const char *str;
@@ -414,7 +452,7 @@ void run_snprint_tests() {
     char buf[INSTRUCTION_STR_MAX];
     format_instruction(buf, sizeof(buf), mem, 0);
     if (strcmp(buf, test->str) != 0) {
-      fail("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
+      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
            test->str);
     }
   }
@@ -433,7 +471,7 @@ void run_cb_snprint_tests() {
     char buf[INSTRUCTION_STR_MAX];
     format_instruction(buf, sizeof(buf), mem, 0);
     if (strcmp(buf, test->str) != 0) {
-      fail("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
+      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
            test->str);
     }
   }
@@ -449,11 +487,11 @@ void run_reg8_get_set_tests() {
       }
       uint8_t got = get_reg8(&cpu, r);
       if (s == r && got != 1) {
-        fail("set_reg(%s, 1), get_reg(%s)=%d, wanted 1", reg8_name(r),
+        FAIL("set_reg(%s, 1), get_reg(%s)=%d, wanted 1", reg8_name(r),
              reg8_name(r), got);
       }
       if (s != r && got != 0) {
-        fail("set_reg(%s, 1), get_reg(%s)=%d, wanted 0", reg8_name(r),
+        FAIL("set_reg(%s, 1), get_reg(%s)=%d, wanted 0", reg8_name(r),
              reg8_name(r), got);
       }
     }
@@ -465,128 +503,128 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_BC, 1, 2);
     if (get_reg16(&cpu, REG_BC) != 0x0201) {
-      fail("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_BC));
     }
     if (get_reg8(&cpu, REG_B) != 2) {
-      fail("set_reg(BC, 1), get_reg(B)=%d, wanted 2", get_reg8(&cpu, REG_B));
+      FAIL("set_reg(BC, 1), get_reg(B)=%d, wanted 2", get_reg8(&cpu, REG_B));
     }
     if (get_reg8(&cpu, REG_C) != 1) {
-      fail("set_reg(BC, 1), get_reg(C)=%d, wanted 1", get_reg8(&cpu, REG_C));
+      FAIL("set_reg(BC, 1), get_reg(C)=%d, wanted 1", get_reg8(&cpu, REG_C));
     }
     if (get_reg8(&cpu, REG_D) != 0) {
-      fail("set_reg(BC, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+      FAIL("set_reg(BC, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
     }
     if (get_reg8(&cpu, REG_E) != 0) {
-      fail("set_reg(BC, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+      FAIL("set_reg(BC, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
     }
     if (get_reg8(&cpu, REG_H) != 0) {
-      fail("set_reg(BC, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+      FAIL("set_reg(BC, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
     }
     if (get_reg8(&cpu, REG_L) != 0) {
-      fail("set_reg(BC, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+      FAIL("set_reg(BC, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
     }
     if (get_reg8(&cpu, REG_A) != 0) {
-      fail("set_reg(BC, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+      FAIL("set_reg(BC, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
     }
     if (cpu.sp != 0) {
-      fail("set_reg(BC, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+      FAIL("set_reg(BC, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
     }
   }
   {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_DE, 1, 2);
     if (get_reg16(&cpu, REG_DE) != 0x0201) {
-      fail("set_reg(DE, 1), get_reg(DE)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(DE, 1), get_reg(DE)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_DE));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
-      fail("set_reg(DE, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+      FAIL("set_reg(DE, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
     }
     if (get_reg8(&cpu, REG_C) != 0) {
-      fail("set_reg(DE, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+      FAIL("set_reg(DE, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
     }
     if (get_reg8(&cpu, REG_D) != 2) {
-      fail("set_reg(DE, 1), get_reg(D)=%d, wanted 2", get_reg8(&cpu, REG_D));
+      FAIL("set_reg(DE, 1), get_reg(D)=%d, wanted 2", get_reg8(&cpu, REG_D));
     }
     if (get_reg8(&cpu, REG_E) != 1) {
-      fail("set_reg(DE, 1), get_reg(E)=%d, wanted 1", get_reg8(&cpu, REG_E));
+      FAIL("set_reg(DE, 1), get_reg(E)=%d, wanted 1", get_reg8(&cpu, REG_E));
     }
     if (get_reg8(&cpu, REG_H) != 0) {
-      fail("set_reg(DE, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+      FAIL("set_reg(DE, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
     }
     if (get_reg8(&cpu, REG_L) != 0) {
-      fail("set_reg(DE, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+      FAIL("set_reg(DE, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
     }
     if (get_reg8(&cpu, REG_A) != 0) {
-      fail("set_reg(DE, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+      FAIL("set_reg(DE, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
     }
     if (cpu.sp != 0) {
-      fail("set_reg(DE, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+      FAIL("set_reg(DE, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
     }
   }
   {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_HL, 1, 2);
     if (get_reg16(&cpu, REG_HL) != 0x0201) {
-      fail("set_reg(HL, 1), get_reg(HL)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(HL, 1), get_reg(HL)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_HL));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
-      fail("set_reg(HL, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+      FAIL("set_reg(HL, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
     }
     if (get_reg8(&cpu, REG_C) != 0) {
-      fail("set_reg(HL, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+      FAIL("set_reg(HL, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
     }
     if (get_reg8(&cpu, REG_D) != 0) {
-      fail("set_reg(HL, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+      FAIL("set_reg(HL, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
     }
     if (get_reg8(&cpu, REG_E) != 0) {
-      fail("set_reg(HL, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+      FAIL("set_reg(HL, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
     }
     if (get_reg8(&cpu, REG_H) != 2) {
-      fail("set_reg(HL, 1), get_reg(H)=%d, wanted 2", get_reg8(&cpu, REG_H));
+      FAIL("set_reg(HL, 1), get_reg(H)=%d, wanted 2", get_reg8(&cpu, REG_H));
     }
     if (get_reg8(&cpu, REG_L) != 1) {
-      fail("set_reg(HL, 1), get_reg(L)=%d, wanted 1", get_reg8(&cpu, REG_L));
+      FAIL("set_reg(HL, 1), get_reg(L)=%d, wanted 1", get_reg8(&cpu, REG_L));
     }
     if (get_reg8(&cpu, REG_A) != 0) {
-      fail("set_reg(HL, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+      FAIL("set_reg(HL, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
     }
     if (cpu.sp != 0) {
-      fail("set_reg(HL, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
+      FAIL("set_reg(HL, 1), get_reg(SP)=%d, wanted 0", cpu.sp);
     }
   }
   {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_SP, 1, 2);
     if (get_reg16(&cpu, REG_SP) != 0x0201) {
-      fail("set_reg(SP, 1), get_reg(SP)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(SP, 1), get_reg(SP)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_SP));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
-      fail("set_reg(SP, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
+      FAIL("set_reg(SP, 1), get_reg(B)=%d, wanted 0", get_reg8(&cpu, REG_B));
     }
     if (get_reg8(&cpu, REG_C) != 0) {
-      fail("set_reg(SP, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
+      FAIL("set_reg(SP, 1), get_reg(C)=%d, wanted 0", get_reg8(&cpu, REG_C));
     }
     if (get_reg8(&cpu, REG_D) != 0) {
-      fail("set_reg(SP, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
+      FAIL("set_reg(SP, 1), get_reg(D)=%d, wanted 0", get_reg8(&cpu, REG_D));
     }
     if (get_reg8(&cpu, REG_E) != 0) {
-      fail("set_reg(SP, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
+      FAIL("set_reg(SP, 1), get_reg(E)=%d, wanted 0", get_reg8(&cpu, REG_E));
     }
     if (get_reg8(&cpu, REG_H) != 0) {
-      fail("set_reg(SP, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
+      FAIL("set_reg(SP, 1), get_reg(H)=%d, wanted 0", get_reg8(&cpu, REG_H));
     }
     if (get_reg8(&cpu, REG_L) != 0) {
-      fail("set_reg(SP, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
+      FAIL("set_reg(SP, 1), get_reg(L)=%d, wanted 0", get_reg8(&cpu, REG_L));
     }
     if (get_reg8(&cpu, REG_A) != 0) {
-      fail("set_reg(SP, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
+      FAIL("set_reg(SP, 1), get_reg(A)=%d, wanted 0", get_reg8(&cpu, REG_A));
     }
     if (cpu.sp != 0x0201) {
-      fail("set_reg(SP, 1), get_reg(SP)=%d, wanted 0x0201", cpu.sp);
+      FAIL("set_reg(SP, 1), get_reg(SP)=%d, wanted 0x0201", cpu.sp);
     }
   }
 
@@ -595,7 +633,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16(&cpu, REG_BC, 0x0102);
     if (get_reg16(&cpu, REG_BC) != 0x0102) {
-      fail("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
            get_reg16(&cpu, REG_BC));
     }
   }
@@ -606,16 +644,6 @@ struct exec_test {
   const Gameboy init;
   const Gameboy want;
   int cycles;
-};
-
-// We use High RAM below for writes, since we know it's going to be writable,
-// whereas the ROM addresses won't be writable.
-enum {
-  HIGH_RAM_START = 0xFF80,
-  FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
-  FLAGS_NH = FLAG_N | FLAG_H,
-  FLAGS_ZNH = FLAG_Z | FLAG_N | FLAG_H,
-  FLAGS_ZNHC = FLAG_Z | FLAG_N | FLAG_H | FLAG_C,
 };
 
 static struct exec_test
@@ -5120,16 +5148,13 @@ void _run_exec_tests(struct exec_test exec_tests[], int n) {
   for (int i = 0; i < n; i++) {
     struct exec_test *test = &exec_tests[i];
     Gameboy g = test->init;
-    int cycles = 0;
-    do {
-      cycles++;
-    } while (cycles < 10 && cpu_mcycle(&g) == NOT_DONE);
+    int cycles = step(&g);
     if (cycles != test->cycles) {
-      fail("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
+      FAIL("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
     }
     if (!gameboy_eq(&g, &test->want)) {
       gameboy_print_diff(stderr, &g, &test->want);
-      fail("%s: Gameboy state does not match expected", test->name);
+      FAIL("%s: Gameboy state does not match expected", test->name);
     }
   }
 }
@@ -5139,80 +5164,34 @@ void run_exec_tests() {
 }
 
 void run_ei_delayed_test() {
-  Gameboy g = {
-      .cpu = {.ir = 0xFB /* EI */},
-      .mem =
-          {
-              0x00 /* NOP */,
-          },
-  };
-  Cpu *cpu = &g.cpu;
-
-  // Execute first EI in the IR.
-  int cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (cpu->ime) {
-    fail("EI set the IME right away");
+  Gameboy g = {.cpu = {.ir = 0xFB /* EI */}, .mem = {NOP}};
+  step(&g); // Execute first EI in the IR.
+  if (g.cpu.ime) {
+    FAIL("EI set the IME right away");
   }
-
-  // Execute NOP at address 0.
-  cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (!cpu->ime) {
-    fail("NOP after EI did not set IME");
+  step(&g); // Execute NOP at address 0.
+  if (!g.cpu.ime) {
+    FAIL("NOP after EI did not set IME");
   }
 }
 
 void run_ei_di_test() {
-  Gameboy g = {
-      .cpu = {.ir = 0xFB /* EI */},
-      .mem =
-          {
-              0xFB /* EI */,
-              0xF3 /* DI */,
-              0x00 /* NOP */,
-          },
-  };
-  Cpu *cpu = &g.cpu;
-
-  // Execute first EI in the IR.
-  int cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (cpu->ime) {
-    fail("EI set the IME right away");
+  Gameboy g = {.cpu = {.ir = EI}, .mem = {EI, DI, NOP}};
+  step(&g); // Execute first EI in the IR.
+  if (g.cpu.ime) {
+    FAIL("EI set the IME right away");
   }
-
-  // Execute EI at address 0.
-  cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (cpu->ime) {
-    fail("EI after EI set the IME right away");
+  step(&g); // Execute EI at address 0.
+  if (g.cpu.ime) {
+    FAIL("EI after EI set the IME right away");
   }
-
-  // Execute DI at address 1.
-  cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (cpu->ime) {
-    fail("DI after EI set the IME");
+  step(&g); // Execute DI at address 1.
+  if (g.cpu.ime) {
+    FAIL("DI after EI set the IME");
   }
-
-  // Execute NOP at address 2.
-  cycles = 0;
-  do {
-    cycles++;
-  } while (cpu_mcycle(&g) == NOT_DONE);
-  if (cpu->ime) {
-    fail("NOP after DI set the IME");
+  step(&g); // Execute NOP at address 2.
+  if (g.cpu.ime) {
+    FAIL("NOP after DI set the IME");
   }
 }
 
@@ -5392,43 +5371,27 @@ void run_call_interrupt_tests() {
 
 void run_wake_from_halt_ime_true_test() {
   Gameboy g = {
-      .cpu =
-          {
-              .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
-              .sp = 10,
-              .ime = true,
-          },
-      .mem =
-          {
-              [0x40] = 8,
-              [MEM_IE] = 0xFF,
-          },
+      .cpu = {.pc = 0x050A, .ir = HALT, .sp = 10, .ime = true},
+      .mem = {[0x40] = 8, [MEM_IE] = 0xFF},
   };
-  Cpu *cpu = &g.cpu;
 
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_true_test: never halted");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("never halted");
   }
-
   // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
-         "interrupt 1");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 1");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
-         "interrupt 2");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 2");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_true_test: expected to remain halted until an "
-         "interrupt 3");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 3");
   }
 
+  // Wake up.
   g.mem[MEM_IF] = 1;
-
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g);
 
   Gameboy want = {
       .cpu =
@@ -5443,13 +5406,13 @@ void run_wake_from_halt_ime_true_test() {
               [8] = 0xA,
               [9] = 0x5,
               [0x40] = 8,
-              [0x050A] = 0x0 /* NOP */,
+              [0x050A] = NOP,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want)) {
     gameboy_print_diff(stderr, &g, &want);
-    fail("run_wake_from_halt_ime_true_test");
+    FAIL("diff");
   }
 }
 
@@ -5458,43 +5421,37 @@ void run_wake_from_halt_ime_false_test() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* IRC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
-
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_false_test: never halted");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("never halted");
   }
-
   // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
-         "an interrupt 1");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 1");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
-         "an interrupt 2");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 2");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_wake_from_halt_ime_false_test: expected to remain halted until "
-         "an interrupt 3");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 3");
   }
 
   Gameboy want0 = {
       .cpu =
           {
               .pc = 0x050B,
-              .ir = 0x3C,
+              .ir = INCA,
               .sp = 10,
               .ime = false,
               .halted = true,
@@ -5502,21 +5459,19 @@ void run_wake_from_halt_ime_false_test() {
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* INC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want0)) {
     gameboy_print_diff(stderr, &g, &want0);
-    fail("run_wake_from_halt_ime_false_test, bad halted state");
+    FAIL("bad halted state");
   }
 
+  // Wake up.
   g.mem[MEM_IF] = 1;
-
-  // INC A.
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g); // INC A.
 
   Gameboy want = {
       .cpu =
@@ -5530,7 +5485,7 @@ void run_wake_from_halt_ime_false_test() {
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* INC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
@@ -5538,7 +5493,7 @@ void run_wake_from_halt_ime_false_test() {
   };
   if (!gameboy_eq(&g, &want)) {
     gameboy_print_diff(stderr, &g, &want);
-    fail("run_wake_from_halt_ime_false_test");
+    FAIL("diff");
   }
 }
 
@@ -5547,37 +5502,36 @@ void run_halt_bug_double_read_test() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* INC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
 
-  if (cpu_mcycle(&g) == HALT) {
-    fail("run_halt_bug_double_read_test: halted");
+  if (cpu_mcycle(&g) == HALTED) {
+    FAIL("halted");
   }
 
   Gameboy want0 = {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x3C,
+              .ir = INCA,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* INC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
@@ -5585,19 +5539,18 @@ void run_halt_bug_double_read_test() {
   };
   if (!gameboy_eq(&g, &want0)) {
     gameboy_print_diff(stderr, &g, &want0);
-    fail("run_halt_bug_double_read_test: bad state after halt");
+    FAIL("bad state after halt");
   }
 
   // But we immediately wake up from the halt.
   // We execute the INC A at 0x050A, but PC was not incremented.
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g);
 
   Gameboy want = {
       .cpu =
           {
               .pc = 0x050B,
-              .ir = 0x3C,
+              .ir = INCA,
               .sp = 10,
               .ime = false,
               .registers = {[REG_A] = 1},
@@ -5605,7 +5558,7 @@ void run_halt_bug_double_read_test() {
       .mem =
           {
               [0x40] = 8,
-              [0x050A] = 0x3C /* INC A */,
+              [0x050A] = INCA,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
@@ -5613,7 +5566,7 @@ void run_halt_bug_double_read_test() {
   };
   if (!gameboy_eq(&g, &want)) {
     gameboy_print_diff(stderr, &g, &want);
-    fail("run_halt_bug_double_read_test");
+    FAIL("diff");
   }
 }
 
@@ -5622,21 +5575,20 @@ void run_halt_bug_ei_halt_test() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0xFB /* EI */,
+              .ir = EI,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
-              [0x050A] = 0x76 /* HALT */,
+              [0x050A] = HALT,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
 
   if (cpu_mcycle(&g) != DONE) {
-    fail("run_halt_bug_ei_halt_test: EI didn't finish");
+    FAIL("EI didn't finish");
   }
 
   Gameboy want0 = {
@@ -5652,25 +5604,25 @@ void run_halt_bug_ei_halt_test() {
               // The PC here is 0x050A (HALT) instead of 0x050B,
               // the address after HALT.
               .pc = 0x050B,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = false,
               .ei_pend = true,
           },
       .mem =
           {
-              [0x050A] = 0x76 /* HALT */,
+              [0x050A] = HALT,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want0)) {
     gameboy_print_diff(stderr, &g, &want0);
-    fail("run_halt_bug_ei_halt_test: bad state after EI");
+    FAIL("bad state after EI");
   }
 
   if (cpu_mcycle(&g) != DONE) {
-    fail("run_halt_bug_ei_halt_test: HALT didn't finish");
+    FAIL("HALT didn't finish");
   }
 
   Gameboy want = {
@@ -5686,20 +5638,20 @@ void run_halt_bug_ei_halt_test() {
               // The PC here is 0x050A (HALT) instead of 0x050B,
               // the address after HALT.
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = true,
           },
       .mem =
           {
-              [0x050A] = 0x76 /* HALT */,
+              [0x050A] = HALT,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want)) {
     gameboy_print_diff(stderr, &g, &want);
-    fail("run_halt_bug_ei_halt_test: bad state after HALT");
+    FAIL("bad state after HALT");
   }
 }
 
@@ -5708,35 +5660,34 @@ void run_halt_bug_rst_test() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
-              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050A] = RST0,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
 
-  if (cpu_mcycle(&g) == HALT) {
-    fail("run_halt_bug_rst_test: halted");
+  if (cpu_mcycle(&g) == HALTED) {
+    FAIL("halted");
   }
 
   Gameboy want0 = {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0xC7,
+              .ir = RST0,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
-              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050A] = RST0,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
@@ -5744,14 +5695,13 @@ void run_halt_bug_rst_test() {
   };
   if (!gameboy_eq(&g, &want0)) {
     gameboy_print_diff(stderr, &g, &want0);
-    fail("run_halt_bug_rst_test: bad state after halt");
+    FAIL("bad state after halt");
   }
 
   // But we immediately wake up from the halt.
   // We execute the RST $00 at 0x050A,
   // but PC was not incremented.
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g);
 
   Gameboy want = {
       .cpu =
@@ -5767,7 +5717,7 @@ void run_halt_bug_rst_test() {
               // so when the routine returns, it will be called again.
               [8] = 0x0A,
               [9] = 0x05,
-              [0x050A] = 0xC7 /* RST $00 */,
+              [0x050A] = RST0,
               [0x050B] = 9,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
@@ -5775,7 +5725,7 @@ void run_halt_bug_rst_test() {
   };
   if (!gameboy_eq(&g, &want)) {
     gameboy_print_diff(stderr, &g, &want);
-    fail("run_halt_bug_rst_test");
+    FAIL("diff");
   }
 }
 
@@ -5784,48 +5734,41 @@ void run_halt_call_interrupt_and_reti() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = true,
           },
       .mem =
           {
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
 
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_call_interrupt_and_reti: never halted");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("never halted");
   }
-
   // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
-         "interrupt 1");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 1");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
-         "interrupt 2");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 2");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_call_interrupt_and_reti: expected to remain halted until an "
-         "interrupt 3");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 3");
   }
 
+  // Wakeup and call the interrupt handler.
   g.mem[MEM_IF] = 1;
-
-  // Call the interrupt handler.
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g);
 
   Gameboy want_interrupt = {
       .cpu =
           {
               .pc = 0x41,
-              .ir = 0xD9,
+              .ir = RETI,
               .sp = 8,
               .ime = false,
           },
@@ -5833,25 +5776,23 @@ void run_halt_call_interrupt_and_reti() {
           {
               [8] = 0xA,
               [9] = 0x5,
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want_interrupt)) {
     gameboy_print_diff(stderr, &g, &want_interrupt);
-    fail("run_halt_call_interrupt_and_reti: failed to call the interrupt.");
+    FAIL("failed to call the interrupt.");
   }
 
-  // RETI
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g); // RETI
 
   Gameboy want_reti_done = {
       .cpu =
           {
               .pc = 0x050B,
-              .ir = 0x3C,
+              .ir = INCA,
               .sp = 10,
               .ime = true,
           },
@@ -5859,19 +5800,17 @@ void run_halt_call_interrupt_and_reti() {
           {
               [8] = 0xA,
               [9] = 0x5,
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want_reti_done)) {
     gameboy_print_diff(stderr, &g, &want_reti_done);
-    fail("run_halt_call_interrupt_and_reti: failed to call RETI.");
+    FAIL("failed to call RETI.");
   }
 
-  // INC A
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g); // INC A
 
   Gameboy want_inca_done = {
       .cpu =
@@ -5886,14 +5825,14 @@ void run_halt_call_interrupt_and_reti() {
           {
               [8] = 0xA,
               [9] = 0x5,
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want_inca_done)) {
     gameboy_print_diff(stderr, &g, &want_inca_done);
-    fail("run_halt_call_interrupt_and_reti: failed to call INC A.");
+    FAIL("failed to call INC A.");
   }
 }
 
@@ -5902,45 +5841,35 @@ void run_halt_ignore_interrupt_and_resume() {
       .cpu =
           {
               .pc = 0x050A,
-              .ir = 0x76 /* HALT */,
+              .ir = HALT,
               .sp = 10,
               .ime = false,
           },
       .mem =
           {
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IE] = 0xFF,
           },
   };
-  Cpu *cpu = &g.cpu;
 
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_ignore_interrupt_and_resume: never halted");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("never halted");
   }
-
   // Stays halted until there is a pending interrupt.
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
-         "until an "
-         "interrupt 1");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 1");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
-         "until an "
-         "interrupt 2");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 2");
   }
-  if (cpu_mcycle(&g) != HALT) {
-    fail("run_halt_ignore_interrupt_and_resume: expected to remain halted "
-         "until an "
-         "interrupt 3");
+  if (cpu_mcycle(&g) != HALTED) {
+    FAIL("expected to remain halted until an interrupt 3");
   }
 
+  // Wakeup and INC A.
   g.mem[MEM_IF] = 1;
-
-  // INC A
-  while (cpu_mcycle(&g) == NOT_DONE)
-    ;
+  step(&g);
 
   Gameboy want_inca_done = {
       .cpu =
@@ -5953,15 +5882,15 @@ void run_halt_ignore_interrupt_and_resume() {
           },
       .mem =
           {
-              [0x40] = 0xD9 /* RETI */,
-              [0x050A] = 0x3C /* INC A */,
+              [0x40] = RETI,
+              [0x050A] = INCA,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
   };
   if (!gameboy_eq(&g, &want_inca_done)) {
     gameboy_print_diff(stderr, &g, &want_inca_done);
-    fail("run_halt_ignore_interrupt_and_resume: failed to call INC A.");
+    FAIL("failed to call INC A.");
   }
 }
 

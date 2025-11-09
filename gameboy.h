@@ -154,7 +154,7 @@ typedef struct {
   Mem mem;
 } Gameboy;
 
-typedef enum { DONE, NOT_DONE, HALT } ExecResult;
+typedef enum { DONE, NOT_DONE, HALTED } ExecResult;
 
 // Executes a single M-Cycle of the CPU.
 ExecResult cpu_mcycle(Gameboy *g);
