@@ -175,7 +175,8 @@ done:
     cpu->bank = instructions;
     cpu->instr = NULL;
     cpu->cycle = 0;
-    memset(cpu->scratch, 0, sizeof(cpu->scratch));
+    cpu->w = 0;
+    cpu->z = 0;
   }
 }
 
@@ -279,14 +280,14 @@ static CpuState exec_ld_r16_imm16(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   default: // 2
     Reg16 r = decode_reg16(instr->shift, cpu->ir);
-    set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
+    set_reg16_low_high(cpu, r, cpu->z, cpu->w);
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -340,13 +341,13 @@ static CpuState exec_ld_imm16mem_sp(Gameboy *g, const Instruction *instr,
   uint16_t sp = get_reg16(cpu, REG_SP);
   // Addr is only valid on cycles 2, 3, and 4,
   // since it is still being loaded on cycles 0 and 1.
-  Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+  Addr addr = (uint16_t)cpu->w << 8 | cpu->z;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   case 2:
     store(g, addr, sp & 0xFF);
@@ -428,15 +429,15 @@ static CpuState exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
     Reg8 r = decode_reg8(instr->shift, cpu->ir);
     if (r == REG_HL_MEM) {
-      store(g, get_reg16(cpu, REG_HL), cpu->scratch[0]);
+      store(g, get_reg16(cpu, REG_HL), cpu->z);
       return EXECUTING;
     }
-    set_reg8(cpu, r, cpu->scratch[0]);
+    set_reg8(cpu, r, cpu->z);
     // FALLTHROUGH
   default: // 2
     cpu->ir = fetch_pc(g);
@@ -578,10 +579,10 @@ static CpuState exec_bit_twiddle_r8(Gameboy *g, const Instruction *instr,
       cpu->ir = fetch_pc(g);
       return DONE;
     }
-    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
     return EXECUTING;
   case 2:
-    store(g, get_reg16(cpu, REG_HL), op(cpu, cpu->scratch[0]));
+    store(g, get_reg16(cpu, REG_HL), op(cpu, cpu->z));
     return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -674,10 +675,10 @@ static CpuState exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
       assign_flag(cpu, FLAG_Z, (get_reg8(cpu, r) >> bit) ^ 1);
       break;
     }
-    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
     return EXECUTING;
   default: // 2
-    assign_flag(cpu, FLAG_Z, (cpu->scratch[0] >> bit) ^ 1);
+    assign_flag(cpu, FLAG_Z, (cpu->z >> bit) ^ 1);
     break;
   }
   assign_flag(cpu, FLAG_N, false);
@@ -700,10 +701,10 @@ static CpuState exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,
       cpu->ir = fetch_pc(g);
       return DONE;
     }
-    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
     return EXECUTING;
   case 2:
-    store(g, get_reg16(cpu, REG_HL), op(bit, cpu->scratch[0]));
+    store(g, get_reg16(cpu, REG_HL), op(bit, cpu->z));
     return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -728,10 +729,10 @@ static CpuState exec_jr_imm8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->pc += (int8_t)cpu->scratch[0];
+    cpu->pc += (int8_t)cpu->z;
     return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
@@ -759,14 +760,14 @@ static CpuState exec_jr_cond_imm8(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
     if (!eval_cond(cpu, decode_cond(instr->shift, cpu->ir))) {
       cpu->ir = fetch_pc(g);
       return DONE;
     }
-    cpu->pc += (int8_t)cpu->scratch[0];
+    cpu->pc += (int8_t)cpu->z;
     return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
@@ -797,10 +798,10 @@ static CpuState exec_ld_r8_r8(Gameboy *g, const Instruction *instr, int cycle) {
 
   if (src == REG_HL_MEM) {
     if (cycle == 0) {
-      cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+      cpu->z = fetch(g, get_reg16(cpu, REG_HL));
       return EXECUTING;
     }
-    set_reg8(cpu, dst, cpu->scratch[0]);
+    set_reg8(cpu, dst, cpu->z);
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -830,10 +831,10 @@ static CpuState exec_op_a_r8(Gameboy *g, const Instruction *instr, int cycle,
   }
 
   if (cycle == 0) {
-    cpu->scratch[0] = fetch(g, get_reg16(cpu, REG_HL));
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
     return EXECUTING;
   }
-  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
+  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->z));
   cpu->ir = fetch_pc(g);
   return DONE;
 }
@@ -946,10 +947,10 @@ static CpuState exec_op_a_imm8(Gameboy *g, const Instruction *instr, int cycle,
                                uint8_t (*op)(Cpu *, uint8_t, uint8_t)) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   }
-  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->scratch[0]));
+  set_reg8(cpu, REG_A, op(cpu, get_reg8(cpu, REG_A), cpu->z));
   cpu->ir = fetch_pc(g);
   return DONE;
 }
@@ -1005,15 +1006,15 @@ static CpuState exec_ret_cond(Gameboy *g, const Instruction *instr, int cycle) {
       cpu->ir = fetch_pc(g);
       return DONE;
     }
-    cpu->scratch[0] = fetch(g, cpu->sp);
+    cpu->z = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   case 2:
-    cpu->scratch[1] = fetch(g, cpu->sp);
+    cpu->w = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   case 3:
-    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    cpu->pc = (uint16_t)cpu->w << 8 | cpu->z;
     return EXECUTING;
   default: // 4
     cpu->ir = fetch_pc(g);
@@ -1026,15 +1027,15 @@ static CpuState exec_ret_reti(Gameboy *g, const Instruction *instr, int cycle,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch(g, cpu->sp);
+    cpu->z = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch(g, cpu->sp);
+    cpu->w = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   case 2:
-    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    cpu->pc = (uint16_t)cpu->w << 8 | cpu->z;
     if (is_reti) {
       cpu->ime = 1;
     }
@@ -1058,10 +1059,10 @@ static CpuState exec_jp(Gameboy *g, const Instruction *instr, int cycle,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   case 2:
     if (check_cond) {
@@ -1071,7 +1072,7 @@ static CpuState exec_jp(Gameboy *g, const Instruction *instr, int cycle,
         return DONE;
       }
     }
-    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    cpu->pc = (uint16_t)cpu->w << 8 | cpu->z;
     return EXECUTING;
   default: // 3
     cpu->ir = fetch_pc(g);
@@ -1100,10 +1101,10 @@ static CpuState exec_call(Gameboy *g, const Instruction *instr, int cycle,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   case 2:
     if (check_cond) {
@@ -1121,7 +1122,7 @@ static CpuState exec_call(Gameboy *g, const Instruction *instr, int cycle,
     return EXECUTING;
   case 4:
     store(g, cpu->sp, cpu->pc & 0xFF);
-    cpu->pc = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    cpu->pc = (uint16_t)cpu->w << 8 | cpu->z;
     return EXECUTING;
   default: // 5
     cpu->ir = fetch_pc(g);
@@ -1163,16 +1164,16 @@ static CpuState exec_pop_r16(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch(g, cpu->sp);
+    cpu->z = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch(g, cpu->sp);
+    cpu->w = fetch(g, cpu->sp);
     cpu->sp++;
     return EXECUTING;
   default: // 2
     Reg16 r = decode_reg16stk(instr->shift, cpu->ir);
-    set_reg16_low_high(cpu, r, cpu->scratch[0], cpu->scratch[1]);
+    set_reg16_low_high(cpu, r, cpu->z, cpu->w);
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -1215,10 +1216,10 @@ static CpuState exec_ldh_imm8mem_a(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    store(g, 0xFF00 | cpu->scratch[0], get_reg8(cpu, REG_A));
+    store(g, 0xFF00 | cpu->z, get_reg8(cpu, REG_A));
     return EXECUTING;
   default: // 2
     cpu->ir = fetch_pc(g);
@@ -1231,13 +1232,13 @@ static CpuState exec_ld_imm16mem_a(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   case 2:
-    Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
+    Addr addr = (uint16_t)cpu->w << 8 | cpu->z;
     store(g, addr, get_reg8(cpu, REG_A));
     return EXECUTING;
   default: // 3
@@ -1250,10 +1251,10 @@ static CpuState exec_ldh_a_cmem(Gameboy *g, const Instruction *instr,
                                 int cycle) {
   Cpu *cpu = &g->cpu;
   if (cycle == 0) {
-    cpu->scratch[0] = fetch(g, 0xFF00 | get_reg8(cpu, REG_C));
+    cpu->z = fetch(g, 0xFF00 | get_reg8(cpu, REG_C));
     return EXECUTING;
   }
-  set_reg8(cpu, REG_A, cpu->scratch[0]);
+  set_reg8(cpu, REG_A, cpu->z);
   cpu->ir = fetch_pc(g);
   return DONE;
 }
@@ -1263,13 +1264,13 @@ static CpuState exec_ldh_a_imm8mem(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch(g, 0xFF00 | cpu->scratch[0]);
+    cpu->w = fetch(g, 0xFF00 | cpu->z);
     return EXECUTING;
   default: // 2
-    set_reg8(cpu, REG_A, cpu->scratch[1]);
+    set_reg8(cpu, REG_A, cpu->w);
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -1280,17 +1281,17 @@ static CpuState exec_ld_a_imm16mem(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    cpu->scratch[1] = fetch_pc(g);
+    cpu->w = fetch_pc(g);
     return EXECUTING;
   case 2:
-    Addr addr = (uint16_t)cpu->scratch[1] << 8 | cpu->scratch[0];
-    cpu->scratch[0] = fetch(g, addr);
+    Addr addr = (uint16_t)cpu->w << 8 | cpu->z;
+    cpu->z = fetch(g, addr);
     return EXECUTING;
   default: // 3
-    set_reg8(cpu, REG_A, cpu->scratch[0]);
+    set_reg8(cpu, REG_A, cpu->z);
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -1301,21 +1302,21 @@ static CpuState exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    int8_t x = cpu->scratch[0];
-    cpu->scratch[1] = (cpu->sp + x) & 0xFF;
+    int8_t x = cpu->z;
+    cpu->w = (cpu->sp + x) & 0xFF;
     assign_flag(cpu, FLAG_Z, false);
     assign_flag(cpu, FLAG_N, false);
     assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
     assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
     return EXECUTING;
   case 2:
-    cpu->scratch[0] = (cpu->sp + (int8_t)cpu->scratch[0]) >> 8;
+    cpu->z = (cpu->sp + (int8_t)cpu->z) >> 8;
     return EXECUTING;
   default: // 3
-    cpu->sp = (uint16_t)cpu->scratch[0] << 8 | cpu->scratch[1];
+    cpu->sp = (uint16_t)cpu->z << 8 | cpu->w;
     cpu->ir = fetch_pc(g);
     return DONE;
   }
@@ -1326,17 +1327,17 @@ static CpuState exec_ld_hl_sp_plus_imm8(Gameboy *g, const Instruction *instr,
   Cpu *cpu = &g->cpu;
   switch (cycle) {
   case 0:
-    cpu->scratch[0] = fetch_pc(g);
+    cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
-    int8_t x = cpu->scratch[0];
+    int8_t x = cpu->z;
     assign_flag(cpu, FLAG_Z, false);
     assign_flag(cpu, FLAG_N, false);
     assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
     assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
     return EXECUTING;
   default: // 2
-    set_reg16(cpu, REG_HL, cpu->sp + (int8_t)cpu->scratch[0]);
+    set_reg16(cpu, REG_HL, cpu->sp + (int8_t)cpu->z);
     cpu->ir = fetch_pc(g);
     return DONE;
   }

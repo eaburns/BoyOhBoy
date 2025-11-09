@@ -126,7 +126,7 @@ typedef struct {
   // The number of cycles spent so far executing ir.
   int cycle;
   // Scratch space used by instruction execution to hold state between cycles.
-  uint8_t scratch[2];
+  uint8_t w, z;
 } Cpu;
 
 // Returns the string name of the given register.
