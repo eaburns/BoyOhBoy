@@ -79,6 +79,13 @@ static uint8_t fetch_pc(Gameboy *g) { return fetch(g, g->cpu.pc++); }
 // memory is not actually writable by the CPU.
 void store(Gameboy *g, Addr addr, uint8_t x) {
   // TODO: actually deal with cases where memory is not writable by the CPU.
+  if (/* wram */ (addr < 0xC000 || 0xDFFF < addr) &&
+      /* high ram */ (addr < 0xFF80 || 0xFFFE < addr)) {
+    // For the moment, only allow store() in wram and high ram.
+    // This isn't right, but let's just do it for the moment
+    // to make sure unit tests aren't writing to read-only memory.
+    fail("store to possibly read-only memory $%04x", addr);
+  }
   g->mem[addr] = x;
 }
 

@@ -13,6 +13,7 @@
 enum {
   // Memory addresses.
   HIGH_RAM_START = 0xFF80,
+  HIGH_RAM_END = 0xFFFE,
 
   // Flag combinations.
   FLAGS_NHC = FLAG_N | FLAG_H | FLAG_C,
@@ -4861,7 +4862,7 @@ static struct exec_test
                         .cpu =
                             {
                                 .ir = 0xE2,
-                                .registers = {[REG_A] = 2, [REG_C] = 4},
+                                .registers = {[REG_A] = 2, [REG_C] = 0x80},
                             },
                     },
                 .want =
@@ -4869,9 +4870,10 @@ static struct exec_test
                         .cpu =
                             {
                                 .pc = 1,
-                                .registers = {[REG_A] = 2, [REG_C] = 4},
+                                .registers = {[REG_A] = 2,
+                                              [REG_C] = HIGH_RAM_START & 0xFF},
                             },
-                        .mem = {[0xFF04] = 2},
+                        .mem = {[HIGH_RAM_START] = 2},
                     },
                 .cycles = 2,
             },
@@ -4880,12 +4882,16 @@ static struct exec_test
                 .init =
                     {
                         .cpu = {.ir = 0xE0, .registers = {[REG_A] = 2}},
-                        .mem = {4},
+                        .mem = {HIGH_RAM_START & 0xFF},
                     },
                 .want =
                     {
                         .cpu = {.pc = 2, .registers = {[REG_A] = 2}},
-                        .mem = {4, [0xFF04] = 2},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                [HIGH_RAM_START] = 2,
+                            },
                     },
                 .cycles = 3,
             },
@@ -4894,12 +4900,21 @@ static struct exec_test
                 .init =
                     {
                         .cpu = {.ir = 0xEA, .registers = {[REG_A] = 3}},
-                        .mem = {2, 1},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                            },
                     },
                 .want =
                     {
                         .cpu = {.pc = 3, .registers = {[REG_A] = 3}},
-                        .mem = {2, 1, [0x0102] = 3},
+                        .mem =
+                            {
+                                HIGH_RAM_START & 0xFF,
+                                HIGH_RAM_START >> 8,
+                                [HIGH_RAM_START] = 3,
+                            },
                     },
                 .cycles = 4,
             },
@@ -5197,173 +5212,186 @@ void run_ei_di_test() {
   }
 }
 
-static struct exec_test
-    call_interrupt_tests[] =
-        {
+static struct exec_test call_interrupt_tests[] = {
+    {
+        .name = "ime = false",
+        .init =
             {
-                .name = "ime = false",
-                .init =
-                    {
-                        .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
-                    },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.pc = 1},
-                        .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
-                    },
-                .cycles = 1,
+                .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
             },
+        .want =
             {
-                .name = "IE = false",
-                .init =
-                    {
-                        .cpu = {.ime = true},
-                        .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
-                    },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.pc = 1, .ime = true},
-                        .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
-                    },
-                .cycles = 1,
+                // interrupt not called, NOP executed.
+                .cpu = {.pc = 1},
+                .mem = {[MEM_IF] = 0xFF, [MEM_IE] = 0xFF},
             },
+        .cycles = 1,
+    },
+    {
+        .name = "IE = false",
+        .init =
             {
-                .name = "call interrupt 0",
-                .init =
-                    {
-                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
-                        .mem =
-                            {
-                                [0x40] = 7,
-                                [MEM_IF] = 1 << 0,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.ir = 7, .pc = 0x41, .sp = 8, .ime = false},
-                        .mem =
-                            {
-                                [8] = 0x9,
-                                [9] = 0x5,
-                                [0x40] = 7,
-                                [MEM_IF] = 0,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .cycles = 5,
+                .cpu = {.ime = true},
+                .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
             },
+        .want =
             {
-                .name = "call interrupt 1",
-                .init =
-                    {
-                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
-                        .mem =
-                            {
-                                [0x48] = 7,
-                                [MEM_IF] = 1 << 1,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.ir = 7, .pc = 0x49, .sp = 8, .ime = false},
-                        .mem =
-                            {
-                                [8] = 0x9,
-                                [9] = 0x5,
-                                [0x48] = 7,
-                                [MEM_IF] = 0,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .cycles = 5,
+                // interrupt not called, NOP executed.
+                .cpu = {.pc = 1, .ime = true},
+                .mem = {[MEM_IF] = 1, [MEM_IE] = 0},
             },
+        .cycles = 1,
+    },
+    {
+        .name = "call interrupt 0",
+        .init =
             {
-                .name = "call interrupt 2",
-                .init =
+                .cpu = {.pc = 0x050A, .sp = HIGH_RAM_END, .ime = true},
+                .mem =
                     {
-                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
-                        .mem =
-                            {
-                                [0x50] = 7,
-                                [MEM_IF] = 1 << 2,
-                                [MEM_IE] = 0xFF,
-                            },
+                        [0x40] = 7,
+                        [MEM_IF] = 1 << 0,
+                        [MEM_IE] = 0xFF,
                     },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.ir = 7, .pc = 0x51, .sp = 8, .ime = false},
-                        .mem =
-                            {
-                                [8] = 0x9,
-                                [9] = 0x5,
-                                [0x50] = 7,
-                                [MEM_IF] = 0,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .cycles = 5,
             },
+        .want =
             {
-                .name = "call interrupt 3",
-                .init =
+                // interrupt not called, NOP executed.
+                .cpu =
                     {
-                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
-                        .mem =
-                            {
-                                [0x58] = 7,
-                                [MEM_IF] = 1 << 3,
-                                [MEM_IE] = 0xFF,
-                            },
+                        .ir = 7,
+                        .pc = 0x41,
+                        .sp = HIGH_RAM_END - 2,
+                        .ime = false,
                     },
-                .want =
+                .mem =
                     {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.ir = 7, .pc = 0x59, .sp = 8, .ime = false},
-                        .mem =
-                            {
-                                [8] = 0x9,
-                                [9] = 0x5,
-                                [0x58] = 7,
-                                [MEM_IF] = 0,
-                                [MEM_IE] = 0xFF,
-                            },
+                        [HIGH_RAM_END - 2] = 0x9,
+                        [HIGH_RAM_END - 1] = 0x5,
+                        [0x40] = 7,
+                        [MEM_IF] = 0,
+                        [MEM_IE] = 0xFF,
                     },
-                .cycles = 5,
             },
+        .cycles = 5,
+    },
+    {
+        .name = "call interrupt 1",
+        .init =
             {
-                .name = "call interrupt 4",
-                .init =
+                .cpu = {.pc = 0x050A, .sp = HIGH_RAM_END, .ime = true},
+                .mem =
                     {
-                        .cpu = {.pc = 0x050A, .sp = 10, .ime = true},
-                        .mem =
-                            {
-                                [0x60] = 7,
-                                [MEM_IF] = 1 << 4,
-                                [MEM_IE] = 0xFF,
-                            },
+                        [0x48] = 7,
+                        [MEM_IF] = 1 << 1,
+                        [MEM_IE] = 0xFF,
                     },
-                .want =
-                    {
-                        // interrupt not called, NOP executed.
-                        .cpu = {.ir = 7, .pc = 0x61, .sp = 8, .ime = false},
-                        .mem =
-                            {
-                                [8] = 0x9,
-                                [9] = 0x5,
-                                [0x60] = 7,
-                                [MEM_IF] = 0,
-                                [MEM_IE] = 0xFF,
-                            },
-                    },
-                .cycles = 5,
             },
+        .want =
+            {
+                // interrupt not called, NOP executed.
+                .cpu =
+                    {
+                        .ir = 7,
+                        .pc = 0x49,
+                        .sp = HIGH_RAM_END - 2,
+                        .ime = false,
+                    },
+                .mem =
+                    {
+                        [HIGH_RAM_END - 2] = 0x9,
+                        [HIGH_RAM_END - 1] = 0x5,
+                        [0x48] = 7,
+                        [MEM_IF] = 0,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .cycles = 5,
+    },
+    {
+        .name = "call interrupt 2",
+        .init =
+            {
+                .cpu = {.pc = 0x050A, .sp = HIGH_RAM_END, .ime = true},
+                .mem =
+                    {
+                        [0x50] = 7,
+                        [MEM_IF] = 1 << 2,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .want =
+            {
+                // interrupt not called, NOP executed.
+                .cpu =
+                    {.ir = 7, .pc = 0x51, .sp = HIGH_RAM_END - 2, .ime = false},
+                .mem =
+                    {
+                        [HIGH_RAM_END - 2] = 0x9,
+                        [HIGH_RAM_END - 1] = 0x5,
+                        [0x50] = 7,
+                        [MEM_IF] = 0,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .cycles = 5,
+    },
+    {
+        .name = "call interrupt 3",
+        .init =
+            {
+                .cpu = {.pc = 0x050A, .sp = HIGH_RAM_END, .ime = true},
+                .mem =
+                    {
+                        [0x58] = 7,
+                        [MEM_IF] = 1 << 3,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .want =
+            {
+                // interrupt not called, NOP executed.
+                .cpu =
+                    {.ir = 7, .pc = 0x59, .sp = HIGH_RAM_END - 2, .ime = false},
+                .mem =
+                    {
+                        [HIGH_RAM_END - 2] = 0x9,
+                        [HIGH_RAM_END - 1] = 0x5,
+                        [0x58] = 7,
+                        [MEM_IF] = 0,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .cycles = 5,
+    },
+    {
+        .name = "call interrupt 4",
+        .init =
+            {
+                .cpu = {.pc = 0x050A, .sp = HIGH_RAM_END, .ime = true},
+                .mem =
+                    {
+                        [0x60] = 7,
+                        [MEM_IF] = 1 << 4,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .want =
+            {
+                // interrupt not called, NOP executed.
+                .cpu =
+                    {.ir = 7, .pc = 0x61, .sp = HIGH_RAM_END - 2, .ime = false},
+                .mem =
+                    {
+                        [HIGH_RAM_END - 2] = 0x9,
+                        [HIGH_RAM_END - 1] = 0x5,
+                        [0x60] = 7,
+                        [MEM_IF] = 0,
+                        [MEM_IE] = 0xFF,
+                    },
+            },
+        .cycles = 5,
+    },
 };
 
 void run_call_interrupt_tests() {
@@ -5377,7 +5405,7 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x0A06,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
@@ -5397,7 +5425,7 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x41,
               .ir = RETI,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
               .state = DONE,
           },
@@ -5405,8 +5433,8 @@ void run_call_interrupt_and_reti_test() {
           {
               [0x40] = RETI,
               [0x48] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A05] = INCA,
               [MEM_IF] = 2,
               [MEM_IE] = 0xFF,
@@ -5425,7 +5453,7 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x0A06,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = DONE,
           },
@@ -5433,8 +5461,8 @@ void run_call_interrupt_and_reti_test() {
           {
               [0x40] = RETI,
               [0x48] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A05] = INCA,
               [MEM_IF] = 2,
               [MEM_IE] = 0xFF,
@@ -5453,15 +5481,15 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x49,
               .ir = RETI,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
           },
       .mem =
           {
               [0x40] = RETI,
               [0x48] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
@@ -5480,15 +5508,15 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x0A06,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
           {
               [0x40] = RETI,
               [0x48] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
@@ -5507,7 +5535,7 @@ void run_call_interrupt_and_reti_test() {
           {
               .pc = 0x0A07,
               .ir = 0,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = DONE,
               .registers = {[REG_A] = 1},
@@ -5516,8 +5544,8 @@ void run_call_interrupt_and_reti_test() {
           {
               [0x40] = RETI,
               [0x48] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
               [MEM_IE] = 0xFF,
@@ -5535,7 +5563,7 @@ void run_halt_stays_halted_test() {
           {
               .pc = 1,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5556,7 +5584,7 @@ void run_halt_stays_halted_test() {
             {
                 .pc = 1,
                 .ir = INCA,
-                .sp = 100,
+                .sp = HIGH_RAM_END,
                 .ime = false,
                 // No interrupts, so stay halted.
                 .state = HALTED,
@@ -5584,7 +5612,7 @@ void run_halt_stays_halted_test() {
           {
               .pc = 2,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5607,7 +5635,7 @@ void run_halt_ime_false_pending_false_test() {
           {
               .pc = 0,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5625,7 +5653,7 @@ void run_halt_ime_false_pending_false_test() {
           {
               .pc = 0,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .state = HALTED,
           },
@@ -5650,7 +5678,7 @@ void run_halt_ime_false_pending_false_test() {
           {
               .pc = 1,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .state = DONE,
           },
@@ -5673,7 +5701,7 @@ void run_halt_ime_false_pending_true_test() {
           {
               .pc = 0,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5696,7 +5724,7 @@ void run_halt_ime_false_pending_true_test() {
               // This is "the HALT bug".
               .pc = 0,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .state = DONE,
           },
@@ -5719,7 +5747,7 @@ void run_halt_ime_false_pending_true_test() {
           {
               .pc = 1,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .state = DONE,
               .registers = {[REG_A] = 1},
@@ -5743,7 +5771,7 @@ void run_halt_ime_false_pending_true_test() {
           {
               .pc = 2,
               .ir = 0,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .state = DONE,
               .registers = {[REG_A] = 2},
@@ -5767,7 +5795,7 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x0A05,
               .ir = EI,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5787,7 +5815,7 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
               .ei_pend = true,
           },
@@ -5812,7 +5840,7 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = 0, // 0 after HALT; doesn't matter what it is.
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
@@ -5836,14 +5864,14 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x41,
               .ir = RETI,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
           },
       .mem =
           {
               [0x40] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = EI,
               [0x0A05] = HALT,
               [MEM_IF] = 0,
@@ -5862,14 +5890,14 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
           {
               [0x40] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = EI,
               [0x0A05] = HALT,
               [MEM_IF] = 0,
@@ -5888,15 +5916,15 @@ void run_halt_after_ei_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = 0,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = HALTED,
           },
       .mem =
           {
               [0x40] = RETI,
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = EI,
               [0x0A05] = HALT,
               [MEM_IF] = 0,
@@ -5915,7 +5943,7 @@ void run_halt_then_rst_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5935,7 +5963,7 @@ void run_halt_then_rst_ime_false_pending_true_test() {
           {
               .pc = 0x0A06,
               .ir = RST0,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5959,7 +5987,7 @@ void run_halt_then_rst_ime_false_pending_true_test() {
           {
               .pc = 1,
               .ir = RET,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
           },
       .mem =
@@ -5967,8 +5995,8 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [0] = RET,
               [0x0A05] = HALT,
               [0x0A06] = RST0,
-              [98] = 0x06,
-              [99] = 0xA,
+              [HIGH_RAM_END - 2] = 0x06,
+              [HIGH_RAM_END - 1] = 0xA,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
@@ -5985,7 +6013,7 @@ void run_halt_then_rst_ime_false_pending_true_test() {
           {
               .pc = 0x0A07,
               .ir = RST0,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = false,
           },
       .mem =
@@ -5993,8 +6021,8 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [0] = RET,
               [0x0A05] = HALT,
               [0x0A06] = RST0,
-              [98] = 0x06,
-              [99] = 0xA,
+              [HIGH_RAM_END - 2] = 0x06,
+              [HIGH_RAM_END - 1] = 0xA,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
@@ -6011,7 +6039,7 @@ void run_halt_then_rst_ime_false_pending_true_test() {
           {
               .pc = 1,
               .ir = RET,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
           },
       .mem =
@@ -6019,8 +6047,8 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [0] = RET,
               [0x0A05] = HALT,
               [0x0A06] = RST0,
-              [98] = 0x07,
-              [99] = 0xA,
+              [HIGH_RAM_END - 2] = 0x07,
+              [HIGH_RAM_END - 1] = 0xA,
               [MEM_IF] = 1,
               [MEM_IE] = 0xFF,
           },
@@ -6037,7 +6065,7 @@ void run_halt_ime_true_pending_false_test() {
           {
               .pc = 0x0A05,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
@@ -6057,7 +6085,7 @@ void run_halt_ime_true_pending_false_test() {
           {
               .pc = 0x0A05,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = HALTED,
           },
@@ -6084,7 +6112,7 @@ void run_halt_ime_true_pending_false_test() {
           {
               .pc = 0x0A06,
               .ir = INCA,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = DONE,
           },
@@ -6110,7 +6138,7 @@ void run_halt_ime_true_pending_false_test() {
           {
               .pc = 0x41,
               .ir = RETI,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
               .state = DONE,
           },
@@ -6119,8 +6147,8 @@ void run_halt_ime_true_pending_false_test() {
               [0x40] = RETI,
               // In this case, the NOP fetched, so the return address of the
               // interrupt should be INCA.
-              [98] = 0x05,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x05,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = HALT,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
@@ -6139,7 +6167,7 @@ void run_halt_ime_true_pending_true_test() {
           {
               .pc = 0x0A05,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
           },
       .mem =
@@ -6161,15 +6189,15 @@ void run_halt_ime_true_pending_true_test() {
           {
               .pc = 0x41,
               .ir = RETI,
-              .sp = 98,
+              .sp = HIGH_RAM_END - 2,
               .ime = false,
               .state = DONE,
           },
       .mem =
           {
               [0x40] = RETI,
-              [98] = 0x04,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x04,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = HALT,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
@@ -6189,15 +6217,15 @@ void run_halt_ime_true_pending_true_test() {
           {
               .pc = 0x0A05,
               .ir = HALT,
-              .sp = 100,
+              .sp = HIGH_RAM_END,
               .ime = true,
               .state = DONE,
           },
       .mem =
           {
               [0x40] = RETI,
-              [98] = 0x04,
-              [99] = 0x0A,
+              [HIGH_RAM_END - 2] = 0x04,
+              [HIGH_RAM_END - 1] = 0x0A,
               [0x0A04] = HALT,
               [0x0A05] = INCA,
               [MEM_IF] = 0,
