@@ -23,15 +23,54 @@ Rom read_rom(const char *path);
 void free_rom(Rom *rom);
 
 enum {
+  MEM_ROM_START = 0x0000,
+  MEM_ROM_END = 0x7FFF,
+
+  // Rom bank 0.
+  MEM_ROM0_START = 0,
+  MEM_ROM0_END = 0x3FFF,
+
+  // Rom bank N (depending which is mapped in.)
+  MEM_ROMN_START = 0x4000,
+  MEM_ROMN_END = MEM_ROM_END,
+
+  // Video RAM.
+  MEM_VRAM_START = 0x8000,
+  MEM_VRAM_END = 0x9FFF,
+
+  // RAM on the cart.
+  MEM_EXT_RAM_START = 0xA000,
+  MEM_EXT_RAM_END = 0xBFFF,
+
+  // Working RAM.
+  MEM_WRAM_START = 0xC000,
+  MEM_WRAM_END = 0xDFFF,
+
+  // Echo RAM (reads 0xC000-0xDDFF).
+  MEM_ECHO_RAM_START = 0xE000,
+  MEM_ECHO_RAM_END = 0xFDFF,
+
+  // Object Attribute Memory.
+  MEM_OAM_START = 0xFE00,
+  MEM_OAM_END = 0xFE9F,
+
+  MEM_PROHIBITED_START = 0xFEA0,
+  MEM_PROHIBITED_END = 0xFEFF,
+
+  // Various mem-mappend I/O.
+  MEM_IO_START = 0xFF00,
   // The memory address of the IF (interrupts pending) flags.
   MEM_IF = 0xFF0F,
+  MEM_IO_END = 0xFF7F,
+
+  // High RAM.
+  MEM_HIGH_RAM_START = 0xFF80,
+  MEM_HIGH_RAM_END = 0xFFFE,
+
   // The memory address of the IE (interrupts enabled) flags.
   MEM_IE = 0xFFFF,
 
   MEM_SIZE = 0x10000,
-  MEM_ROM_START = 0x0000,
-  MEM_ROM_END = 0x7FFF,
-  MEM_ROM_SIZE_MAX = MEM_ROM_END - MEM_ROM_START + 1,
 };
 
 typedef uint8_t Mem[MEM_SIZE];
