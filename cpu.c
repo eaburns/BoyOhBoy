@@ -2096,38 +2096,6 @@ void set_reg16(Cpu *cpu, Reg16 r, uint16_t x) {
   set_reg16_low_high(cpu, r, x & 0xFF, x >> 8);
 }
 
-static int r8(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x7;
-}
-
-static int tgt3(int shift, const Mem mem, Addr addr) {
-  return ((mem[addr] >> shift) & 0x7) * 8;
-}
-
-static int bit_index(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> (shift + 3)) & 0x7;
-}
-
-static int r8_dst(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> (shift + 3)) & 0x7;
-}
-
-static int r16(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x3;
-}
-
-static int cond(int shift, const Mem mem, Addr addr) {
-  return (mem[addr] >> shift) & 0x3;
-}
-
-static uint8_t imm8(const Mem mem, Addr addr) { return mem[addr]; }
-
-static int8_t imm8_offset(const Mem mem, Addr addr) { return mem[addr]; }
-
-static uint16_t imm16(const Mem mem, Addr addr) {
-  return (int)mem[addr + 1] << 8 | mem[addr];
-}
-
 static int snprint_operand(char *buf, int size, Operand operand, int shift,
                            const uint8_t *mem, Addr addr) {
   switch (operand) {
