@@ -10,37 +10,28 @@ int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("expected 1 argument, got %d", argc);
   }
-  const char *path = argv[1];
 
-  Mem mem;
-  FILE *in = fopen(path, "r");
-  if (in == NULL) {
-    fail("failed to open %s: %s", path, strerror(errno));
-  }
-  int rom_size = fread(mem, 1, MEM_SIZE, in);
-  if (ferror(in)) {
-    fail("failed to read from %s: %s", path, strerror(errno));
-  }
-  if (fclose(in) != 0) {
-    fail("failed to close %s: %s", path, strerror(errno));
-  }
-  printf("rom size: %d (bytes)\n", rom_size);
+  int rom_size = 0;
+  Rom rom = read_rom(argv[1]);
+  printf("rom size: %d (bytes)\n", rom.size);
 
   Addr addr = 0;
-  while (addr < rom_size) {
+  while (addr < rom.size) {
     printf("%04x: ", addr);
     char buf[INSTRUCTION_STR_MAX];
-    const Instruction *instr = format_instruction(buf, sizeof(buf), mem, addr);
+    const Instruction *instr =
+        format_instruction(buf, sizeof(buf), rom.data, addr);
     int size = instruction_size(instr);
     switch (size) {
     case 1:
-      printf("%02x      ", mem[addr]);
+      printf("%02x      ", rom.data[addr]);
       break;
     case 2:
-      printf("%02x %02x   ", mem[addr], mem[addr + 1]);
+      printf("%02x %02x   ", rom.data[addr], rom.data[addr + 1]);
       break;
     case 3:
-      printf("%02x %02x %02x", mem[addr], mem[addr + 1], mem[addr + 2]);
+      printf("%02x %02x %02x", rom.data[addr], rom.data[addr + 1],
+             rom.data[addr + 2]);
       break;
     }
     printf("		%s\n", buf);

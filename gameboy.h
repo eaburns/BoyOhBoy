@@ -8,6 +8,20 @@
 // Aborts with a message printf-style message.
 void fail(const char *fmt, ...);
 
+typedef struct {
+  const uint8_t *data;
+  int size;
+} Rom;
+
+// Reads and returns the Rom at path.
+// If there is an error reading the file, fail() is called.
+// The memory allocated for the returned Rom
+// can be freed with free_rom();
+Rom read_rom(const char *path);
+
+// Frees any memory allocated for the Rom.
+void free_rom(Rom *rom);
+
 enum {
   // The memory address of the IF (interrupts pending) flags.
   MEM_IF = 0xFF0F,
@@ -95,7 +109,7 @@ enum { INSTRUCTION_STR_MAX = 32 };
 // Writes a human readable version of the instruction at addr in mem
 // to out, writing at most size bytes including the '\0' terminator.
 // The decoded instruction is returned.
-const Instruction *format_instruction(char *out, int size, const Mem mem,
+const Instruction *format_instruction(char *out, int size, const uint8_t *mem,
                                       Addr addr);
 
 typedef enum {

@@ -14,21 +14,6 @@ enum {
   HALT = 0x76,
 };
 
-static int read_rom(const char *path, uint8_t *dst, int max) {
-  FILE *in = fopen(path, "r");
-  if (in == NULL) {
-    fail("failed to open %s: %s", path, strerror(errno));
-  }
-  int n = fread(dst, 1, max, in);
-  if (ferror(in)) {
-    fail("failed to read from %s: %s", path, strerror(errno));
-  }
-  if (fclose(in) != 0) {
-    fail("failed to close %s: %s", path, strerror(errno));
-  }
-  return n;
-}
-
 void step(Gameboy *g) {
   do {
     cpu_mcycle(g);
@@ -42,7 +27,8 @@ static void print_current_instruction(const Gameboy *g) {
   const uint8_t *mem = g->mem;
   printf("%04x: ", pc);
   char buf[INSTRUCTION_STR_MAX];
-  const Instruction *instr = format_instruction(buf, sizeof(buf), g->mem, pc);
+  const Instruction *instr =
+      format_instruction(buf, sizeof(buf), &g->mem[0], pc);
   int size = instruction_size(instr);
   switch (size) {
   case 1:
@@ -132,12 +118,8 @@ int main(int argc, const char *argv[]) {
   }
 
   Gameboy g;
-  int rom_size = read_rom(argv[1], g.mem + MEM_ROM_START, MEM_SIZE);
-  printf("ROM size: %d ($%04x) bytes\n", rom_size, rom_size);
-  if (rom_size > MEM_ROM_SIZE_MAX) {
-    fail("ROM too big: max size %d ($%04x)", MEM_ROM_SIZE_MAX,
-         MEM_ROM_SIZE_MAX);
-  }
+  Rom rom = read_rom(argv[1]);
+  memcpy(g.mem, rom.data, rom.size < MEM_ROM_END ? rom.size : MEM_ROM_END);
 
   // Starting state of DMG after running the boot ROM and ending at 0x0101.
   g.cpu.registers[REG_B] = 0x00;

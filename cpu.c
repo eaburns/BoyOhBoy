@@ -2129,7 +2129,7 @@ static uint16_t imm16(const Mem mem, Addr addr) {
 }
 
 static int snprint_operand(char *buf, int size, Operand operand, int shift,
-                           const Mem mem, Addr addr) {
+                           const uint8_t *mem, Addr addr) {
   switch (operand) {
   case NONE:
     if (size > 0) {
@@ -2182,7 +2182,7 @@ static int snprint_operand(char *buf, int size, Operand operand, int shift,
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
-const Instruction *format_instruction(char *out, int size, const Mem mem,
+const Instruction *format_instruction(char *out, int size, const uint8_t *mem,
                                       Addr addr) {
   const Instruction *bank = instructions;
   if (mem[addr] == 0x76) {

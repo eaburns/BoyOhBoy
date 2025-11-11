@@ -1,5 +1,6 @@
 #include "gameboy.h"
 
+#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -13,6 +14,35 @@ void fail(const char *fmt, ...) {
   fprintf(stderr, "\n");
   abort();
 }
+
+Rom read_rom(const char *path) {
+  FILE *in = fopen(path, "r");
+  if (in == NULL) {
+    fail("failed to open %s: %s", path, strerror(errno));
+  }
+  int size = 0;
+  uint8_t *data = NULL;
+  for (;;) {
+    char buf[4096];
+    int n = fread(buf, 1, sizeof(buf), in);
+    data = realloc(data, size + n);
+    memcpy(data + size, buf, n);
+    size += n;
+    if (n < sizeof(buf)) {
+      break;
+    }
+  }
+  if (ferror(in)) {
+    fail("failed to read from %s: %s", path, strerror(errno));
+  }
+  if (fclose(in) != 0) {
+    fail("failed to close %s: %s", path, strerror(errno));
+  }
+  Rom rom = {.data = data, .size = size};
+  return rom;
+}
+
+void free_rom(Rom *rom) { free((void *)rom->data); }
 
 bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
   return memcmp(a->cpu.registers, b->cpu.registers, sizeof(a->cpu.registers)) ==
