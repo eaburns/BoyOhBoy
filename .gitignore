@@ -1,3 +1,4 @@
 *.o
-disasm
 cpu_test
+debug
+disasm

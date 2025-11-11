@@ -1,6 +1,7 @@
 #ifndef GAMEBOY_H
 #define GAMEBOY_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -14,6 +15,9 @@ enum {
   MEM_IE = 0xFFFF,
 
   MEM_SIZE = 0x10000,
+  MEM_ROM_START = 0x0000,
+  MEM_ROM_END = 0x7FFF,
+  MEM_ROM_SIZE_MAX = MEM_ROM_END - MEM_ROM_START + 1,
 };
 
 typedef uint8_t Mem[MEM_SIZE];
