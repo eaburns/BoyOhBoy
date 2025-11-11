@@ -77,47 +77,6 @@ typedef uint8_t Mem[MEM_SIZE];
 
 typedef uint16_t Addr;
 
-// The 8-bit registers.
-typedef enum {
-  REG_B = 0,
-  REG_C = 1,
-  REG_D = 2,
-  REG_E = 3,
-  REG_H = 4,
-  REG_L = 5,
-  REG_HL_MEM = 6, // [HL]
-  REG_A = 7,
-} Reg8;
-
-// The 16-bit registers.
-typedef enum {
-  // These first four match their encoded form in an op-code.
-  REG_BC = 0,
-  REG_DE = 1,
-  REG_HL = 2,
-  REG_SP = 3,
-
-  // These do not match their encoded form in an op-code.
-  // They share numbers with the above as listed below.
-  REG_AF,       // 3
-  REG_HL_PLUS,  // 2
-  REG_HL_MINUS, // 3
-} Reg16;
-
-typedef enum {
-  NZ = 0,
-  Z = 1,
-  NC = 2,
-  C = 3,
-} Cond;
-
-typedef enum {
-  FLAG_Z = 1 << 7,
-  FLAG_N = 1 << 6,
-  FLAG_H = 1 << 5,
-  FLAG_C = 1 << 4,
-} Flag;
-
 // An opaque handle to an instruction.
 struct instruction;
 typedef struct instruction Instruction;
@@ -185,6 +144,47 @@ typedef struct {
   // Scratch space used by instruction execution to hold state between cycles.
   uint8_t w, z;
 } Cpu;
+
+// The 8-bit registers.
+typedef enum {
+  REG_B = 0,
+  REG_C = 1,
+  REG_D = 2,
+  REG_E = 3,
+  REG_H = 4,
+  REG_L = 5,
+  REG_HL_MEM = 6, // [HL]
+  REG_A = 7,
+} Reg8;
+
+// The 16-bit registers.
+typedef enum {
+  // These first four match their encoded form in an op-code.
+  REG_BC = 0,
+  REG_DE = 1,
+  REG_HL = 2,
+  REG_SP = 3,
+
+  // These do not match their encoded form in an op-code.
+  // They share numbers with the above as listed below.
+  REG_AF,       // 3
+  REG_HL_PLUS,  // 2
+  REG_HL_MINUS, // 3
+} Reg16;
+
+typedef enum {
+  NZ = 0,
+  Z = 1,
+  NC = 2,
+  C = 3,
+} Cond;
+
+typedef enum {
+  FLAG_Z = 1 << 7,
+  FLAG_N = 1 << 6,
+  FLAG_H = 1 << 5,
+  FLAG_C = 1 << 4,
+} Flag;
 
 // Returns the string name of the given register.
 const char *reg8_name(Reg8 r);
