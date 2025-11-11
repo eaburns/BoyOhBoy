@@ -411,9 +411,10 @@ static CpuState exec_add_hl_r16(Gameboy *g, const Instruction *instr,
 
 static CpuState exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, x + 1);
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  uint8_t x = get_reg8(cpu, r);
+  set_reg8(cpu, r, x + 1);
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
   assign_flag(cpu, FLAG_N, false);
   assign_flag(cpu, FLAG_H, add_half_carries(x, 1));
   cpu->ir = fetch_pc(g);
@@ -422,9 +423,10 @@ static CpuState exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
 
 static CpuState exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
-  uint8_t x = get_reg8(cpu, REG_A);
-  set_reg8(cpu, REG_A, x - 1);
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, REG_A) == 0);
+  Reg8 r = decode_reg8(instr->shift, cpu->ir);
+  uint8_t x = get_reg8(cpu, r);
+  set_reg8(cpu, r, x - 1);
+  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
   assign_flag(cpu, FLAG_N, true);
   assign_flag(cpu, FLAG_H, sub_half_borrows(x, 1));
   cpu->ir = fetch_pc(g);

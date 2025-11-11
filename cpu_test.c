@@ -1192,6 +1192,26 @@ static struct exec_test
                 .cycles = 1,
             },
             {
+                .name = "(exec_inc_r8) INC B",
+                .init =
+                    {
+                        .cpu = {.ir = 0x04, .registers = {[REG_B] = 0}},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 1},
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
                 .name = "(exec_dec_r8) DEC A (non-zero, no borrow)",
                 .init =
                     {
@@ -1262,6 +1282,26 @@ static struct exec_test
                             {
                                 .registers = {[REG_A] = 0},
                                 .flags = FLAG_N | FLAG_Z,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 1,
+            },
+            {
+                .name = "(exec_dec_r8) DEC B",
+                .init =
+                    {
+                        .cpu = {.ir = 0x05, .registers = {[REG_B] = 2}},
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 1},
+                                .flags = FLAG_N,
                                 .pc = 1,
                                 .ir = 1,
                             },
