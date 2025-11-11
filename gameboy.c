@@ -44,6 +44,28 @@ Rom read_rom(const char *path) {
 
 void free_rom(Rom *rom) { free((void *)rom->data); }
 
+Gameboy init_gameboy(const Rom *rom) {
+  Gameboy g = {};
+  g.rom = rom;
+
+  memcpy(g.mem, rom->data, rom->size < MEM_ROM_END ? rom->size : MEM_ROM_END);
+
+  // Starting state of DMG after running the boot ROM and ending at 0x0101.
+  g.cpu.registers[REG_B] = 0x00;
+  g.cpu.registers[REG_C] = 0x13;
+  g.cpu.registers[REG_D] = 0x00;
+  g.cpu.registers[REG_E] = 0xD3;
+  g.cpu.registers[REG_H] = 0x01;
+  g.cpu.registers[REG_L] = 0x4D;
+  g.cpu.registers[REG_A] = 0x01;
+  g.cpu.ir = 0x0; // NOP
+  g.cpu.pc = 0x0101;
+  g.cpu.sp = 0xFFFE;
+  g.cpu.flags = FLAG_Z;
+
+  return g;
+}
+
 bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
   return memcmp(a->cpu.registers, b->cpu.registers, sizeof(a->cpu.registers)) ==
              0 &&

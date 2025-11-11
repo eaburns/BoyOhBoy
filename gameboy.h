@@ -167,7 +167,13 @@ void set_reg16(Cpu *cpu, Reg16 r, uint16_t x);
 typedef struct {
   Cpu cpu;
   Mem mem;
+  const Rom *rom;
 } Gameboy;
+
+// Returns a new Gameboy for the given Rom.
+// The Gameboy maintains a pointer to rom,
+// so rom must outlive the use of the returned Gameboy.
+Gameboy init_gameboy(const Rom *rom);
 
 // Executes a single "M cycle" of the CPU.
 void cpu_mcycle(Gameboy *g);
