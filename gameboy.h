@@ -148,8 +148,8 @@ enum { INSTRUCTION_STR_MAX = 32 };
 // Writes a human readable version of the instruction at addr in mem
 // to out, writing at most size bytes including the '\0' terminator.
 // The decoded instruction is returned.
-const Instruction *format_instruction(char *out, int size, const uint8_t *mem,
-                                      Addr addr);
+const Instruction *format_instruction(char *out, int size, const uint8_t *data,
+                                      uint16_t offs);
 
 typedef enum {
   // An instruction just finished, and we have fetch IR for the next
