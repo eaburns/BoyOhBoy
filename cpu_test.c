@@ -452,11 +452,10 @@ void run_snprint_tests() {
     mem[0] = test->op;
     mem[1] = 0x01;
     mem[2] = 0x02;
-    char buf[INSTRUCTION_STR_MAX];
-    format_instruction(buf, sizeof(buf), mem, 0);
-    if (strcmp(buf, test->str) != 0) {
-      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
-           test->str);
+    Disasm disasm = disassemble(mem, 0);
+    if (strcmp(disasm.instr, test->str) != 0) {
+      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op,
+           disasm.instr, test->str);
     }
   }
 }
@@ -471,11 +470,10 @@ void run_cb_snprint_tests() {
     mem[1] = test->op;
     mem[2] = 0x01;
     mem[3] = 0x02;
-    char buf[INSTRUCTION_STR_MAX];
-    format_instruction(buf, sizeof(buf), mem, 0);
-    if (strcmp(buf, test->str) != 0) {
-      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op, buf,
-           test->str);
+    Disasm disasm = disassemble(mem, 0);
+    if (strcmp(disasm.instr, test->str) != 0) {
+      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op,
+           disasm.instr, test->str);
     }
   }
 }

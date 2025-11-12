@@ -2096,8 +2096,8 @@ void set_reg16(Cpu *cpu, Reg16 r, uint16_t x) {
   set_reg16_low_high(cpu, r, x & 0xFF, x >> 8);
 }
 
-static int snprint_operand(char *buf, int size, Operand operand, int shift,
-                           const uint8_t *data, int offs) {
+static int format_operand(char *buf, int size, Operand operand, int shift,
+                          const uint8_t *data, int offs) {
   switch (operand) {
   case NONE:
     if (size > 0) {
@@ -2152,8 +2152,8 @@ static int snprint_operand(char *buf, int size, Operand operand, int shift,
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
-const Instruction *format_instruction(char *out, int size, const uint8_t *data,
-                                      uint16_t offs) {
+static const Instruction *
+format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
   const Instruction *bank = instructions;
   if (data[offs] == 0x76) {
     // This would normally be LD [HL], [HL], but it is special-cased to be
@@ -2177,8 +2177,7 @@ const Instruction *format_instruction(char *out, int size, const uint8_t *data,
     offs++;
   }
   char buf1[16];
-  snprint_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, data,
-                  offs);
+  format_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, data, offs);
   if (instr->operand2 == NONE) {
     snprintf(out, size, "%s %s", instr->mnemonic, buf1);
     return instr;
@@ -2188,8 +2187,30 @@ const Instruction *format_instruction(char *out, int size, const uint8_t *data,
     offs++;
   }
   char buf2[16];
-  snprint_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, data,
-                  offs);
+  format_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, data, offs);
   snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
   return instr;
+}
+
+Disasm disassemble(const uint8_t *data, uint16_t offs) {
+  const char *ident = "		";
+  Disasm disasm;
+  const Instruction *instr =
+      format_instruction(disasm.instr, sizeof(disasm.instr), data, offs);
+  disasm.size = instruction_size(instr);
+  switch (disasm.size) {
+  case 1:
+    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x      %s%s", offs,
+             data[offs], ident, disasm.instr);
+    break;
+  case 2:
+    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x %02x   %s%s", offs,
+             data[offs], data[offs + 1], ident, disasm.instr);
+    break;
+  case 3:
+    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x %02x %02x%s%s", offs,
+             data[offs], data[offs + 1], data[offs + 2], ident, disasm.instr);
+    break;
+  }
+  return disasm;
 }

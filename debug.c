@@ -24,24 +24,8 @@ static void print_current_instruction(const Gameboy *g) {
   // IR has already been fetched into PC, so we go back one,
   // except for HALT, which doesn't increment PC.
   Addr pc = g->cpu.ir == HALT ? g->cpu.pc : g->cpu.pc - 1;
-  const uint8_t *mem = g->mem;
-  printf("%04x: ", pc);
-  char buf[INSTRUCTION_STR_MAX];
-  const Instruction *instr =
-      format_instruction(buf, sizeof(buf), &g->mem[0], pc);
-  int size = instruction_size(instr);
-  switch (size) {
-  case 1:
-    printf("%02x      ", mem[pc]);
-    break;
-  case 2:
-    printf("%02x %02x   ", mem[pc], mem[pc + 1]);
-    break;
-  case 3:
-    printf("%02x %02x %02x", mem[pc], mem[pc + 1], mem[pc + 2]);
-    break;
-  }
-  printf("		%s\n", buf);
+  Disasm disasm = disassemble(g->mem, pc);
+  printf("%s\n", disasm.full);
 }
 
 struct {

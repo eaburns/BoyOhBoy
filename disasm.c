@@ -17,24 +17,8 @@ int main(int argc, const char *argv[]) {
 
   Addr addr = 0;
   while (addr < rom.size) {
-    printf("%04x: ", addr);
-    char buf[INSTRUCTION_STR_MAX];
-    const Instruction *instr =
-        format_instruction(buf, sizeof(buf), rom.data, addr);
-    int size = instruction_size(instr);
-    switch (size) {
-    case 1:
-      printf("%02x      ", rom.data[addr]);
-      break;
-    case 2:
-      printf("%02x %02x   ", rom.data[addr], rom.data[addr + 1]);
-      break;
-    case 3:
-      printf("%02x %02x %02x", rom.data[addr], rom.data[addr + 1],
-             rom.data[addr + 2]);
-      break;
-    }
-    printf("		%s\n", buf);
-    addr += size;
+    Disasm disasm = disassemble(rom.data, addr);
+    printf("%s\n", disasm.full);
+    addr += disasm.size;
   }
 }

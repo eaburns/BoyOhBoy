@@ -97,18 +97,17 @@ int instruction_size(const Instruction *instr);
 // bank.
 const Instruction *find_instruction(const Instruction *bank, uint8_t op_code);
 
-// The maximum snprint_instruction size in bytes among all instructions,
-// including the \0 terminator. This can be used to allocate the buffer passed
-// to snprint_instruction to ensure no truncation.
-//
-// (Really, the max is 24 or 25? I forgot, but let's round up to a nice 32.)
-enum { INSTRUCTION_STR_MAX = 32 };
+typedef struct {
+  // The address, data, and instruction's \0-terminated string.
+  char full[64];
+  // The instruction's \0 terminated string.
+  char instr[32];
+  // The size of the instruction data in bytes.
+  int size;
+} Disasm;
 
-// Writes a human readable version of the instruction at addr in mem
-// to out, writing at most size bytes including the '\0' terminator.
-// The decoded instruction is returned.
-const Instruction *format_instruction(char *out, int size, const uint8_t *data,
-                                      uint16_t offs);
+// Returns the human-readable version of the instruction at data[offs].
+Disasm disassemble(const uint8_t *data, uint16_t offs);
 
 typedef enum {
   // An instruction just finished, and we have fetch IR for the next
