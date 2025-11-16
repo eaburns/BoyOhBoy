@@ -9,8 +9,8 @@
 #include <string.h>
 #include <threads.h>
 
-#define PRINT(...) fprintf(stderr, __VA_ARGS__)
-#define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+#define DEBUG(...)
 
 enum {
   T_VERSION_9P = 100,
@@ -266,11 +266,9 @@ Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
 }
 
 static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg) {
-  fprintf(stderr, "send: getting tag\n");
   mtx_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
-    fprintf(stderr, "send: waiting\n");
     cnd_wait(&c->cnd, &c->mtx);
     tag = free_queue_slot(c);
   }

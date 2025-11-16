@@ -11,7 +11,7 @@ OBJS=gameboy.o cpu.o
 BINS=debug disasm
 
 # Test binaries.
-TESTS=cpu_test
+TESTS=cpu_test 9p/test
 
 all: $(OBJS) $(BINS) $(TESTS) run_tests
 
@@ -23,6 +23,9 @@ disasm: $(OBJS) disasm.c
 
 cpu_test: $(OBJS) cpu_test.c
 	$(CC) $(LDFLAGS) $^ -o cpu_test
+
+9p/test: 9p/test.o 9p/lib9p.a
+	$(CC) $(LDFLAGS) $^ -o 9p/test
 
 run_tests: $(TESTS)
 	@for test in $^; do echo $$test ; ./$$test; done
@@ -37,8 +40,10 @@ run_tests: $(TESTS)
 9p/lib9p.a: 9p/socket.o 9p/9p.o
 	$(AR) rcs $@ $^
 
-# No CFLAGS for socket.c, since it's not stardard c23.
+# These ones use fdopen, which is not -std=c23.
 9p/socket.o: 9p/socket.c
+	$(CC) $(CFLAGS_POSIX) -c $< -o $@
+9p/test.o: 9p/test.c
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
 
 

@@ -63,6 +63,12 @@ Reply9p *poll9p(Client9p *c, Tag9p tag); // NULL if not ready
 // Takes a Reply9p that is not serialized to internal_data and returns one that
 // is. The return value must be free()d by the caller. This is not intended for
 // common use, but for unit testing.
+//
+// Regardless of the reply type, all pointers inside the returned Reply9p point
+// to the internal data of the Reply9p itself. So, for example, if the original
+// Reply9p, r, has pointers to strings or data, these are copied into the
+// returned Reply9p and the original memory can be reused without changing the
+// return value.
 Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag);
 
 #endif // _9P_H_
