@@ -19,6 +19,8 @@
     abort();                                                                   \
   } while (0)
 
+enum { HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t) };
+
 static Reply9p NO_REPLY;
 
 typedef struct {
@@ -248,6 +250,59 @@ static void run_bad_reply_type_test() {
   close_test_server(&server);
 }
 
+static void run_receive_version_with_0byte() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  Tag9p tag = version9p(c, 100, "9P2000");
+
+  Reply9p reply = {.type = R_VERSION_9P, .version = {.version = "XYZ"}};
+  Reply9p *bad_reply = serialize_reply9p(&reply, tag);
+  char *p = (char *)bad_reply + sizeof(Reply9p);
+  p += HEADER_SIZE;
+  p += sizeof(bad_reply->version.msize);
+  p += sizeof(uint16_t); // string size field
+  p[1] = 0;              // Add a null within the version string.
+
+  server_will_reply(&server, bad_reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_ERROR_9P) {
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
+  }
+  free(bad_reply);
+  free(r);
+  close_test_server(&server);
+}
+
+static void run_receive_error_with_0byte() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  Tag9p tag = version9p(c, 100, "9P2000");
+
+  Reply9p reply = {.type = R_ERROR_9P, .error = {.message = "XYZ"}};
+  Reply9p *bad_reply = serialize_reply9p(&reply, tag);
+  char *p = (char *)bad_reply + sizeof(Reply9p);
+  p += HEADER_SIZE;
+  p += sizeof(uint16_t); // string size field
+  p[1] = 0;              // Add a null within the version string.
+
+  server_will_reply(&server, bad_reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_ERROR_9P) {
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
+  }
+  free(bad_reply);
+  free(r);
+  close_test_server(&server);
+}
+
 static int server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("TEST SERVER: started\n");
@@ -285,13 +340,20 @@ static int server_thread(void *arg) {
     }
     mtx_unlock(&server->mtx);
 
-    Reply9p *reply = serialize_reply9p(server->reply, server->tag);
+    Reply9p *reply = NULL;
+    if (server->reply->internal_data_size == 0) {
+      reply = serialize_reply9p(server->reply, server->tag);
+    } else {
+      reply = server->reply;
+    }
     if (fwrite((char *)reply + sizeof(Reply9p), 1, reply->internal_data_size,
                server->socket) != reply->internal_data_size) {
       FAIL("server: failed to write reply\n");
     }
     DEBUG("TEST SERVER: sent message type %d\n", reply->type);
-    free(reply);
+    if (server->reply->internal_data_size == 0) {
+      free(reply);
+    }
   }
   mtx_destroy(&server->mtx);
   fclose(server->socket);
@@ -367,5 +429,7 @@ int main() {
   run_send_too_big_test();
   run_bad_reply_tag_test();
   run_bad_reply_type_test();
+  run_receive_version_with_0byte();
+  run_receive_error_with_0byte();
   return 0;
 }

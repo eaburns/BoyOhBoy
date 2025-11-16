@@ -44,7 +44,7 @@ extern FILE *dial_unix_socket(const char *path);
 static int recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
-static void deserialize_reply(Reply9p *r, uint8_t type);
+static bool deserialize_reply(Reply9p *r, uint8_t type);
 static Tag9p send(Client9p *c, char *msg);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
@@ -63,7 +63,7 @@ static char *get_le4(char *p, uint32_t *x);
 static char *get_le8(char *p, uint64_t *x);
 static char *get_qid(char *p, Qid9p *qid);
 static char *get_data(char *p, uint16_t *size, const char **s);
-static char *get_string(char *p, const char **s);
+static char *get_string_or_null(char *p, const char **s);
 
 Client9p *connect9p(const char *path) {
   FILE *f = dial_unix_socket(path);
@@ -158,7 +158,10 @@ static int recv_thread(void *arg) {
       DEBUG("recv_thread: failed to read data\n");
       goto close;
     }
-    deserialize_reply(r, type);
+    if (!deserialize_reply(r, type)) {
+      DEBUG("recv_thread: failed deserialize reply\n");
+      goto close;
+    }
     if (type == R_VERSION_9P) {
       c->max_send_size = r->version.msize;
     }
@@ -245,24 +248,29 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   return s;
 }
 
-static void deserialize_reply(Reply9p *r, uint8_t type) {
+static bool deserialize_reply(Reply9p *r, uint8_t type) {
   r->type = type;
   char *p = (char *)r + sizeof(Reply9p);
   switch (r->type) {
   case R_VERSION_9P:
     p = get_le4(p, &r->version.msize);
-    p = get_string(p, &r->version.version);
+    if (get_string_or_null(p, &r->version.version) == NULL) {
+      return false;
+    }
     break;
   case R_AUTH_9P:
     p = get_qid(p, &r->auth.aqid);
     break;
   case R_ERROR_9P:
-    get_string(p, &r->error.message);
+    if (get_string_or_null(p, &r->error.message) == NULL) {
+      return false;
+    }
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
     abort();
   }
+  return true;
 }
 
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
@@ -508,9 +516,12 @@ static char *get_data(char *p, uint16_t *size, const char **s) {
   return p + *size;
 }
 
-static char *get_string(char *p, const char **s) {
+static char *get_string_or_null(char *p, const char **s) {
   uint16_t size;
   p = get_le2(p, &size);
+  if (memchr(p, '\0', size) != NULL) {
+    return NULL;
+  }
   p--;
   memmove(p, p + 1, size);
   p[size] = '\0';
