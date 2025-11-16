@@ -8,7 +8,7 @@ LDFLAGS=-std=c23 -g
 OBJS=gameboy.o cpu.o
 
 # Different buildable binaries
-BINS=debug disasm
+BINS=debug disasm 9p_test
 
 # Test binaries.
 TESTS=cpu_test 9p/test

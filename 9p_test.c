@@ -24,22 +24,14 @@ int main() {
   }
 
   fprintf(stderr, "main: version9p\n");
-  Tag9p tag = version9p(c, 1 << 20, VERSION_9P);
-  fprintf(stderr, "main: got tag %d\n", tag);
-  if (tag < 0) {
-    return 1;
-  }
-  // sleep(1);
-  Reply9p *r = poll9p(c, tag);
-  if (r == NULL) {
-    r = wait9p(c, tag);
-  }
+  Reply9p *r = wait9p(c, version9p(c, 1 << 20, VERSION_9P));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "main: got error: %s\n", r->error.message);
-    return -1;
+    fprintf(stderr, "main: version9p failed: %s\n", r->error.message);
+    return 1;
   }
   fprintf(stderr, "main: got msize %d, version %s\n", r->version.msize,
           r->version.version);
+  free(r);
 
   close9p(c);
   fprintf(stderr, "main: done\n");

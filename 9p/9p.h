@@ -10,6 +10,8 @@ typedef struct Client9p Client9p;
 
 typedef int16_t Tag9p;
 
+typedef uint32_t Fid9p;
+
 typedef struct {
   uint8_t bytes[13];
 } Qid9p;
@@ -32,7 +34,7 @@ typedef struct {
 } Rerror9p;
 
 typedef struct {
-  Qid9p qid;
+  Qid9p aqid;
 } Rauth9p;
 
 typedef struct {
@@ -52,8 +54,7 @@ void close9p(Client9p *c);
 // TODO
 int max_write_size9p(Client9p *c);
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
-// TODO
-Tag9p auth9p(Client9p *c, const char *uname, const char *aname);
+Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.

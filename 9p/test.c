@@ -35,7 +35,9 @@ typedef struct {
 
 static Client9p *connect_test_server(TestServer *);
 static void server_will_reply(TestServer *, Reply9p *, Tag9p);
+static void exchange_version(Client9p *c, TestServer *server);
 static void close_test_server(TestServer *);
+static void fprint_qid(FILE *f, Qid9p qid);
 
 static void run_version9p_test() {
   TestServer server;
@@ -44,15 +46,15 @@ static void run_version9p_test() {
 
   static const int EXPECTED_MSIZE = 10;
   static const char *EXPECTED_VERSION = "9P2000";
-  Reply9p r_version = {
+  Reply9p reply = {
       .type = R_VERSION_9P,
       .version = {.msize = EXPECTED_MSIZE, .version = EXPECTED_VERSION},
   };
-  server_will_reply(&server, &r_version, tag);
+  server_will_reply(&server, &reply, tag);
 
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_VERSION_9P) {
-    FAIL("bad reply type: %d\n", r->type);
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_VERSION_9P);
   }
   if (r->version.msize != EXPECTED_MSIZE) {
     FAIL("expected msize %d, got %d\n", EXPECTED_MSIZE, r->version.msize);
@@ -64,18 +66,72 @@ static void run_version9p_test() {
   close_test_server(&server);
 }
 
+static void run_auth9p_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
+  Tag9p tag = auth9p(c, 123, "uname", "aname");
+  Reply9p reply = {
+      .type = R_AUTH_9P,
+      .auth =
+          {
+              .aqid = {.bytes = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+          },
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_AUTH_9P) {
+    if (r->type == R_ERROR_9P) {
+      FAIL("bad reply type: got %d (error %s), expected %d\n", r->type,
+           r->error.message, R_AUTH_9P);
+    }
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_AUTH_9P);
+  }
+  char expected[13] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+  if (memcmp(r->auth.aqid.bytes, expected, sizeof(expected)) != 0) {
+    fprintf(stderr, "received qid: ");
+    fprint_qid(stderr, r->auth.aqid);
+    FAIL("\nexpected qid: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13\n");
+  }
+  free(r);
+  close_test_server(&server);
+}
+
 static void run_reply_too_big_test() {
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 10, "9P2000");
 
   // This will be larger than 10 bytes in total.
-  Reply9p r_version = {
+  Reply9p reply = {
       .type = R_VERSION_9P,
       .version = {.msize = 10, .version = "0123456789"},
   };
-  server_will_reply(&server, &r_version, tag + 1);
+  server_will_reply(&server, &reply, tag);
 
+  // Should close the connection.
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_ERROR_9P) {
+    FAIL("bad reply type: %d\n", r->type);
+  }
+  free(r);
+  close_test_server(&server);
+}
+
+static void run_send_too_big_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  Tag9p tag = version9p(c, 100, "9P2000");
+  Reply9p reply1 = {
+      .type = R_VERSION_9P,
+      .version = {.msize = 10, .version = "0123456789"},
+  };
+  server_will_reply(&server, &reply1, tag);
+  free(wait9p(c, tag));
+
+  tag = auth9p(c, 5, "this is longer than 10 bytes", "and this is longer too");
   // Should close the connection.
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_ERROR_9P) {
@@ -90,11 +146,11 @@ static void run_bad_reply_tag_test() {
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
 
-  Reply9p r_version = {
+  Reply9p reply = {
       .type = R_VERSION_9P,
       .version = {.msize = 10, .version = "9P2000"},
   };
-  server_will_reply(&server, &r_version, tag + 1);
+  server_will_reply(&server, &reply, tag + 1);
 
   // Should close the connection.
   Reply9p *r = wait9p(c, tag);
@@ -105,21 +161,13 @@ static void run_bad_reply_tag_test() {
   close_test_server(&server);
 }
 
-// Oops. Skip this for now, since
-bool SKIP_run_bad_reply_type_test = true;
-
 static void run_bad_reply_type_test() {
-  if (SKIP_run_bad_reply_type_test) {
-    fprintf(stderr, "skipping run_bad_reply_type_test until we have "
-                    "implemented another message type\n");
-    return;
-  }
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
 
-  Reply9p r_version = {.type = R_AUTH_9P};
-  server_will_reply(&server, &r_version, tag);
+  Reply9p reply = {.type = R_AUTH_9P};
+  server_will_reply(&server, &reply, tag);
 
   // Should close the connection.
   Reply9p *r = wait9p(c, tag);
@@ -209,6 +257,20 @@ static void server_will_reply(TestServer *server, Reply9p *r, Tag9p tag) {
   mtx_unlock(&server->mtx);
 }
 
+static void exchange_version(Client9p *c, TestServer *server) {
+  Tag9p tag = version9p(c, 1024, "9P2000");
+  Reply9p reply = {
+      .type = R_VERSION_9P,
+      .version = {.msize = 1024, .version = "9P2000"},
+  };
+  server_will_reply(server, &reply, tag);
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_VERSION_9P) {
+    abort();
+  }
+  free(r);
+}
+
 static void close_test_server(TestServer *server) {
   mtx_lock(&server->mtx);
   server->done = true;
@@ -217,9 +279,20 @@ static void close_test_server(TestServer *server) {
   thrd_join(server->thrd, NULL);
 }
 
+static void fprint_qid(FILE *f, Qid9p qid) {
+  for (int i = 0; i < sizeof(qid.bytes); i++) {
+    if (i > 0) {
+      fprintf(f, ", ");
+    }
+    fprintf(f, "%d", qid.bytes[i]);
+  }
+}
+
 int main() {
   run_version9p_test();
+  run_auth9p_test();
   run_reply_too_big_test();
+  run_send_too_big_test();
   run_bad_reply_tag_test();
   run_bad_reply_type_test();
   return 0;

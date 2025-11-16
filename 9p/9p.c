@@ -9,7 +9,7 @@
 #include <string.h>
 #include <threads.h>
 
-// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+//#define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
 
 enum {
@@ -46,7 +46,7 @@ static int recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
 static void deserialize_reply(Reply9p *r, uint8_t type);
-static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg);
+static Tag9p send(Client9p *c, char *msg);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
 static bool queue_empty(Client9p *c);
@@ -56,11 +56,13 @@ static char *put1(char *p, uint8_t x);
 static char *put_le2(char *p, uint16_t x);
 static char *put_le4(char *p, uint32_t x);
 static char *put_le8(char *p, uint64_t x);
+static char *put_qid(char *p, Qid9p qid);
 static char *put_string(char *p, const char *s);
 static char *get1(char *p, uint8_t *x);
 static char *get_le2(char *p, uint16_t *x);
 static char *get_le4(char *p, uint32_t *x);
 static char *get_le8(char *p, uint64_t *x);
+static char *get_qid(char *p, Qid9p *qid);
 static char *get_data(char *p, uint16_t *size, const char **s);
 static char *get_string(char *p, const char **s);
 
@@ -207,6 +209,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_VERSION_9P:
     size += sizeof(r->version.msize) + string_size(r->version.version);
     break;
+  case R_AUTH_9P:
+    size += sizeof(r->auth.aqid.bytes);
+    break;
   case R_ERROR_9P:
     size += string_size(r->error.message);
     break;
@@ -228,6 +233,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     p = put_le4(p, r->version.msize);
     p = put_string(p, r->version.version);
     break;
+  case R_AUTH_9P:
+    p = put_qid(p, r->auth.aqid);
+    break;
   case R_ERROR_9P:
     p = put_string(p, r->error.message);
     break;
@@ -245,6 +253,9 @@ static void deserialize_reply(Reply9p *r, uint8_t type) {
   case R_VERSION_9P:
     p = get_le4(p, &r->version.msize);
     p = get_string(p, &r->version.version);
+    break;
+  case R_AUTH_9P:
+    p = get_qid(p, &r->auth.aqid);
     break;
   case R_ERROR_9P:
     get_string(p, &r->error.message);
@@ -264,10 +275,23 @@ Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, msize);
   p = put_string(p, version);
-  return send(c, T_VERSION_9P, size, msg);
+  return send(c, msg);
 }
 
-static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg) {
+Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname) {
+  int size =
+      HEADER_SIZE + sizeof(afid) + string_size(uname) + string_size(aname);
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_AUTH_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, afid);
+  p = put_string(p, uname);
+  p = put_string(p, aname);
+  return send(c, msg);
+}
+
+static Tag9p send(Client9p *c, char *msg) {
   mtx_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
@@ -278,6 +302,9 @@ static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg) {
     DEBUG("send: closed before getting a tag\n");
     return -1;
   }
+  uint8_t type;
+  uint32_t size;
+  get1(get_le4(msg, &size), &type);
   c->queue[tag].in_use = true;
   c->queue[tag].sent_type = type;
 
@@ -422,6 +449,12 @@ static char *put_le8(char *p, uint64_t x) {
   return p;
 }
 
+static char *put_qid(char *p, Qid9p qid) {
+  memcpy(p, qid.bytes, sizeof(qid.bytes));
+  p += sizeof(qid.bytes);
+  return p;
+}
+
 static char *put_string(char *p, const char *s) {
   int size = strlen(s);
   p = put_le2(p, size);
@@ -459,6 +492,11 @@ static char *get_le8(char *p, uint64_t *x) {
   *x |= (uint64_t)*p++ << 48;
   *x |= (uint64_t)*p++ << 56;
   return p;
+}
+
+static char *get_qid(char *p, Qid9p *qid) {
+  memcpy(qid->bytes, p, sizeof(qid->bytes));
+  return p + sizeof(qid->bytes);
 }
 
 static char *get_data(char *p, uint16_t *size, const char **s) {
