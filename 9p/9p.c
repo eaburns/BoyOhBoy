@@ -68,6 +68,10 @@ Client9p *connect9p(const char *path) {
   if (f == NULL) {
     return NULL;
   }
+  return connect_file9p(f);
+}
+
+Client9p *connect_file9p(FILE *f) {
   Client9p *c = calloc(1, sizeof(*c));
   c->f = f;
   if (mtx_init(&c->mtx, mtx_plain) != thrd_success) {
