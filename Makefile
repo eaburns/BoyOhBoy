@@ -1,5 +1,7 @@
 CC=clang
+AR=llvm-ar
 CFLAGS=-std=c23 -g
+CFLAGS_POSIX=-g
 LDFLAGS=-std=c23 -g
 
 # Objects shared among binaries.
@@ -25,8 +27,24 @@ cpu_test: $(OBJS) cpu_test.c
 run_tests: $(TESTS)
 	@for test in $^; do echo $$test ; ./$$test; done
 
+
+
+9p_test: 9p_test.c 9p/lib9p.a
+	$(CC) $(LDFLAGS) $^ -o 9p_test
+
+9p/9p.o: 9p/9p.c 9p/9p.h
+
+9p/lib9p.a: 9p/socket.o 9p/9p.o
+	$(AR) rcs $@ $^
+
+# No CFLAGS for socket.c, since it's not stardard c23.
+9p/socket.o: 9p/socket.c
+	$(CC) $(CFLAGS_POSIX) -c $< -o $@
+
+
+
 clean:
-	rm -f *.o $(BINS) $(TESTS)
+	rm -f *.o *.a 9p/*.o 9p/*.a $(BINS) $(TESTS)
 
 # Everything depends on gameboy.h.
 %.o: %.c gameboy.h
