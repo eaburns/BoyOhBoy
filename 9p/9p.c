@@ -413,9 +413,12 @@ static Reply9p *error_reply(const char *fmt, ...) {
   va_start(args, fmt);
   char b[1];
   int n = vsnprintf(b, 1, fmt, args);
+  va_end(args);
   Reply9p *r = calloc(1, sizeof(Reply9p) + n + 1);
   r->type = R_ERROR_9P;
+  va_start(args, fmt);
   int m = vsnprintf((char *)r + sizeof(Reply9p), n + 1, fmt, args);
+  va_end(args);
   if (m != n) {
     abort(); // impossible
   }
