@@ -18,6 +18,7 @@ enum {
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   QUEUE_SIZE = 4,
+  INIT_MAX_SEND_SIZE = 64,
 };
 
 typedef struct {
@@ -74,6 +75,7 @@ Client9p *connect9p(const char *path) {
 Client9p *connect_file9p(FILE *f) {
   Client9p *c = calloc(1, sizeof(*c));
   c->f = f;
+  c->max_send_size = INIT_MAX_SEND_SIZE;
   if (mtx_init(&c->mtx, mtx_plain) != thrd_success) {
     goto err;
   }
@@ -279,6 +281,15 @@ static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg) {
   c->queue[tag].in_use = true;
   c->queue[tag].sent_type = type;
 
+  if (size > c->max_send_size) {
+    Reply9p error_reply = {
+        .type = R_ERROR_9P,
+        .error = {.message = "message too big"},
+    };
+    c->queue[tag].reply = serialize_reply9p(&error_reply, tag);
+    goto done;
+  }
+
   put_le2((char *)msg + sizeof(uint32_t) + sizeof(uint8_t), tag);
   DEBUG("send: sending %d bytes\n", size);
   if (fwrite(msg, 1, size, c->f) != size) {
@@ -286,6 +297,7 @@ static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg) {
     tag = -1;
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
   }
+done:
   cnd_broadcast(&c->cnd);
   mtx_unlock(&c->mtx);
   return tag;
