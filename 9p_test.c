@@ -38,9 +38,18 @@ int main() {
     fprintf(stderr, "failed to get $USER\n");
     return 1;
   }
-  r = wait9p(c, attach9p(c, 123, NOFID, user, ""));
+  Fid9p root_fid = 123;
+  r = wait9p(c, attach9p(c, root_fid, NOFID, user, ""));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "main: attach9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  free(r);
+
+  Fid9p body_fid = 456;
+  r = wait9p(c, walk9p(c, root_fid, body_fid, 2, "new", "body"));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: walk9p failed: %s\n", r->error.message);
     return 1;
   }
   free(r);

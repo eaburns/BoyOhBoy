@@ -16,6 +16,7 @@ enum {
   T_VERSION_9P = 100,
   T_AUTH_9P = 102,
   T_ATTACH_9P = 104,
+  T_WALK_9P = 110,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   INIT_MAX_SEND_SIZE = 64,
@@ -215,11 +216,15 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_AUTH_9P:
     size += sizeof(r->auth.aqid);
     break;
+  case R_ERROR_9P:
+    size += string_size(r->error.message);
+    break;
   case R_ATTACH_9P:
     size += sizeof(r->attach.qid);
     break;
-  case R_ERROR_9P:
-    size += string_size(r->error.message);
+  case R_WALK_9P:
+    size += sizeof(r->walk.nqids);
+    size += sizeof(Qid9p) * r->walk.nqids;
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -242,11 +247,17 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_AUTH_9P:
     p = put_qid(p, r->auth.aqid);
     break;
+  case R_ERROR_9P:
+    p = put_string(p, r->error.message);
+    break;
   case R_ATTACH_9P:
     p = put_qid(p, r->attach.qid);
     break;
-  case R_ERROR_9P:
-    p = put_string(p, r->error.message);
+  case R_WALK_9P:
+    p = put_le2(p, r->walk.nqids);
+    for (int i = 0; i < r->walk.nqids; i++) {
+      p = put_qid(p, r->walk.qids[i]);
+    }
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -257,7 +268,8 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
 
 static bool deserialize_reply(Reply9p *r, uint8_t type) {
   r->type = type;
-  char *p = (char *)r + sizeof(Reply9p);
+  char *start = (char *)r + sizeof(Reply9p);
+  char *p = start;
   switch (r->type) {
   case R_VERSION_9P:
     p = get_le4(p, &r->version.msize);
@@ -268,13 +280,23 @@ static bool deserialize_reply(Reply9p *r, uint8_t type) {
   case R_AUTH_9P:
     p = get_qid(p, r->auth.aqid);
     break;
-  case R_ATTACH_9P:
-    p = get_qid(p, r->attach.qid);
-    break;
   case R_ERROR_9P:
     if (get_string_or_null(p, &r->error.message) == NULL) {
       return false;
     }
+    break;
+  case R_ATTACH_9P:
+    p = get_qid(p, r->attach.qid);
+    break;
+  case R_WALK_9P:
+    p = get_le2(p, &r->walk.nqids);
+    int bytes_left = r->internal_data_size - (p - start);
+    if (bytes_left != sizeof(Qid9p) * r->walk.nqids) {
+      DEBUG("expected %d bytes of Qid, got %d\n", sizeof(Qid9p) * r->walk.nqid,
+            bytes_left);
+      return false;
+    }
+    r->walk.qids = (Qid9p *)p;
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -320,6 +342,48 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
   p = put_le4(p, afid);
   p = put_string(p, uname);
   p = put_string(p, aname);
+  return send(c, msg);
+}
+
+static int count(const char *path, char c) {
+  int n = 0;
+  for (const char *p = path; *p != '\0'; p++) {
+    if (*p == c) {
+      n++;
+    }
+  }
+  return n;
+}
+
+Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...) {
+  va_list args;
+  va_start(args, nelms);
+  const char **elms = calloc(nelms, sizeof(char *));
+  for (int i = 0; i < nelms; i++) {
+    elms[i] = va_arg(args, const char *);
+  }
+  va_end(args);
+  Tag9p tag = walk_array9p(c, fid, new_fid, nelms, elms);
+  free(elms);
+  return tag;
+}
+
+Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
+                   const char **elms) {
+  int size = HEADER_SIZE + sizeof(fid) + sizeof(new_fid) + sizeof(nelms);
+  for (int i = 0; i < nelms; i++) {
+    size += string_size(elms[i]);
+  }
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_WALK_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
+  p = put_le4(p, new_fid);
+  p = put_le2(p, nelms);
+  for (int i = 0; i < nelms; i++) {
+    p = put_string(p, elms[i]);
+  }
   return send(c, msg);
 }
 

@@ -26,6 +26,7 @@ typedef enum {
   R_ATTACH_9P = 105,
   R_ERROR_9P = 107,
   R_FLUSH_9P = 109,
+  R_WALK_9P = 111,
 } ReplyType9p;
 
 typedef struct {
@@ -46,12 +47,18 @@ typedef struct {
 } Rattach9p;
 
 typedef struct {
+  uint16_t nqids;
+  Qid9p *qids; // array of nqid Qid9ps.
+} Rwalk9p;
+
+typedef struct {
   ReplyType9p type;
   union {
     Rversion9p version;
     Rerror9p error;
     Rauth9p auth;
     Rattach9p attach;
+    Rwalk9p walk;
   };
   int internal_data_size;
   char internal_data[];
@@ -65,6 +72,9 @@ Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname);
 Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
                const char *aname);
+Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...);
+Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
+                   const char **elms);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.

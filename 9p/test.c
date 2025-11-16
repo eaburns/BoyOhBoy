@@ -103,6 +103,53 @@ static void run_attach9p_test() {
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
 
+  Tag9p tag = walk9p(c, 567, 123, 2, "a", "bc");
+  Qid9p qids[] = {
+      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
+      {13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1},
+  };
+  Reply9p reply = {
+      .type = R_WALK_9P,
+      .walk =
+          {
+              .nqids = 2,
+              .qids = qids,
+          },
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_WALK_9P) {
+    if (r->type == R_ERROR_9P) {
+      FAIL("bad reply type: got %d (error %s), expected %d\n", r->type,
+           r->error.message, R_WALK_9P);
+    }
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_WALK_9P);
+  }
+  if (r->walk.nqids != 2) {
+    FAIL("expected 2 qids, got %d", r->walk.nqids);
+  }
+  char expected1[13] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+  if (memcmp(r->walk.qids[0], expected1, sizeof(expected1)) != 0) {
+    fprintf(stderr, "received qid[0]: ");
+    fprint_qid(stderr, r->walk.qids[0]);
+    FAIL("\nexpected qid[0]: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13\n");
+  }
+  char expected2[13] = {13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1};
+  if (memcmp(r->walk.qids[1], expected2, sizeof(expected2)) != 0) {
+    fprintf(stderr, "received qid[1]: ");
+    fprint_qid(stderr, r->walk.qids[1]);
+    FAIL("\nexpected qid[1]: 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1\n");
+  }
+  free(r);
+  close_test_server(&server);
+}
+
+static void run_walk9p_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
   Tag9p tag = attach9p(c, 567, 123, "uname", "aname");
   Reply9p reply = {
       .type = R_ATTACH_9P,
@@ -451,6 +498,7 @@ int main() {
   run_version9p_test();
   run_auth9p_test();
   run_attach9p_test();
+  run_walk9p_test();
   run_wait9p_bad_tag_test();
   run_poll9p_bad_tag_test();
   run_reply_too_big_test();
