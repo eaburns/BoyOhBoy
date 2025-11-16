@@ -44,7 +44,7 @@ extern FILE *dial_unix_socket(const char *path);
 static int recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
-static void fill_reply(Reply9p *r, uint8_t type);
+static void deserialize_reply(Reply9p *r, uint8_t type);
 static Tag9p send(Client9p *c, uint8_t type, uint32_t size, char *msg);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
@@ -141,6 +141,7 @@ static int recv_thread(void *arg) {
 
     int body_size = size - HEADER_SIZE;
     Reply9p *r = calloc(1, sizeof(Reply9p) + body_size);
+    r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
     mtx_unlock(&c->mtx);
     int n = fread((char *)r + sizeof(Reply9p), 1, body_size, c->f);
@@ -150,7 +151,7 @@ static int recv_thread(void *arg) {
       DEBUG("recv_thread: failed to read data\n");
       goto close;
     }
-    fill_reply(r, type);
+    deserialize_reply(r, type);
     if (type == R_VERSION_9P) {
       c->max_send_size = r->version.msize;
     }
@@ -194,7 +195,44 @@ static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
   return true;
 }
 
-static void fill_reply(Reply9p *r, uint8_t type) {
+Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
+  int size = HEADER_SIZE;
+  switch (r->type) {
+  case R_VERSION_9P:
+    size += sizeof(r->version.msize) + string_size(r->version.version);
+    break;
+  case R_ERROR_9P:
+    size += string_size(r->error.message);
+    break;
+  default:
+    fprintf(stderr, "bad message type: %d\n", r->type);
+    abort();
+  }
+
+  Reply9p *s = calloc(1, sizeof(Reply9p) + size);
+  memcpy(s, r, sizeof(*r));
+  s->internal_data_size = size;
+  char *p = (char *)s + sizeof(Reply9p);
+  p = put_le4(p, size);
+  p = put1(p, r->type);
+  p = put_le2(p, tag);
+
+  switch (r->type) {
+  case R_VERSION_9P:
+    p = put_le4(p, r->version.msize);
+    p = put_string(p, r->version.version);
+    break;
+  case R_ERROR_9P:
+    p = put_string(p, r->error.message);
+    break;
+  default:
+    fprintf(stderr, "bad message type: %d\n", r->type);
+    abort();
+  }
+  return s;
+}
+
+static void deserialize_reply(Reply9p *r, uint8_t type) {
   r->type = type;
   char *p = (char *)r + sizeof(Reply9p);
   switch (r->type) {

@@ -41,18 +41,26 @@ typedef struct {
     Rerror9p error;
     Rauth9p auth;
   };
+  int internal_data_size;
   char internal_data[];
 } Reply9p;
 
 Client9p *connect9p(const char *path);
 void close9p(Client9p *c);
+ // TODO
 int max_write_size9p(Client9p *c);
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
+// TODO
 Tag9p auth9p(Client9p *c, const char *uname, const char *aname);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.
 Reply9p *wait9p(Client9p *c, Tag9p tag);
 Reply9p *poll9p(Client9p *c, Tag9p tag); // NULL if not ready
+
+// Takes a Reply9p that is not serialized to internal_data and returns one that is.
+// The return value must be free()d by the caller.
+// This is not intended for common use, but for unit testing.
+Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag);
 
 #endif // _9P_H_
