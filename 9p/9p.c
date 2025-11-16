@@ -15,6 +15,7 @@
 enum {
   T_VERSION_9P = 100,
   T_AUTH_9P = 102,
+  T_ATTACH_9P = 104,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   INIT_MAX_SEND_SIZE = 64,
@@ -61,7 +62,7 @@ static char *get1(char *p, uint8_t *x);
 static char *get_le2(char *p, uint16_t *x);
 static char *get_le4(char *p, uint32_t *x);
 static char *get_le8(char *p, uint64_t *x);
-static char *get_qid(char *p, Qid9p *qid);
+static char *get_qid(char *p, Qid9p qid);
 static char *get_data(char *p, uint16_t *size, const char **s);
 static char *get_string_or_null(char *p, const char **s);
 
@@ -212,7 +213,10 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     size += sizeof(r->version.msize) + string_size(r->version.version);
     break;
   case R_AUTH_9P:
-    size += sizeof(r->auth.aqid.bytes);
+    size += sizeof(r->auth.aqid);
+    break;
+  case R_ATTACH_9P:
+    size += sizeof(r->attach.qid);
     break;
   case R_ERROR_9P:
     size += string_size(r->error.message);
@@ -238,6 +242,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_AUTH_9P:
     p = put_qid(p, r->auth.aqid);
     break;
+  case R_ATTACH_9P:
+    p = put_qid(p, r->attach.qid);
+    break;
   case R_ERROR_9P:
     p = put_string(p, r->error.message);
     break;
@@ -259,7 +266,10 @@ static bool deserialize_reply(Reply9p *r, uint8_t type) {
     }
     break;
   case R_AUTH_9P:
-    p = get_qid(p, &r->auth.aqid);
+    p = get_qid(p, r->auth.aqid);
+    break;
+  case R_ATTACH_9P:
+    p = get_qid(p, r->attach.qid);
     break;
   case R_ERROR_9P:
     if (get_string_or_null(p, &r->error.message) == NULL) {
@@ -292,6 +302,21 @@ Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname) {
   char *p = put_le4(msg, size);
   p = put1(p, T_AUTH_9P);
   p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, afid);
+  p = put_string(p, uname);
+  p = put_string(p, aname);
+  return send(c, msg);
+}
+
+Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
+               const char *aname) {
+  int size = HEADER_SIZE + sizeof(fid) + sizeof(afid) + string_size(uname) +
+             string_size(aname);
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_ATTACH_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
   p = put_le4(p, afid);
   p = put_string(p, uname);
   p = put_string(p, aname);
@@ -461,8 +486,8 @@ static char *put_le8(char *p, uint64_t x) {
 }
 
 static char *put_qid(char *p, Qid9p qid) {
-  memcpy(p, qid.bytes, sizeof(qid.bytes));
-  p += sizeof(qid.bytes);
+  memcpy(p, qid, sizeof(Qid9p));
+  p += sizeof(Qid9p);
   return p;
 }
 
@@ -505,9 +530,9 @@ static char *get_le8(char *p, uint64_t *x) {
   return p;
 }
 
-static char *get_qid(char *p, Qid9p *qid) {
-  memcpy(qid->bytes, p, sizeof(qid->bytes));
-  return p + sizeof(qid->bytes);
+static char *get_qid(char *p, Qid9p qid) {
+  memcpy(qid, p, sizeof(Qid9p));
+  return p + sizeof(Qid9p);
 }
 
 static char *get_data(char *p, uint16_t *size, const char **s) {

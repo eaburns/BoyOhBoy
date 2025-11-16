@@ -33,6 +33,18 @@ int main() {
           r->version.version);
   free(r);
 
+  const char *user = getenv("USER");
+  if (user == NULL) {
+    fprintf(stderr, "failed to get $USER\n");
+    return 1;
+  }
+  r = wait9p(c, attach9p(c, 123, NOFID, user, ""));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: attach9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  free(r);
+
   close9p(c);
   fprintf(stderr, "main: done\n");
   return 0;

@@ -6,7 +6,11 @@
 
 #define VERSION_9P "9P2000"
 
-enum { QUEUE_SIZE = 4 };
+enum {
+  NOFID = 0xFFFFFFFF,
+
+  QUEUE_SIZE = 4
+};
 
 typedef struct Client9p Client9p;
 
@@ -14,9 +18,7 @@ typedef int16_t Tag9p;
 
 typedef uint32_t Fid9p;
 
-typedef struct {
-  uint8_t bytes[13];
-} Qid9p;
+typedef uint8_t Qid9p[13];
 
 typedef enum {
   R_VERSION_9P = 101,
@@ -40,11 +42,16 @@ typedef struct {
 } Rauth9p;
 
 typedef struct {
+  Qid9p qid;
+} Rattach9p;
+
+typedef struct {
   ReplyType9p type;
   union {
     Rversion9p version;
     Rerror9p error;
     Rauth9p auth;
+    Rattach9p attach;
   };
   int internal_data_size;
   char internal_data[];
@@ -53,10 +60,11 @@ typedef struct {
 Client9p *connect9p(const char *path);
 Client9p *connect_file9p(FILE *f);
 void close9p(Client9p *c);
-// TODO
-int max_write_size9p(Client9p *c);
+// int max_write_size9p(Client9p *c); // TODO
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname);
+Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
+               const char *aname);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.

@@ -76,10 +76,7 @@ static void run_auth9p_test() {
   Tag9p tag = auth9p(c, 123, "uname", "aname");
   Reply9p reply = {
       .type = R_AUTH_9P,
-      .auth =
-          {
-              .aqid = {.bytes = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
-          },
+      .auth = {.aqid = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
   };
   server_will_reply(&server, &reply, tag);
 
@@ -92,9 +89,39 @@ static void run_auth9p_test() {
     FAIL("bad reply type: got %d, expected %d\n", r->type, R_AUTH_9P);
   }
   char expected[13] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
-  if (memcmp(r->auth.aqid.bytes, expected, sizeof(expected)) != 0) {
+  if (memcmp(r->auth.aqid, expected, sizeof(expected)) != 0) {
     fprintf(stderr, "received qid: ");
     fprint_qid(stderr, r->auth.aqid);
+    FAIL("\nexpected qid: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13\n");
+  }
+  free(r);
+  close_test_server(&server);
+}
+
+static void run_attach9p_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
+  Tag9p tag = attach9p(c, 567, 123, "uname", "aname");
+  Reply9p reply = {
+      .type = R_ATTACH_9P,
+      .attach = {.qid = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}},
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_ATTACH_9P) {
+    if (r->type == R_ERROR_9P) {
+      FAIL("bad reply type: got %d (error %s), expected %d\n", r->type,
+           r->error.message, R_ATTACH_9P);
+    }
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_ATTACH_9P);
+  }
+  char expected[13] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
+  if (memcmp(r->attach.qid, expected, sizeof(expected)) != 0) {
+    fprintf(stderr, "received qid: ");
+    fprint_qid(stderr, r->attach.qid);
     FAIL("\nexpected qid: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13\n");
   }
   free(r);
@@ -412,17 +439,18 @@ static void close_test_server(TestServer *server) {
 }
 
 static void fprint_qid(FILE *f, Qid9p qid) {
-  for (int i = 0; i < sizeof(qid.bytes); i++) {
+  for (int i = 0; i < sizeof(Qid9p); i++) {
     if (i > 0) {
       fprintf(f, ", ");
     }
-    fprintf(f, "%d", qid.bytes[i]);
+    fprintf(f, "%d", qid[i]);
   }
 }
 
 int main() {
   run_version9p_test();
   run_auth9p_test();
+  run_attach9p_test();
   run_wait9p_bad_tag_test();
   run_poll9p_bad_tag_test();
   run_reply_too_big_test();
