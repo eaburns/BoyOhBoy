@@ -9,7 +9,7 @@
 #include <string.h>
 #include <threads.h>
 
-//#define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
 
 enum {
@@ -17,7 +17,6 @@ enum {
   T_AUTH_9P = 102,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
-  QUEUE_SIZE = 4,
   INIT_MAX_SEND_SIZE = 64,
 };
 
@@ -309,11 +308,7 @@ static Tag9p send(Client9p *c, char *msg) {
   c->queue[tag].sent_type = type;
 
   if (size > c->max_send_size) {
-    Reply9p error_reply = {
-        .type = R_ERROR_9P,
-        .error = {.message = "message too big"},
-    };
-    c->queue[tag].reply = serialize_reply9p(&error_reply, tag);
+    c->queue[tag].reply = error_reply("message too big");
     goto done;
   }
 
@@ -333,6 +328,10 @@ done:
 Reply9p *wait9p(Client9p *c, Tag9p tag) {
   DEBUG("wait9p: waiting for reply for %d\n", tag);
   mtx_lock(&c->mtx);
+  if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
+    mtx_unlock(&c->mtx);
+    return error_reply("bad tag");
+  }
   while (!c->closed && c->queue[tag].reply == NULL) {
     cnd_wait(&c->cnd, &c->mtx);
   }
@@ -353,6 +352,10 @@ Reply9p *wait9p(Client9p *c, Tag9p tag) {
 Reply9p *poll9p(Client9p *c, Tag9p tag) {
   DEBUG("poll9p: checking for a reply for %d\n", tag);
   mtx_lock(&c->mtx);
+  if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
+    mtx_unlock(&c->mtx);
+    return error_reply("bad tag");
+  }
   Reply9p *r = c->queue[tag].reply;
   if (c->closed || r != NULL) {
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
@@ -379,7 +382,7 @@ static Reply9p *error_reply(const char *fmt, ...) {
   int n = vsnprintf(b, 1, fmt, args);
   Reply9p *r = calloc(1, sizeof(Reply9p) + n + 1);
   r->type = R_ERROR_9P;
-  int m = vsnprintf((char *)r + sizeof(Reply9p), n, fmt, args);
+  int m = vsnprintf((char *)r + sizeof(Reply9p), n + 1, fmt, args);
   if (m != n) {
     abort(); // impossible
   }

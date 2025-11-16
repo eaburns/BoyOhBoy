@@ -6,6 +6,8 @@
 
 #define VERSION_9P "9P2000"
 
+enum { QUEUE_SIZE = 4 };
+
 typedef struct Client9p Client9p;
 
 typedef int16_t Tag9p;

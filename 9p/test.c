@@ -99,6 +99,68 @@ static void run_auth9p_test() {
   close_test_server(&server);
 }
 
+static void run_wait9p_bad_tag_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  Reply9p *r = wait9p(c, -1);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag -1, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag -1, expected \"bad tag\", got \"%s\"\n", r->error.message);
+  }
+  free(r);
+  r = wait9p(c, QUEUE_SIZE);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag QUEUE_SIZE, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag QUEUE_SIZE, expected \"bad tag\", got \"%s\"\n",
+         r->error.message);
+  }
+  free(r);
+  r = wait9p(c, QUEUE_SIZE - 1);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag unused, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag unused, expected \"bad tag\", got \"%s\"\n", r->error.message);
+  }
+  free(r);
+  close_test_server(&server);
+}
+
+static void run_poll9p_bad_tag_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  Reply9p *r = poll9p(c, -1);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag -1, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag -1, expected \"bad tag\", got \"%s\"\n", r->error.message);
+  }
+  free(r);
+  r = poll9p(c, QUEUE_SIZE);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag QUEUE_SIZE, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag QUEUE_SIZE, expected \"bad tag\", got \"%s\"\n",
+         r->error.message);
+  }
+  free(r);
+  r = poll9p(c, QUEUE_SIZE - 1);
+  if (r->type != R_ERROR_9P) {
+    FAIL("tag unused, expected error type, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "bad tag") != 0) {
+    FAIL("tag unused, expected \"bad tag\", got \"%s\"\n", r->error.message);
+  }
+  free(r);
+  close_test_server(&server);
+}
+
 static void run_reply_too_big_test() {
   TestServer server;
   Client9p *c = connect_test_server(&server);
@@ -111,10 +173,12 @@ static void run_reply_too_big_test() {
   };
   server_will_reply(&server, &reply, tag);
 
-  // Should close the connection.
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_ERROR_9P) {
-    FAIL("bad reply type: %d\n", r->type);
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
   }
   free(r);
   close_test_server(&server);
@@ -132,10 +196,12 @@ static void run_send_too_big_test() {
   free(wait9p(c, tag));
 
   tag = auth9p(c, 5, "this is longer than 10 bytes", "and this is longer too");
-  // Should close the connection.
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_ERROR_9P) {
-    FAIL("bad reply type: %d\n", r->type);
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "message too big") != 0) {
+    FAIL("expected \"message too big\", got \"%s\"\n", r->error.message);
   }
   free(r);
   close_test_server(&server);
@@ -152,10 +218,12 @@ static void run_bad_reply_tag_test() {
   };
   server_will_reply(&server, &reply, tag + 1);
 
-  // Should close the connection.
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_ERROR_9P) {
-    FAIL("bad reply type: %d\n", r->type);
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
   }
   free(r);
   close_test_server(&server);
@@ -169,10 +237,12 @@ static void run_bad_reply_type_test() {
   Reply9p reply = {.type = R_AUTH_9P};
   server_will_reply(&server, &reply, tag);
 
-  // Should close the connection.
   Reply9p *r = wait9p(c, tag);
   if (r->type != R_ERROR_9P) {
-    FAIL("bad reply type: %d\n", r->type);
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
   }
   free(r);
   close_test_server(&server);
@@ -291,6 +361,8 @@ static void fprint_qid(FILE *f, Qid9p qid) {
 int main() {
   run_version9p_test();
   run_auth9p_test();
+  run_wait9p_bad_tag_test();
+  run_poll9p_bad_tag_test();
   run_reply_too_big_test();
   run_send_too_big_test();
   run_bad_reply_tag_test();
