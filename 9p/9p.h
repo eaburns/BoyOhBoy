@@ -106,9 +106,9 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
 Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
 
-    // Caller must free() Reply9p.
-    // Reply is either the reply, error, or flush.
-    Reply9p *wait9p(Client9p *c, Tag9p tag);
+// Caller must free() Reply9p.
+// Reply is either the reply, error, or flush.
+Reply9p *wait9p(Client9p *c, Tag9p tag);
 Reply9p *poll9p(Client9p *c, Tag9p tag); // NULL if not ready
 
 // Takes a Reply9p that is not serialized to internal_data and returns one that

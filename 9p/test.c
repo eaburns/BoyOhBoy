@@ -42,6 +42,7 @@ static void close_test_server(TestServer *);
 static void fprint_qid(FILE *f, Qid9p qid);
 
 static void run_version9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
@@ -69,6 +70,7 @@ static void run_version9p_test() {
 }
 
 static void run_auth9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
@@ -99,6 +101,7 @@ static void run_auth9p_test() {
 }
 
 static void run_attach9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
@@ -129,6 +132,7 @@ static void run_attach9p_test() {
 }
 
 static void run_walk9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
@@ -176,6 +180,7 @@ static void run_walk9p_test() {
 }
 
 static void run_open9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
@@ -213,6 +218,7 @@ static void run_open9p_test() {
 }
 
 static void run_read9p_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   exchange_version(c, &server);
@@ -238,7 +244,7 @@ static void run_read9p_test() {
     FAIL("bad reply type: got %d, expected %d\n", r->type, R_READ_9P);
   }
   if (r->read.count != sizeof(buf)) {
-    FAIL("got count %d, expected %d\n", (int)r->read.count, (int) sizeof(buf));
+    FAIL("got count %d, expected %d\n", (int)r->read.count, (int)sizeof(buf));
   }
   if (r->read.data != &buf[0]) {
     FAIL("got data buffer %p, expected %p\n", r->read.data, &buf[0]);
@@ -251,6 +257,7 @@ static void run_read9p_test() {
 }
 
 static void run_wait9p_bad_tag_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Reply9p *r = wait9p(c, -1);
@@ -282,6 +289,7 @@ static void run_wait9p_bad_tag_test() {
 }
 
 static void run_poll9p_bad_tag_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Reply9p *r = poll9p(c, -1);
@@ -313,6 +321,7 @@ static void run_poll9p_bad_tag_test() {
 }
 
 static void run_reply_too_big_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 10, "9P2000");
@@ -336,6 +345,7 @@ static void run_reply_too_big_test() {
 }
 
 static void run_send_too_big_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
@@ -359,6 +369,7 @@ static void run_send_too_big_test() {
 }
 
 static void run_bad_reply_tag_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
@@ -381,6 +392,7 @@ static void run_bad_reply_tag_test() {
 }
 
 static void run_bad_reply_type_test() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
@@ -400,6 +412,7 @@ static void run_bad_reply_type_test() {
 }
 
 static void run_receive_version_with_0byte() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");
@@ -427,6 +440,7 @@ static void run_receive_version_with_0byte() {
 }
 
 static void run_receive_error_with_0byte() {
+  DEBUG("running %s\n", __func__);
   TestServer server;
   Client9p *c = connect_test_server(&server);
   Tag9p tag = version9p(c, 100, "9P2000");

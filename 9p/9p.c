@@ -44,6 +44,7 @@ struct Client9p {
   cnd_t cnd;
   FILE *f;
   bool closed;
+  bool recv_thread_done;
   QueueEntry queue[QUEUE_SIZE];
 };
 
@@ -110,7 +111,18 @@ void close9p(Client9p *c) {
   mtx_lock(&c->mtx);
   c->closed = true;
   cnd_broadcast(&c->cnd);
-  mtx_unlock(&c->mtx);
+  DEBUG("close9p: waiting for everyone to close\n");
+  // We only exit the loop with the lock held.
+  // Wait for the waiters to go away and clean up.
+  while (!queue_empty(c) || !c->recv_thread_done) {
+    cnd_wait(&c->cnd, &c->mtx);
+  }
+
+  DEBUG("close9p: cleaning up\n");
+  fclose(c->f);
+  mtx_destroy(&c->mtx);
+  cnd_destroy(&c->cnd);
+  free(c);
 }
 
 static int recv_thread(void *arg) {
@@ -136,22 +148,22 @@ static int recv_thread(void *arg) {
 
     if (!ok) {
       DEBUG("recv_thread: failed to receive the header\n");
-      goto close;
+      break;
     }
     DEBUG("recv_thread: got header\n");
     if (size > c->max_recv_size) {
       DEBUG("recv_thread: message too big: %d > %d\n", size, c->max_recv_size);
-      goto close;
+      break;
     }
     if (tag >= QUEUE_SIZE || c->queue[tag].sent_type == 0) {
       DEBUG("recv_thread: bad tag %d\n", tag);
-      goto close;
+      break;
     }
     QueueEntry *q = &c->queue[tag];
     if (type != R_ERROR_9P && type != R_FLUSH_9P && type != q->sent_type + 1) {
       DEBUG("recv_thread: bad response type, expected %d, got %d\n",
             q->sent_type + 1, type);
-      goto close;
+      break;
     }
 
     int body_size = size - HEADER_SIZE;
@@ -169,18 +181,18 @@ static int recv_thread(void *arg) {
 
     if (n != body_size) {
       DEBUG("recv_thread: failed to read data\n");
-      goto close;
+      break;
     }
     if (!deserialize_reply(r, type, q->read_buf)) {
       DEBUG("recv_thread: failed deserialize reply\n");
-      goto close;
+      break;
     }
 
     if (type == R_READ_9P) {
       if (r->read.count > q->read_buf_size) {
         DEBUG("recv_thread: read reply count is too big %d > %d\n",
               r->read.count, q->read_buf_size);
-        goto close;
+        break;
       }
       DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
       // Read the read reply data into the buffer passed to read9p().
@@ -197,24 +209,13 @@ static int recv_thread(void *arg) {
     cnd_broadcast(&c->cnd);
     mtx_unlock(&c->mtx);
     continue;
-
-  close:
-    c->closed = true;
-    cnd_broadcast(&c->cnd);
-    break;
   }
 
-  DEBUG("recv_thread: waiting for everyone to close\n");
-  // We only exit the loop with the lock held.
-  // Wait for the waiters to go away and clean up.
-  while (!queue_empty(c)) {
-    cnd_wait(&c->cnd, &c->mtx);
-  }
-  DEBUG("recv_thread: cleaning up\n");
-  fclose(c->f);
-  mtx_destroy(&c->mtx);
-  cnd_destroy(&c->cnd);
-  free(c);
+  DEBUG("recv_thread: done\n");
+  c->closed = true;
+  c->recv_thread_done = true;
+  cnd_broadcast(&c->cnd);
+  mtx_unlock(&c->mtx);
   return 0;
 }
 
