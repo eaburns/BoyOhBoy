@@ -517,6 +517,7 @@ static void exchange_version(Client9p *c, TestServer *server) {
 static void close_test_server(TestServer *server) {
   mtx_lock(&server->mtx);
   server->done = true;
+  cnd_broadcast(&server->cnd);
   mtx_unlock(&server->mtx);
   close9p(server->client);
   thrd_join(server->thrd, NULL);
