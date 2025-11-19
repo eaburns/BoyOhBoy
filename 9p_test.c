@@ -54,6 +54,14 @@ int main() {
   }
   free(r);
 
+  r = wait9p(c, open9p(c, body_fid, OREAD_9P));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: open9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  printf("iounit=%d\n", r->open.iounit);
+  free(r);
+
   close9p(c);
   fprintf(stderr, "main: done\n");
   return 0;

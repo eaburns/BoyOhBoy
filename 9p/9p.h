@@ -20,13 +20,26 @@ typedef uint32_t Fid9p;
 
 typedef uint8_t Qid9p[13];
 
-typedef enum {
+typedef enum : uint8_t {
+  OREAD_9P = 0,
+  OWRITE_9P = 1,
+  ORDWR_9P = 2,
+  OEXEC_9P = 3,
+
+  // Bits ORed to one of the above.
+  OTRUNC_9P = 0x10,
+  OCEXEC_9P = 0x20,  // close on exec
+  ORCLOSE_9P = 0x40, // remove on close
+} OpenMode9p;
+
+typedef enum : uint8_t {
   R_VERSION_9P = 101,
   R_AUTH_9P = 103,
   R_ATTACH_9P = 105,
   R_ERROR_9P = 107,
   R_FLUSH_9P = 109,
   R_WALK_9P = 111,
+  R_OPEN_9P = 113,
 } ReplyType9p;
 
 typedef struct {
@@ -52,6 +65,11 @@ typedef struct {
 } Rwalk9p;
 
 typedef struct {
+  Qid9p qid;
+  uint32_t iounit;
+} Ropen9p;
+
+typedef struct {
   ReplyType9p type;
   union {
     Rversion9p version;
@@ -59,6 +77,7 @@ typedef struct {
     Rauth9p auth;
     Rattach9p attach;
     Rwalk9p walk;
+    Ropen9p open;
   };
   int internal_data_size;
   char internal_data[];
@@ -67,7 +86,6 @@ typedef struct {
 Client9p *connect9p(const char *path);
 Client9p *connect_file9p(FILE *f);
 void close9p(Client9p *c);
-// int max_write_size9p(Client9p *c); // TODO
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname);
 Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
@@ -75,6 +93,7 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
 Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...);
 Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
+Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.

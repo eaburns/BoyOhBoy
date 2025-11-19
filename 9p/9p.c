@@ -9,7 +9,7 @@
 #include <string.h>
 #include <threads.h>
 
-// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+//#define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
 
 enum {
@@ -17,6 +17,7 @@ enum {
   T_AUTH_9P = 102,
   T_ATTACH_9P = 104,
   T_WALK_9P = 110,
+  T_OPEN_9P = 112,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   INIT_MAX_SEND_SIZE = 64,
@@ -226,6 +227,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     size += sizeof(r->walk.nqids);
     size += sizeof(Qid9p) * r->walk.nqids;
     break;
+  case R_OPEN_9P:
+    size += sizeof(r->open.qid) + sizeof(r->open.iounit);
+    break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
     abort();
@@ -258,6 +262,10 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     for (int i = 0; i < r->walk.nqids; i++) {
       p = put_qid(p, r->walk.qids[i]);
     }
+    break;
+  case R_OPEN_9P:
+    p = put_qid(p, r->open.qid);
+    p = put_le4(p, r->open.iounit);
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -292,11 +300,14 @@ static bool deserialize_reply(Reply9p *r, uint8_t type) {
     p = get_le2(p, &r->walk.nqids);
     int bytes_left = r->internal_data_size - (p - start);
     if (bytes_left != sizeof(Qid9p) * r->walk.nqids) {
-      DEBUG("expected %d bytes of Qid, got %d\n", sizeof(Qid9p) * r->walk.nqid,
-            bytes_left);
+      DEBUG("expected %d bytes of Qid, got %d\n", (int) sizeof(Qid9p) * r->walk.nqids, bytes_left);
       return false;
     }
     r->walk.qids = (Qid9p *)p;
+    break;
+  case R_OPEN_9P:
+    p = get_qid(p, r->open.qid);
+    p = get_le4(p, &r->open.iounit);
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -384,6 +395,17 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
   for (int i = 0; i < nelms; i++) {
     p = put_string(p, elms[i]);
   }
+  return send(c, msg);
+}
+
+Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
+  int size = HEADER_SIZE + sizeof(fid) + sizeof(mode);
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_OPEN_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
+  p = put1(p, mode);
   return send(c, msg);
 }
 
