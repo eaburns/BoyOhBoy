@@ -40,6 +40,7 @@ typedef enum : uint8_t {
   R_FLUSH_9P = 109,
   R_WALK_9P = 111,
   R_OPEN_9P = 113,
+  R_READ_9P = 117,
 } ReplyType9p;
 
 typedef struct {
@@ -70,6 +71,14 @@ typedef struct {
 } Ropen9p;
 
 typedef struct {
+  uint32_t count;
+  // If this Rread9p is in response to a call to read9p(),
+  // this will be the same pointer passed to read9p()'s
+  // buf argument.
+  const char *data;
+} Rread9p;
+
+typedef struct {
   ReplyType9p type;
   union {
     Rversion9p version;
@@ -78,6 +87,7 @@ typedef struct {
     Rattach9p attach;
     Rwalk9p walk;
     Ropen9p open;
+    Rread9p read;
   };
   int internal_data_size;
   char internal_data[];
@@ -94,10 +104,11 @@ Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...);
 Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
+Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
 
-// Caller must free() Reply9p.
-// Reply is either the reply, error, or flush.
-Reply9p *wait9p(Client9p *c, Tag9p tag);
+    // Caller must free() Reply9p.
+    // Reply is either the reply, error, or flush.
+    Reply9p *wait9p(Client9p *c, Tag9p tag);
 Reply9p *poll9p(Client9p *c, Tag9p tag); // NULL if not ready
 
 // Takes a Reply9p that is not serialized to internal_data and returns one that

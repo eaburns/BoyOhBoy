@@ -9,7 +9,7 @@
 #include <string.h>
 #include <threads.h>
 
-//#define DEBUG(...) fprintf(stderr, __VA_ARGS__)
+// #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
 
 enum {
@@ -18,6 +18,7 @@ enum {
   T_ATTACH_9P = 104,
   T_WALK_9P = 110,
   T_OPEN_9P = 112,
+  T_READ_9P = 116,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   INIT_MAX_SEND_SIZE = 64,
@@ -28,6 +29,9 @@ typedef struct {
   bool flushed;
   uint8_t sent_type;
   Reply9p *reply;
+  // Size and pointer passed to read9p().
+  int read_buf_size;
+  char *read_buf;
 } QueueEntry;
 
 struct Client9p {
@@ -47,8 +51,9 @@ extern FILE *dial_unix_socket(const char *path);
 static int recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
-static bool deserialize_reply(Reply9p *r, uint8_t type);
+static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf);
 static Tag9p send(Client9p *c, char *msg);
+static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
 static bool queue_empty(Client9p *c);
@@ -150,6 +155,11 @@ static int recv_thread(void *arg) {
     }
 
     int body_size = size - HEADER_SIZE;
+    if (type == R_READ_9P) {
+      // For a read reply, we only read the header and count here.
+      // The actual data will be read into the read9p() caller's buffer.
+      body_size = sizeof(uint32_t); // the count
+    }
     Reply9p *r = calloc(1, sizeof(Reply9p) + body_size);
     r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
@@ -161,14 +171,28 @@ static int recv_thread(void *arg) {
       DEBUG("recv_thread: failed to read data\n");
       goto close;
     }
-    if (!deserialize_reply(r, type)) {
+    if (!deserialize_reply(r, type, q->read_buf)) {
       DEBUG("recv_thread: failed deserialize reply\n");
       goto close;
     }
+
+    if (type == R_READ_9P) {
+      if (r->read.count > q->read_buf_size) {
+        DEBUG("recv_thread: read reply count is too big %d > %d\n",
+              r->read.count, q->read_buf_size);
+        goto close;
+      }
+      DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
+      // Read the read reply data into the buffer passed to read9p().
+      mtx_unlock(&c->mtx);
+      int n = fread(q->read_buf, 1, r->read.count, c->f);
+      mtx_lock(&c->mtx);
+    }
+
     if (type == R_VERSION_9P) {
       c->max_send_size = r->version.msize;
     }
-    DEBUG("recv_thread: got tag %d - broadcasting\n", tag);
+    DEBUG("recv_thread: finished reply for tag %d - broadcasting\n", tag);
     q->reply = r;
     cnd_broadcast(&c->cnd);
     mtx_unlock(&c->mtx);
@@ -230,6 +254,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_OPEN_9P:
     size += sizeof(r->open.qid) + sizeof(r->open.iounit);
     break;
+  case R_READ_9P:
+    size += sizeof(r->read.count) + r->read.count;
+    break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
     abort();
@@ -267,6 +294,11 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     p = put_qid(p, r->open.qid);
     p = put_le4(p, r->open.iounit);
     break;
+  case R_READ_9P:
+    p = put_le4(p, r->read.count);
+    memcpy(p, r->read.data, r->read.count);
+    p += r->read.count;
+    break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
     abort();
@@ -274,7 +306,7 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   return s;
 }
 
-static bool deserialize_reply(Reply9p *r, uint8_t type) {
+static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
   r->type = type;
   char *start = (char *)r + sizeof(Reply9p);
   char *p = start;
@@ -300,7 +332,8 @@ static bool deserialize_reply(Reply9p *r, uint8_t type) {
     p = get_le2(p, &r->walk.nqids);
     int bytes_left = r->internal_data_size - (p - start);
     if (bytes_left != sizeof(Qid9p) * r->walk.nqids) {
-      DEBUG("expected %d bytes of Qid, got %d\n", (int) sizeof(Qid9p) * r->walk.nqids, bytes_left);
+      DEBUG("expected %d bytes of Qid, got %d\n",
+            (int)sizeof(Qid9p) * r->walk.nqids, bytes_left);
       return false;
     }
     r->walk.qids = (Qid9p *)p;
@@ -308,6 +341,10 @@ static bool deserialize_reply(Reply9p *r, uint8_t type) {
   case R_OPEN_9P:
     p = get_qid(p, r->open.qid);
     p = get_le4(p, &r->open.iounit);
+    break;
+  case R_READ_9P:
+    p = get_le4(p, &r->read.count);
+    r->read.data = read_buf;
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -409,7 +446,23 @@ Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
   return send(c, msg);
 }
 
+Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf) {
+  int size = HEADER_SIZE + sizeof(fid) + sizeof(offs) + sizeof(count);
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_READ_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
+  p = put_le8(p, offs);
+  p = put_le4(p, count);
+  return send_with_buffer(c, msg, count, buf);
+}
+
 static Tag9p send(Client9p *c, char *msg) {
+  return send_with_buffer(c, msg, 0, NULL);
+}
+
+static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
   mtx_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
@@ -423,8 +476,13 @@ static Tag9p send(Client9p *c, char *msg) {
   uint8_t type;
   uint32_t size;
   get1(get_le4(msg, &size), &type);
-  c->queue[tag].in_use = true;
-  c->queue[tag].sent_type = type;
+  QueueEntry *q = &c->queue[tag];
+  q->in_use = true;
+  q->sent_type = type;
+  if (type == T_READ_9P) {
+    q->read_buf_size = buf_size;
+    q->read_buf = buf;
+  }
 
   if (size > c->max_send_size) {
     c->queue[tag].reply = error_reply("message too big");

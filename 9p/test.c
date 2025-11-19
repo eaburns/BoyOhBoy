@@ -212,6 +212,44 @@ static void run_open9p_test() {
   close_test_server(&server);
 }
 
+static void run_read9p_test() {
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
+  char buf[16];
+  Tag9p tag = read9p(c, 567, 10, sizeof(buf), buf);
+  Reply9p reply = {
+      .type = R_READ_9P,
+      .read =
+          {
+              .count = sizeof(buf),
+              .data = "123456789012345\0",
+          },
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_READ_9P) {
+    if (r->type == R_ERROR_9P) {
+      FAIL("bad reply type: got %d (error %s), expected %d\n", r->type,
+           r->error.message, R_READ_9P);
+    }
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_READ_9P);
+  }
+  if (r->read.count != sizeof(buf)) {
+    FAIL("got count %d, expected %d\n", (int)r->read.count, (int) sizeof(buf));
+  }
+  if (r->read.data != &buf[0]) {
+    FAIL("got data buffer %p, expected %p\n", r->read.data, &buf[0]);
+  }
+  if (strncmp(buf, "123456789012345\0", sizeof(buf)) != 0) {
+    FAIL("got data [%s], expected [123456789012345\\0]\n", buf);
+  }
+  free(r);
+  close_test_server(&server);
+}
+
 static void run_wait9p_bad_tag_test() {
   TestServer server;
   Client9p *c = connect_test_server(&server);
@@ -538,6 +576,7 @@ int main() {
   run_attach9p_test();
   run_walk9p_test();
   run_open9p_test();
+  run_read9p_test();
   run_wait9p_bad_tag_test();
   run_poll9p_bad_tag_test();
   run_reply_too_big_test();

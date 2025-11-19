@@ -47,7 +47,7 @@ int main() {
   free(r);
 
   Fid9p body_fid = 456;
-  r = wait9p(c, walk9p(c, root_fid, body_fid, 2, "new", "body"));
+  r = wait9p(c, walk9p(c, root_fid, body_fid, 1, "index")); // 2, "new", "body"));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "main: walk9p failed: %s\n", r->error.message);
     return 1;
@@ -60,6 +60,19 @@ int main() {
     return 1;
   }
   printf("iounit=%d\n", r->open.iounit);
+  free(r);
+
+  char buf[4096];
+  r = wait9p(c, read9p(c, body_fid, 0, sizeof(buf), buf));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: read9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  printf("read %d bytes\n", r->read.count);
+  for (int i = 0; i < r->read.count; i++) {
+    char c = r->read.data[i];
+    printf("%c", c);
+  }
   free(r);
 
   close9p(c);
