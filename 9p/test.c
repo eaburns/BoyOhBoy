@@ -488,6 +488,35 @@ static void run_receive_error_with_0byte() {
   close_test_server(&server);
 }
 
+static void run_read_response_too_big_test() {
+  DEBUG("running %s\n", __func__);
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
+  char buf[16];
+  Tag9p tag = read9p(c, 567, 10, sizeof(buf), buf);
+  Reply9p reply = {
+      .type = R_READ_9P,
+      .read =
+          {
+              .count = sizeof(buf) + 1, // Too big.
+              .data = "123456789012345\0",
+          },
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_ERROR_9P) {
+    FAIL("expected error, got %d\n", r->type);
+  }
+  if (strcmp(r->error.message, "connection closed") != 0) {
+    FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
+  }
+  free(r);
+  close_test_server(&server);
+}
+
 static int server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("TEST SERVER: started\n");
@@ -622,5 +651,6 @@ int main() {
   run_bad_reply_type_test();
   run_receive_version_with_0byte();
   run_receive_error_with_0byte();
+  run_read_response_too_big_test();
   return 0;
 }
