@@ -19,6 +19,7 @@ enum {
   T_WALK_9P = 110,
   T_OPEN_9P = 112,
   T_READ_9P = 116,
+  T_CLUNK_9P = 120,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
   INIT_MAX_SEND_SIZE = 64,
@@ -258,6 +259,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_READ_9P:
     size += sizeof(r->read.count) + r->read.count;
     break;
+  case R_CLUNK_9P:
+    // Just the header.
+    break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
     abort();
@@ -299,6 +303,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     p = put_le4(p, r->read.count);
     memcpy(p, r->read.data, r->read.count);
     p += r->read.count;
+    break;
+  case R_CLUNK_9P:
+    // Just the header.
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -346,6 +353,9 @@ static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
   case R_READ_9P:
     p = get_le4(p, &r->read.count);
     r->read.data = read_buf;
+    break;
+  case R_CLUNK_9P:
+    // Just the header.
     break;
   default:
     fprintf(stderr, "bad message type: %d\n", r->type);
@@ -457,6 +467,16 @@ Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf) {
   p = put_le8(p, offs);
   p = put_le4(p, count);
   return send_with_buffer(c, msg, count, buf);
+}
+
+Tag9p clunk9p(Client9p *c, Fid9p fid) {
+  int size = HEADER_SIZE + sizeof(fid);
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_CLUNK_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
+  return send(c, msg);
 }
 
 static Tag9p send(Client9p *c, char *msg) {

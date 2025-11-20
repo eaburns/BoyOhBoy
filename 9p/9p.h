@@ -41,6 +41,7 @@ typedef enum : uint8_t {
   R_WALK_9P = 111,
   R_OPEN_9P = 113,
   R_READ_9P = 117,
+  R_CLUNK_9P = 121,
 } ReplyType9p;
 
 typedef struct {
@@ -105,6 +106,7 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
 Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
+Tag9p clunk9p(Client9p *c, Fid9p fid);
 
 // Caller must free() Reply9p.
 // Reply is either the reply, error, or flush.

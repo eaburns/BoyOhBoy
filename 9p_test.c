@@ -47,9 +47,16 @@ int main() {
   free(r);
 
   Fid9p body_fid = 456;
-  r = wait9p(c, walk9p(c, root_fid, body_fid, 1, "index")); // 2, "new", "body"));
+  r = wait9p(c, walk9p(c, root_fid, body_fid, 1, "index"));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "main: walk9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  free(r);
+
+  r = wait9p(c, clunk9p(c, root_fid));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: clunk9p(root_fid) failed: %s\n", r->error.message);
     return 1;
   }
   free(r);
@@ -72,6 +79,13 @@ int main() {
   for (int i = 0; i < r->read.count; i++) {
     char c = r->read.data[i];
     printf("%c", c);
+  }
+  free(r);
+
+  r = wait9p(c, clunk9p(c, body_fid));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: clunk9p(body_fid) failed: %s\n", r->error.message);
+    return 1;
   }
   free(r);
 
