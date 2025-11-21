@@ -24,13 +24,7 @@ struct fsys9 {
   File9 files[MAX_OPEN_FILES];
 };
 
-Fsys9 *mount9(const char *ns, const char *user) {
-  Client9p *c = connect9p(ns);
-  if (c == NULL) {
-    fprintf(stderr, "failed to connect\n");
-    return NULL;
-  }
-
+Fsys9 *mount9_client(Client9p *c, const char *user) {
   Reply9p *r = wait9p(c, version9p(c, 1 << 20, VERSION_9P));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "version9p failed: %s\n", r->error.message);
@@ -56,6 +50,15 @@ Fsys9 *mount9(const char *ns, const char *user) {
   return fsys;
 }
 
+Fsys9 *mount9(const char *ns, const char *user) {
+  Client9p *c = connect9p(ns);
+  if (c == NULL) {
+    fprintf(stderr, "failed to connect\n");
+    return NULL;
+  }
+  return mount9_client(c, user);
+}
+
 static bool has_open_files(const Fsys9 *fsys) {
   for (int i = 0; i < MAX_OPEN_FILES; i++) {
     if (fsys->files[i].fsys != NULL) {
@@ -65,7 +68,7 @@ static bool has_open_files(const Fsys9 *fsys) {
   return false;
 }
 
-void unmount(Fsys9 *fsys) {
+void unmount9(Fsys9 *fsys) {
   mtx_lock(&fsys->mtx);
   fsys->closed = true;
   while (has_open_files(fsys)) {
@@ -116,9 +119,11 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
     *p = '\0';
     if (strcmp(s, ".") != 0 && *s != '\0') {
       elms[nelms++] = s;
-      printf("elms[%d] = %s\n", nelms - 1, s);
     }
     s = p + 1;
+  }
+  if (strcmp(s, ".") != 0 && *s != '\0') {
+    elms[nelms++] = s;
   }
 
   Fid9p dir = fsys->root;
@@ -149,7 +154,7 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
 
   return file;
 open_err:
-  wait9p(fsys->client, clunk9p(fsys->client, file->fid));
+  free(wait9p(fsys->client, clunk9p(fsys->client, file->fid)));
 walk_err:
   free(r);
   mtx_lock(&fsys->mtx);
@@ -207,6 +212,21 @@ int read9(File9 *file, int count, char *buf) {
   return total;
 }
 
+int read9_full(File9 *file, int count, char *buf) {
+  int total = 0;
+  while (total < count) {
+    int n = read9(file, count - total, buf + total);
+    if (n == 0 && total == 0) {
+      break;
+    }
+    if (n <= 0) {
+      return -1;
+    }
+    total += n;
+  }
+  return total;
+}
+
 int write9(File9 *file, int count, const char *buf) {
   mtx_lock(&file->mtx);
   int total = 0;
@@ -224,6 +244,11 @@ int write9(File9 *file, int count, const char *buf) {
     }
     if (r->type != R_WRITE_9P) {
       fprintf(stderr, "write9p bad reply type: %d\n", r->type);
+      free(r);
+      break;
+    }
+    if (r->write.count == 0) {
+      // Don't spin writing nothing; this is a short-write.
       free(r);
       break;
     }

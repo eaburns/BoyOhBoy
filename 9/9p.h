@@ -112,7 +112,8 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
 Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
-Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, const char *data);
+Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
+              const char *data);
 Tag9p clunk9p(Client9p *c, Fid9p fid);
 
 // Caller must free() Reply9p.

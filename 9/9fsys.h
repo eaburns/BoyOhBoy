@@ -1,6 +1,8 @@
 #ifndef _9FSYS_H_
 #define _9FSYS_H_
 
+#include "9p.h"
+
 enum { MAX_OPEN_FILES = 128 };
 
 typedef enum {
@@ -22,8 +24,13 @@ typedef struct file9 File9;
 // Returns an Fsys9 representing the 9p file system at the Unix socked ns.
 Fsys9 *mount9(const char *ns, const char *user);
 
+// Like mount9, but uses the already connected Client9p.
+// The Client9p will be closed by unmount9, and should not be closed by the
+// caller.
+Fsys9 *mount9_client(Client9p *c, const char *user);
+
 // Releases the resources for the Fsys9.
-void unmount(Fsys9 *fsys);
+void unmount9(Fsys9 *fsys);
 
 // Opens a file at the given path from the Fsys9 root
 // with the given mode. Returns NULL on error.
@@ -46,6 +53,16 @@ void rewind9(File9 *file);
 // with a -1 return), but it is an error for write9 to return fewer bytes than
 // requested.
 int read9(File9 *file, int count, char *buf);
+
+// Reads either 0 bytes (on end-of-file) or exactly count bytes
+// from the file into buf and increases the file position
+// by the number of bytes read.
+//
+// The return value is 0 if no bytes were read and end-of-file was reached.
+// Otherwise the return value is count, indicating that exactly count bytes were
+// read, or it is -1 indicating an error. If end-of-file is reached after
+// reading any data, but before reading the full count bytes, -1 is returned.
+int read9_full(File9 *file, int count, char *buf);
 
 // Writes count bytes from buf to the file and
 // increases the file position by count bytes.

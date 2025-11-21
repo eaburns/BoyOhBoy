@@ -517,6 +517,7 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
   }
   if (c->closed) {
     DEBUG("send: closed before getting a tag\n");
+    mtx_unlock(&c->mtx);
     return -1;
   }
   uint8_t type;
@@ -565,6 +566,7 @@ Reply9p *wait9p(Client9p *c, Tag9p tag) {
   DEBUG("wait9p: waiting for reply for %d\n", tag);
   mtx_lock(&c->mtx);
   if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
+    DEBUG("wait9p: bad tag %d\n", tag);
     mtx_unlock(&c->mtx);
     return error_reply("bad tag");
   }

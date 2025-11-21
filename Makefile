@@ -11,7 +11,7 @@ OBJS=gameboy.o cpu.o
 BINS=debug disasm 9p_test
 
 # Test binaries.
-TESTS=cpu_test 9p/test
+TESTS=cpu_test 9/9p_test 9/9fsys_test
 
 all: $(OBJS) $(BINS) $(TESTS) run_tests
 
@@ -21,7 +21,7 @@ debug: $(OBJS) debug.c
 disasm: $(OBJS) disasm.c
 	$(CC) $(LDFLAGS) $^ -o disasm
 
-9p_test: 9p_test.c 9p/lib9.a
+9p_test: 9p_test.c 9/lib9.a
 	$(CC) $(LDFLAGS) $^ -o 9p_test
 
 cpu_test: $(OBJS) cpu_test.c
@@ -32,18 +32,23 @@ run_tests: $(TESTS)
 
 
 
-9p/test: 9p/test.o 9p/lib9.a
-	$(CC) $(LDFLAGS) $^ -o 9p/test
-
-9p/lib9.a: 9p/socket.o 9p/9p.o 9p/9fsys.o
+9/lib9.a: 9/socket.o 9/9p.o 9/9fsys.o
 	$(AR) rcs $@ $^
 
-9p/9p.o: 9p/9p.c 9p/9p.h
+9/9p_test: 9/9p_test.o 9/lib9.a
+	$(CC) $(LDFLAGS) $^ -o 9/9p_test
+9/9fsys_test: 9/9fsys_test.o 9/lib9.a
+	$(CC) $(LDFLAGS) $^ -o 9/9fsys_test
+
+9/9p.o: 9/9p.c 9/9p.h
+9/9fsys.o: 9/9fsys.c 9/9fsys.h 9/9p.h
 
 # These ones use fdopen, which is not -std=c23.
-9p/socket.o: 9p/socket.c
+9/socket.o: 9/socket.c
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
-9p/test.o: 9p/test.c
+9/9p_test.o: 9/9p_test.c
+	$(CC) $(CFLAGS_POSIX) -c $< -o $@
+9/9fsys_test.o: 9/9fsys_test.c
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
 
 
