@@ -21,24 +21,24 @@ debug: $(OBJS) debug.c
 disasm: $(OBJS) disasm.c
 	$(CC) $(LDFLAGS) $^ -o disasm
 
+9p_test: 9p_test.c 9p/lib9.a
+	$(CC) $(LDFLAGS) $^ -o 9p_test
+
 cpu_test: $(OBJS) cpu_test.c
 	$(CC) $(LDFLAGS) $^ -o cpu_test
-
-9p/test: 9p/test.o 9p/lib9p.a
-	$(CC) $(LDFLAGS) $^ -o 9p/test
 
 run_tests: $(TESTS)
 	@for test in $^; do echo $$test ; ./$$test; done
 
 
 
-9p_test: 9p_test.c 9p/lib9p.a
-	$(CC) $(LDFLAGS) $^ -o 9p_test
+9p/test: 9p/test.o 9p/lib9.a
+	$(CC) $(LDFLAGS) $^ -o 9p/test
+
+9p/lib9.a: 9p/socket.o 9p/9p.o 9p/9fsys.o
+	$(AR) rcs $@ $^
 
 9p/9p.o: 9p/9p.c 9p/9p.h
-
-9p/lib9p.a: 9p/socket.o 9p/9p.o
-	$(AR) rcs $@ $^
 
 # These ones use fdopen, which is not -std=c23.
 9p/socket.o: 9p/socket.c

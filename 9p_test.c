@@ -47,7 +47,7 @@ int main() {
   free(r);
 
   Fid9p body_fid = 456;
-  r = wait9p(c, walk9p(c, root_fid, body_fid, 1, "index"));
+  r = wait9p(c, walk9p(c, root_fid, body_fid, 2, "new", "body"));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "main: walk9p failed: %s\n", r->error.message);
     return 1;
@@ -69,7 +69,15 @@ int main() {
   printf("iounit=%d\n", r->open.iounit);
   free(r);
 
-  char buf[4096];
+  const char *str = "Hello, World!\n";
+  r = wait9p(c, write9p(c, body_fid, 0, strlen(str), str));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "main: write9p failed: %s\n", r->error.message);
+    return 1;
+  }
+  free(r);
+
+  char buf[4096] = {};
   r = wait9p(c, read9p(c, body_fid, 0, sizeof(buf), buf));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "main: read9p failed: %s\n", r->error.message);

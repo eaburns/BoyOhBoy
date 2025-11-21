@@ -19,6 +19,7 @@ enum {
   T_WALK_9P = 110,
   T_OPEN_9P = 112,
   T_READ_9P = 116,
+  T_WRITE_9P = 118,
   T_CLUNK_9P = 120,
 
   HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t),
@@ -259,6 +260,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   case R_READ_9P:
     size += sizeof(r->read.count) + r->read.count;
     break;
+  case R_WRITE_9P:
+    size += sizeof(r->write.count);
+    break;
   case R_CLUNK_9P:
     // Just the header.
     break;
@@ -303,6 +307,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     p = put_le4(p, r->read.count);
     memcpy(p, r->read.data, r->read.count);
     p += r->read.count;
+    break;
+  case R_WRITE_9P:
+    p = put_le4(p, r->write.count);
     break;
   case R_CLUNK_9P:
     // Just the header.
@@ -353,6 +360,9 @@ static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
   case R_READ_9P:
     p = get_le4(p, &r->read.count);
     r->read.data = read_buf;
+    break;
+  case R_WRITE_9P:
+    p = get_le4(p, &r->write.count);
     break;
   case R_CLUNK_9P:
     // Just the header.
@@ -469,6 +479,21 @@ Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf) {
   return send_with_buffer(c, msg, count, buf);
 }
 
+Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
+              const char *data) {
+  int size = HEADER_SIZE + sizeof(fid) + sizeof(offs) + sizeof(count) + count;
+  char *msg = calloc(1, size);
+  char *p = put_le4(msg, size);
+  p = put1(p, T_WRITE_9P);
+  p = put_le2(p, 0); // Tag place holder
+  p = put_le4(p, fid);
+  p = put_le8(p, offs);
+  p = put_le4(p, count);
+  // Casting out of const char*, is OK because send_with_buffer will never write
+  // to this in the case of type==T_WRITE_9P.
+  return send_with_buffer(c, msg, count, (char *)data);
+}
+
 Tag9p clunk9p(Client9p *c, Fid9p fid) {
   int size = HEADER_SIZE + sizeof(fid);
   char *msg = calloc(1, size);
@@ -504,19 +529,32 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
     q->read_buf_size = buf_size;
     q->read_buf = buf;
   }
-
   if (size > c->max_send_size) {
     c->queue[tag].reply = error_reply("message too big");
     goto done;
   }
-
   put_le2((char *)msg + sizeof(uint32_t) + sizeof(uint8_t), tag);
-  DEBUG("send: sending %d bytes\n", size);
+  if (type == T_WRITE_9P) {
+    // For T_WRITE_9P, the message will only contain the header and write count.
+    // The rest of the buf_size bytes of data will be sent separately from the
+    // caller's data buffer to avoid copying it into msg.
+    size -= buf_size;
+  }
+  DEBUG("send: sending %d bytes of msg\n", size);
   if (fwrite(msg, 1, size, c->f) != size) {
-    DEBUG("send: failed to send\n");
+    DEBUG("send: failed to send msg\n");
     tag = -1;
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
   }
+  if (type == T_WRITE_9P) {
+    DEBUG("send: sending %d bytes of write data\n", buf_size);
+    if (fwrite(buf, 1, buf_size, c->f) != buf_size) {
+      DEBUG("send: failed to send write buffer\n");
+      tag = -1;
+      memset(&c->queue[tag], 0, sizeof(QueueEntry));
+    }
+  }
+
 done:
   cnd_broadcast(&c->cnd);
   mtx_unlock(&c->mtx);

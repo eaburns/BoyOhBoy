@@ -41,6 +41,7 @@ typedef enum : uint8_t {
   R_WALK_9P = 111,
   R_OPEN_9P = 113,
   R_READ_9P = 117,
+  R_WRITE_9P = 119,
   R_CLUNK_9P = 121,
 } ReplyType9p;
 
@@ -80,6 +81,10 @@ typedef struct {
 } Rread9p;
 
 typedef struct {
+  uint32_t count;
+} Rwrite9p;
+
+typedef struct {
   ReplyType9p type;
   union {
     Rversion9p version;
@@ -89,6 +94,7 @@ typedef struct {
     Rwalk9p walk;
     Ropen9p open;
     Rread9p read;
+    Rwrite9p write;
   };
   int internal_data_size;
   char internal_data[];
@@ -106,6 +112,7 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
 Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
+Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, const char *data);
 Tag9p clunk9p(Client9p *c, Fid9p fid);
 
 // Caller must free() Reply9p.

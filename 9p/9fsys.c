@@ -1,0 +1,238 @@
+#include "9fsys.h"
+
+#include "9p.h"
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <threads.h>
+
+struct file9 {
+  Fsys9 *fsys;
+  Fid9p fid;
+  mtx_t mtx;
+  uint64_t offs;
+  int iounit;
+};
+
+struct fsys9 {
+  Client9p *client;
+  mtx_t mtx;
+  cnd_t cnd;
+  Fid9p root;
+  bool closed;
+  File9 files[MAX_OPEN_FILES];
+};
+
+Fsys9 *mount9(const char *ns, const char *user) {
+  Client9p *c = connect9p(ns);
+  if (c == NULL) {
+    fprintf(stderr, "failed to connect\n");
+    return NULL;
+  }
+
+  Reply9p *r = wait9p(c, version9p(c, 1 << 20, VERSION_9P));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "version9p failed: %s\n", r->error.message);
+    close9p(c);
+    return NULL;
+  }
+  free(r);
+
+  Fid9p root_fid = MAX_OPEN_FILES;
+  r = wait9p(c, attach9p(c, root_fid, NOFID, user, ""));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "attach9p failed: %s\n", r->error.message);
+    close9p(c);
+    return NULL;
+  }
+  free(r);
+
+  Fsys9 *fsys = calloc(1, sizeof(*fsys));
+  fsys->client = c;
+  fsys->root = root_fid;
+  mtx_init(&fsys->mtx, mtx_plain);
+  cnd_init(&fsys->cnd);
+  return fsys;
+}
+
+static bool has_open_files(const Fsys9 *fsys) {
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    if (fsys->files[i].fsys != NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void unmount(Fsys9 *fsys) {
+  mtx_lock(&fsys->mtx);
+  fsys->closed = true;
+  while (has_open_files(fsys)) {
+    cnd_wait(&fsys->cnd, &fsys->mtx);
+  }
+  mtx_destroy(&fsys->mtx);
+  cnd_destroy(&fsys->cnd);
+  close9p(fsys->client);
+  free(fsys);
+}
+
+static int free_file(const Fsys9 *fsys) {
+  for (int i = 0; i < MAX_OPEN_FILES; i++) {
+    if (fsys->files[i].fsys == NULL) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
+  mtx_lock(&fsys->mtx);
+  int fid = free_file(fsys);
+  while (fid < 0) {
+    cnd_wait(&fsys->cnd, &fsys->mtx);
+    fid = free_file(fsys);
+  }
+  File9 *file = &fsys->files[fid];
+  memset(file, 0, sizeof(*file));
+  file->fsys = fsys;
+  file->fid = fid;
+  mtx_unlock(&fsys->mtx);
+
+  int max_elms = 0;
+  for (const char *p = path; *p != '\0'; p++) {
+    if (*p == '/') {
+      max_elms++;
+    }
+  }
+  int nelms = 0;
+  const char **elms = calloc(max_elms, sizeof(*elms));
+  char *path_copy = strdup(path);
+  char *s = path_copy;
+  for (char *p = path_copy; *p != '\0'; p++) {
+    if (*p != '/') {
+      continue;
+    }
+    *p = '\0';
+    if (strcmp(s, ".") != 0 && *s != '\0') {
+      elms[nelms++] = s;
+      printf("elms[%d] = %s\n", nelms - 1, s);
+    }
+    s = p + 1;
+  }
+
+  Fid9p dir = fsys->root;
+  Reply9p *r = wait9p(fsys->client,
+                      walk_array9p(fsys->client, fsys->root, fid, nelms, elms));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "walk9p failed: %s\n", r->error.message);
+    goto walk_err;
+  }
+  if (r->type != R_WALK_9P) {
+    fprintf(stderr, "walk9p bad reply type: %d\n", r->type);
+    goto walk_err;
+  }
+  free(r);
+
+  r = wait9p(fsys->client, open9p(fsys->client, file->fid, mode));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "open9p failed: %s\n", r->error.message);
+    goto open_err;
+  }
+  if (r->type != R_OPEN_9P) {
+    fprintf(stderr, "open9p bad reply type: %d\n", r->type);
+    goto open_err;
+  }
+  file->iounit = r->open.iounit;
+  free(r);
+  mtx_init(&file->mtx, mtx_plain);
+
+  return file;
+open_err:
+  wait9p(fsys->client, clunk9p(fsys->client, file->fid));
+walk_err:
+  free(r);
+  mtx_lock(&fsys->mtx);
+  file->fsys = NULL;
+  cnd_broadcast(&fsys->cnd);
+  mtx_unlock(&fsys->mtx);
+  return NULL;
+}
+
+void close9(File9 *file) {
+  Fsys9 *fsys = file->fsys;
+  free(wait9p(fsys->client, clunk9p(file->fsys->client, file->fid)));
+  mtx_lock(&fsys->mtx);
+
+  // Wait for any active read/write to finish.
+  mtx_lock(&file->mtx);
+  mtx_unlock(&file->mtx);
+  mtx_destroy(&file->mtx);
+
+  file->fsys = NULL;
+  file->fid = -1;
+  cnd_broadcast(&fsys->cnd);
+  mtx_unlock(&fsys->mtx);
+}
+
+void rewind9(File9 *file) {
+  mtx_lock(&file->mtx);
+  file->offs = 0;
+  mtx_unlock(&file->mtx);
+}
+
+int read9(File9 *file, int count, char *buf) {
+  mtx_lock(&file->mtx);
+  if (count > file->iounit) {
+    count = file->iounit;
+  }
+  Client9p *c = file->fsys->client;
+  Reply9p *r = wait9p(c, read9p(c, file->fid, file->offs, count, buf));
+  if (r->type == R_ERROR_9P) {
+    fprintf(stderr, "read9p failed: %s\n", r->error.message);
+    free(r);
+    mtx_unlock(&file->mtx);
+    return -1;
+  }
+  if (r->type != R_READ_9P) {
+    fprintf(stderr, "read9p bad reply type: %d\n", r->type);
+    free(r);
+    mtx_unlock(&file->mtx);
+    return -1;
+  }
+  file->offs += r->read.count;
+  int total = r->read.count;
+  free(r);
+  mtx_unlock(&file->mtx);
+  return total;
+}
+
+int write9(File9 *file, int count, const char *buf) {
+  mtx_lock(&file->mtx);
+  int total = 0;
+  while (count > 0) {
+    int n = count;
+    if (n > file->iounit) {
+      n = file->iounit;
+    }
+    Client9p *c = file->fsys->client;
+    Reply9p *r = wait9p(c, write9p(c, file->fid, file->offs, n, buf));
+    if (r->type == R_ERROR_9P) {
+      fprintf(stderr, "write9p failed: %s\n", r->error.message);
+      free(r);
+      break;
+    }
+    if (r->type != R_WRITE_9P) {
+      fprintf(stderr, "write9p bad reply type: %d\n", r->type);
+      free(r);
+      break;
+    }
+    file->offs += r->write.count;
+    buf += r->write.count;
+    total += r->write.count;
+    count -= r->write.count;
+    free(r);
+  }
+  mtx_unlock(&file->mtx);
+  return total;
+}

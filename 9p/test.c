@@ -256,6 +256,35 @@ static void run_read9p_test() {
   close_test_server(&server);
 }
 
+static void run_write9p_test() {
+  DEBUG("running %s\n", __func__);
+  TestServer server;
+  Client9p *c = connect_test_server(&server);
+  exchange_version(c, &server);
+
+  char buf[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+  Tag9p tag = write9p(c, 567, 10, sizeof(buf), buf);
+  Reply9p reply = {
+      .type = R_WRITE_9P,
+      .read = {.count = sizeof(buf)},
+  };
+  server_will_reply(&server, &reply, tag);
+
+  Reply9p *r = wait9p(c, tag);
+  if (r->type != R_WRITE_9P) {
+    if (r->type == R_ERROR_9P) {
+      FAIL("bad reply type: got %d (error %s), expected %d\n", r->type,
+           r->error.message, R_WRITE_9P);
+    }
+    FAIL("bad reply type: got %d, expected %d\n", r->type, R_WRITE_9P);
+  }
+  if (r->read.count != sizeof(buf)) {
+    FAIL("got count %d, expected %d\n", (int)r->read.count, (int)sizeof(buf));
+  }
+  free(r);
+  close_test_server(&server);
+}
+
 static void run_clunk9p_test() {
   DEBUG("running %s\n", __func__);
   TestServer server;
@@ -642,6 +671,7 @@ int main() {
   run_walk9p_test();
   run_open9p_test();
   run_read9p_test();
+  run_write9p_test();
   run_clunk9p_test();
   run_wait9p_bad_tag_test();
   run_poll9p_bad_tag_test();
