@@ -32,7 +32,7 @@ run_tests: $(TESTS)
 
 
 
-9/lib9.a: 9/socket.o 9/9p.o 9/9fsys.o
+9/lib9.a: 9/socket.o 9/9p.o 9/9fsys.o 9/acme.o
 	$(AR) rcs $@ $^
 
 9/9p_test: 9/9p_test.o 9/lib9.a
