@@ -1,6 +1,7 @@
 #include "9p.h"
 
 #include "thrd.h"
+#include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -8,6 +9,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+
+
 #include <threads.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
@@ -51,12 +56,12 @@ struct Client9p {
   QueueEntry queue[QUEUE_SIZE];
 };
 
-extern FILE *dial_unix_socket(const char *path);
+static FILE *dial_unix_socket(const char *path);
 static int recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
 static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf);
-static Tag9p send(Client9p *c, char *msg);
+static Tag9p send_msg(Client9p *c, char *msg);
 static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
@@ -384,7 +389,7 @@ Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, msize);
   p = put_string(p, version);
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname) {
@@ -397,7 +402,7 @@ Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname) {
   p = put_le4(p, afid);
   p = put_string(p, uname);
   p = put_string(p, aname);
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
 Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
@@ -412,7 +417,7 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
   p = put_le4(p, afid);
   p = put_string(p, uname);
   p = put_string(p, aname);
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
 static int count(const char *path, char c) {
@@ -454,7 +459,7 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
   for (int i = 0; i < nelms; i++) {
     p = put_string(p, elms[i]);
   }
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
@@ -465,7 +470,7 @@ Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
   p = put1(p, mode);
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
 Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf) {
@@ -502,10 +507,10 @@ Tag9p clunk9p(Client9p *c, Fid9p fid) {
   p = put1(p, T_CLUNK_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
-  return send(c, msg);
+  return send_msg(c, msg);
 }
 
-static Tag9p send(Client9p *c, char *msg) {
+static Tag9p send_msg(Client9p *c, char *msg) {
   return send_with_buffer(c, msg, 0, NULL);
 }
 
@@ -761,4 +766,27 @@ static char *get_string_or_null(char *p, const char **s) {
   p[size] = '\0';
   *s = p;
   return p + size + 1;
+}
+
+static FILE *dial_unix_socket(const char *path) {
+  // POSIX puts this in stdio.h, but it is not there with std=c23,
+  // we let's just declare it ourselves.
+  extern FILE *fdopen(int fd, const char *mode);
+
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+  struct sockaddr_un addr = {.sun_family = AF_UNIX};
+  strncpy(addr.sun_path, path, sizeof(addr.sun_path));
+  if (strlen(addr.sun_path) != strlen(path)) {
+    fprintf(stderr, "path too long (max %zu)\n", strlen(addr.sun_path));
+    errno = EINVAL;
+    return NULL;
+  }
+
+  if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+    fprintf(stderr, "connect failed: %s\n", strerror(errno));
+    return NULL;
+  }
+
+  return fdopen(fd, "r+");
 }

@@ -1,8 +1,9 @@
-9/9fsys_test
-9p/test
-9p_test
+9test
 *.a
-cpu_test
+*.d
 debug
 disasm
 *.o
+src/9/9fsys_test
+src/9/9p_test
+src/gb/cpu_test

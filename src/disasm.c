@@ -1,4 +1,4 @@
-#include "gameboy.h"
+#include "gb/gameboy.h"
 
 #include <errno.h>
 #include <stdint.h>

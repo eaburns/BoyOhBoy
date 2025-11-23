@@ -605,6 +605,10 @@ static int server_thread(void *arg) {
 }
 
 static Client9p *connect_test_server(TestServer *server) {
+  // POSIX puts this in stdio.h, but it is not there with std=c23,
+  // we let's just declare it ourselves.
+  extern FILE *fdopen(int fd, const char *mode);
+
   memset(server, 0, sizeof(*server));
   int sv[2];
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
