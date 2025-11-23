@@ -126,33 +126,11 @@ static char *win_id_from_index_line(char *line) {
   return strdup(id);
 }
 
-static char *read_all(File9 *file) {
-  rewind9(file);
-  int size = 128;
-  int offs = 0;
-  char *buf = calloc(1, size + 1);
-  for (;;) {
-    if (size - offs < 128) {
-      size *= 2;
-      buf = realloc(buf, size + 1);
-    }
-    int n = read9(file, size - offs, buf + offs);
-    if (n == 0) {
-      break;
-    }
-    if (n < 0) {
-      free(buf);
-      return NULL;
-    }
-    offs += n;
-  }
-  return buf;
-}
-
 // Returns the ID number of the win with the given name or NULL if there is not
 // one. The caller must free() the returned string.
 char *find_win_id(Acme *acme, const char *name) {
-  char *index = read_all(acme->index);
+  rewind9(acme->index);
+  char *index = read9_all(acme->index);
   if (index == NULL) {
     return NULL;
   }
@@ -213,7 +191,8 @@ static char *find_win_id_or_new(Acme *acme, const char *name) {
     close9(f);
     return NULL;
   }
-  char *ctl = read_all(f);
+  rewind9(f);
+  char *ctl = read9_all(f);
   if (ctl == NULL) {
     fprintf(stderr, "failed to read acme/new/ctl\n");
     close9(f);
@@ -335,7 +314,7 @@ int acme_win_write_data(AcmeWin *win, int size, const char *data) {
 
 int acme_win_write_body(AcmeWin *win, int size, const char *data) {
   must_lock(&win->mtx);
-  rewind9(win->data);
+  rewind9(win->body);
   int n = write9(win->body, size, data);
   must_unlock(&win->mtx);
   return n;
@@ -343,21 +322,24 @@ int acme_win_write_body(AcmeWin *win, int size, const char *data) {
 
 char *acme_win_read_addr(AcmeWin *win) {
   must_lock(&win->mtx);
-  char *s = read_all(win->addr);
+  rewind9(win->addr);
+  char *s = read9_all(win->addr);
   must_unlock(&win->mtx);
   return s;
 }
 
 char *acme_win_read_data(AcmeWin *win) {
   must_lock(&win->mtx);
-  char *s = read_all(win->data);
+  rewind9(win->data);
+  char *s = read9_all(win->data);
   must_unlock(&win->mtx);
   return s;
 }
 
 char *acme_win_read_body(AcmeWin *win) {
   must_lock(&win->mtx);
-  char *s = read_all(win->body);
+  rewind9(win->body);
+  char *s = read9_all(win->body);
   must_unlock(&win->mtx);
   return s;
 }

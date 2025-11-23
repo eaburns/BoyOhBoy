@@ -243,6 +243,28 @@ int read9_full(File9 *file, int count, char *buf) {
   return total;
 }
 
+char *read9_all(File9 *file) {
+  int size = 128;
+  int offs = 0;
+  char *buf = calloc(1, size + 1);
+  for (;;) {
+    if (size - offs < 128) {
+      size *= 2;
+      buf = realloc(buf, size + 1);
+    }
+    int n = read9(file, size - offs, buf + offs);
+    if (n == 0) {
+      break;
+    }
+    if (n < 0) {
+      free(buf);
+      return NULL;
+    }
+    offs += n;
+  }
+  return buf;
+}
+
 int write9(File9 *file, int count, const char *buf) {
   must_lock(&file->mtx);
   int total = 0;

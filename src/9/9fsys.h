@@ -64,6 +64,11 @@ int read9(File9 *file, int count, char *buf);
 // reading any data, but before reading the full count bytes, -1 is returned.
 int read9_full(File9 *file, int count, char *buf);
 
+// Reads all of the remaining contents of the file until end-of-file
+// and returns it as a \0-terminated string that must be free()d by the caller
+// or NULL on error.
+char *read9_all(File9 *file);
+
 // Writes count bytes from buf to the file and
 // increases the file position by count bytes.
 //
