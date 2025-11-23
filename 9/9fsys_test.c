@@ -19,6 +19,12 @@
     abort();                                                                   \
   } while (0)
 
+static void must_join(thrd_t thrd) {
+  if (thrd_join(thrd, NULL) != thrd_success) {
+    abort();
+  }
+}
+
 typedef struct {
   const char *test_name;
   Reply9p script[10];
@@ -48,7 +54,7 @@ static void run_mount_unmount_test() {
   };
   Client9p *c = connect_test_server(&server);
   unmount9(mount9_client(c, "test_user"));
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_mount_version_error_test() {
@@ -67,7 +73,7 @@ static void run_mount_version_error_test() {
   if (fsys != NULL) {
     FAIL("mount9_client returned non-NULL, expected NULL\n");
   }
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_mount_attach_error_test() {
@@ -90,7 +96,7 @@ static void run_mount_attach_error_test() {
   if (fsys != NULL) {
     FAIL("mount9_client returned non-NULL, expected NULL\n");
   }
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_open_close_test() {
@@ -114,7 +120,7 @@ static void run_open_close_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_open_walk_error_test() {
@@ -139,7 +145,7 @@ static void run_open_walk_error_test() {
     FAIL("open9 returned non-NULL, expected NULL\n");
   }
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_open_open_error_test() {
@@ -165,7 +171,7 @@ static void run_open_open_error_test() {
     FAIL("open9 returned non-NULL, expected NULL\n");
   }
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_test() {
@@ -204,7 +210,7 @@ static void run_read_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_short_read_test() {
@@ -243,7 +249,7 @@ static void run_short_read_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_error_test() {
@@ -279,7 +285,7 @@ static void run_read_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_full_test() {
@@ -330,7 +336,7 @@ static void run_read_full_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_full_eof_test() {
@@ -366,7 +372,7 @@ static void run_read_full_eof_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_full_unexpected_eof_test() {
@@ -406,7 +412,7 @@ static void run_read_full_unexpected_eof_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_read_full_error_test() {
@@ -446,7 +452,7 @@ static void run_read_full_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_write_test() {
@@ -490,7 +496,7 @@ static void run_write_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_write_short_test() {
@@ -534,7 +540,7 @@ static void run_write_short_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static void run_write_error_test() {
@@ -578,7 +584,7 @@ static void run_write_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  thrd_join(server.thrd, NULL);
+  must_join(server.thrd);
 }
 
 static int server_thread(void *arg) {
@@ -642,7 +648,9 @@ static Client9p *connect_test_server(TestServer *server) {
   if (server->socket == NULL) {
     FAIL("fdopen on server socket failed\n");
   }
-  thrd_create(&server->thrd, server_thread, server);
+  if (thrd_create(&server->thrd, server_thread, server) != thrd_success) {
+    FAIL("failed to create thread\n");
+  }
   server->client = connect_file9p(client);
   return server->client;
 }

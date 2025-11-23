@@ -32,29 +32,31 @@ run_tests: $(TESTS)
 
 
 
-9/lib9.a: 9/socket.o 9/9p.o 9/9fsys.o 9/acme.o
+9/lib9.a: 9/socket.o 9/thrd.o 9/9p.o 9/9fsys.o 9/acme.o
 	$(AR) rcs $@ $^
-
 9/9p_test: 9/9p_test.o 9/lib9.a
 	$(CC) $(LDFLAGS) $^ -o 9/9p_test
 9/9fsys_test: 9/9fsys_test.o 9/lib9.a
 	$(CC) $(LDFLAGS) $^ -o 9/9fsys_test
 
-9/9p.o: 9/9p.c 9/9p.h
-9/9fsys.o: 9/9fsys.c 9/9fsys.h 9/9p.h
+9/9p.o: 9/9p.h 9/thrd.h
+9/9fsys.o: 9/9fsys.h 9/9p.h 9/thrd.h
+9/acme.o: 9/acme.h 9/9fsys.h 9/thrd.h
+9/9p_test.o: 9/9p.h 9/thrd.h
+9/9fsys_test.o: 9/9fsys.h
 
 # These ones use fdopen, which is not -std=c23.
 9/socket.o: 9/socket.c
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
-9/9p_test.o: 9/9p_test.c
+9/9p_test.o: 9/9p_test.c 9/9p.o
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
-9/9fsys_test.o: 9/9fsys_test.c
+9/9fsys_test.o: 9/9fsys_test.c 9/9fsys.o
 	$(CC) $(CFLAGS_POSIX) -c $< -o $@
 
 
 
 clean:
-	rm -f *.o *.a 9p/*.o 9p/*.a $(BINS) $(TESTS)
+	rm -f *.o *.a 9/*.o 9/*.a $(BINS) $(TESTS)
 
 # Everything depends on gameboy.h.
 %.o: %.c gameboy.h

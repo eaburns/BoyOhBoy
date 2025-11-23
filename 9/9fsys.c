@@ -1,6 +1,7 @@
 #include "9fsys.h"
 
 #include "9p.h"
+#include "thrd.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "version9p failed: %s\n", r->error.message);
     free(r);
-    goto err_version_attach;
+    goto err_version;
   }
   free(r);
   Fid9p root_fid = MAX_OPEN_FILES;
@@ -37,7 +38,7 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "attach9p failed: %s\n", r->error.message);
     free(r);
-    goto err_version_attach;
+    goto err_attach;
   }
   free(r);
   Fsys9 *fsys = calloc(1, sizeof(*fsys));
@@ -56,7 +57,8 @@ err_cnd:
   mtx_destroy(&fsys->mtx);
 err_mtx:
   free(fsys);
-err_version_attach:
+err_attach:
+err_version:
   close9p(c);
   return NULL;
 }
@@ -80,10 +82,10 @@ static bool has_open_files(const Fsys9 *fsys) {
 }
 
 void unmount9(Fsys9 *fsys) {
-  mtx_lock(&fsys->mtx);
+  must_lock(&fsys->mtx);
   fsys->closed = true;
   while (has_open_files(fsys)) {
-    cnd_wait(&fsys->cnd, &fsys->mtx);
+    must_wait(&fsys->cnd, &fsys->mtx);
   }
   mtx_destroy(&fsys->mtx);
   cnd_destroy(&fsys->cnd);
@@ -101,17 +103,17 @@ static int free_file(const Fsys9 *fsys) {
 }
 
 File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
-  mtx_lock(&fsys->mtx);
+  must_lock(&fsys->mtx);
   int fid = free_file(fsys);
   while (fid < 0) {
-    cnd_wait(&fsys->cnd, &fsys->mtx);
+    must_wait(&fsys->cnd, &fsys->mtx);
     fid = free_file(fsys);
   }
   File9 *file = &fsys->files[fid];
   memset(file, 0, sizeof(*file));
   file->fsys = fsys;
   file->fid = fid;
-  mtx_unlock(&fsys->mtx);
+  must_unlock(&fsys->mtx);
 
   int max_elms = 0;
   for (const char *p = path; *p != '\0'; p++) {
@@ -161,44 +163,47 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   }
   file->iounit = r->open.iounit;
   free(r);
-  mtx_init(&file->mtx, mtx_plain);
-
+  if (mtx_init(&file->mtx, mtx_plain) != thrd_success) {
+    fprintf(stderr, "failed to initialize mtx\n");
+    goto mtx_err;
+  }
   return file;
+mtx_err:
 open_err:
   free(wait9p(fsys->client, clunk9p(fsys->client, file->fid)));
 walk_err:
   free(r);
-  mtx_lock(&fsys->mtx);
+  must_lock(&fsys->mtx);
   file->fsys = NULL;
-  cnd_broadcast(&fsys->cnd);
-  mtx_unlock(&fsys->mtx);
+  must_broadcast(&fsys->cnd);
+  must_unlock(&fsys->mtx);
   return NULL;
 }
 
 void close9(File9 *file) {
   Fsys9 *fsys = file->fsys;
   free(wait9p(fsys->client, clunk9p(file->fsys->client, file->fid)));
-  mtx_lock(&fsys->mtx);
+  must_lock(&fsys->mtx);
 
   // Wait for any active read/write to finish.
-  mtx_lock(&file->mtx);
-  mtx_unlock(&file->mtx);
+  must_lock(&file->mtx);
+  must_unlock(&file->mtx);
   mtx_destroy(&file->mtx);
 
   file->fsys = NULL;
   file->fid = -1;
-  cnd_broadcast(&fsys->cnd);
-  mtx_unlock(&fsys->mtx);
+  must_broadcast(&fsys->cnd);
+  must_unlock(&fsys->mtx);
 }
 
 void rewind9(File9 *file) {
-  mtx_lock(&file->mtx);
+  must_lock(&file->mtx);
   file->offs = 0;
-  mtx_unlock(&file->mtx);
+  must_unlock(&file->mtx);
 }
 
 int read9(File9 *file, int count, char *buf) {
-  mtx_lock(&file->mtx);
+  must_lock(&file->mtx);
   if (count > file->iounit) {
     count = file->iounit;
   }
@@ -207,19 +212,19 @@ int read9(File9 *file, int count, char *buf) {
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "read9p failed: %s\n", r->error.message);
     free(r);
-    mtx_unlock(&file->mtx);
+    must_unlock(&file->mtx);
     return -1;
   }
   if (r->type != R_READ_9P) {
     fprintf(stderr, "read9p bad reply type: %d\n", r->type);
     free(r);
-    mtx_unlock(&file->mtx);
+    must_unlock(&file->mtx);
     return -1;
   }
   file->offs += r->read.count;
   int total = r->read.count;
   free(r);
-  mtx_unlock(&file->mtx);
+  must_unlock(&file->mtx);
   return total;
 }
 
@@ -239,7 +244,7 @@ int read9_full(File9 *file, int count, char *buf) {
 }
 
 int write9(File9 *file, int count, const char *buf) {
-  mtx_lock(&file->mtx);
+  must_lock(&file->mtx);
   int total = 0;
   while (count > 0) {
     int n = count;
@@ -269,6 +274,6 @@ int write9(File9 *file, int count, const char *buf) {
     count -= r->write.count;
     free(r);
   }
-  mtx_unlock(&file->mtx);
+  must_unlock(&file->mtx);
   return total;
 }

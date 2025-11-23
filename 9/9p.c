@@ -1,5 +1,6 @@
 #include "9p.h"
 
+#include "thrd.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -110,14 +111,14 @@ err:
 
 void close9p(Client9p *c) {
   DEBUG("close9p called\n");
-  mtx_lock(&c->mtx);
+  must_lock(&c->mtx);
   c->closed = true;
-  cnd_broadcast(&c->cnd);
+  must_broadcast(&c->cnd);
   DEBUG("close9p: waiting for everyone to close\n");
   // We only exit the loop with the lock held.
   // Wait for the waiters to go away and clean up.
   while (!queue_empty(c) || !c->recv_thread_done) {
-    cnd_wait(&c->cnd, &c->mtx);
+    must_wait(&c->cnd, &c->mtx);
   }
 
   DEBUG("close9p: cleaning up\n");
@@ -131,9 +132,9 @@ static int recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
     DEBUG("recv_thread: waiting for queue\n");
-    mtx_lock(&c->mtx);
+    must_lock(&c->mtx);
     while (!c->closed && queue_waiting(c)) {
-      cnd_wait(&c->cnd, &c->mtx);
+      must_wait(&c->cnd, &c->mtx);
     }
     if (c->closed) {
       DEBUG("recv_thread: got close\n");
@@ -141,12 +142,12 @@ static int recv_thread(void *arg) {
     }
 
     DEBUG("recv_thread: receiving header\n");
-    mtx_unlock(&c->mtx);
+    must_unlock(&c->mtx);
     uint32_t size;
     uint8_t type;
     uint16_t tag;
     bool ok = recv_header(c, &size, &type, &tag);
-    mtx_lock(&c->mtx);
+    must_lock(&c->mtx);
 
     if (!ok) {
       DEBUG("recv_thread: failed to receive the header\n");
@@ -177,9 +178,9 @@ static int recv_thread(void *arg) {
     Reply9p *r = calloc(1, sizeof(Reply9p) + body_size);
     r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
-    mtx_unlock(&c->mtx);
+    must_unlock(&c->mtx);
     int n = fread((char *)r + sizeof(Reply9p), 1, body_size, c->f);
-    mtx_lock(&c->mtx);
+    must_lock(&c->mtx);
 
     if (n != body_size) {
       DEBUG("recv_thread: failed to read data\n");
@@ -198,9 +199,9 @@ static int recv_thread(void *arg) {
       }
       DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
       // Read the read reply data into the buffer passed to read9p().
-      mtx_unlock(&c->mtx);
+      must_unlock(&c->mtx);
       int n = fread(q->read_buf, 1, r->read.count, c->f);
-      mtx_lock(&c->mtx);
+      must_lock(&c->mtx);
     }
 
     if (type == R_VERSION_9P) {
@@ -208,16 +209,16 @@ static int recv_thread(void *arg) {
     }
     DEBUG("recv_thread: finished reply for tag %d - broadcasting\n", tag);
     q->reply = r;
-    cnd_broadcast(&c->cnd);
-    mtx_unlock(&c->mtx);
+    must_broadcast(&c->cnd);
+    must_unlock(&c->mtx);
     continue;
   }
 
   DEBUG("recv_thread: done\n");
   c->closed = true;
   c->recv_thread_done = true;
-  cnd_broadcast(&c->cnd);
-  mtx_unlock(&c->mtx);
+  must_broadcast(&c->cnd);
+  must_unlock(&c->mtx);
   return 0;
 }
 
@@ -509,15 +510,15 @@ static Tag9p send(Client9p *c, char *msg) {
 }
 
 static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
-  mtx_lock(&c->mtx);
+  must_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
-    cnd_wait(&c->cnd, &c->mtx);
+    must_wait(&c->cnd, &c->mtx);
     tag = free_queue_slot(c);
   }
   if (c->closed) {
     DEBUG("send: closed before getting a tag\n");
-    mtx_unlock(&c->mtx);
+    must_unlock(&c->mtx);
     return -1;
   }
   uint8_t type;
@@ -557,21 +558,21 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
   }
 
 done:
-  cnd_broadcast(&c->cnd);
-  mtx_unlock(&c->mtx);
+  must_broadcast(&c->cnd);
+  must_unlock(&c->mtx);
   return tag;
 }
 
 Reply9p *wait9p(Client9p *c, Tag9p tag) {
   DEBUG("wait9p: waiting for reply for %d\n", tag);
-  mtx_lock(&c->mtx);
+  must_lock(&c->mtx);
   if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
     DEBUG("wait9p: bad tag %d\n", tag);
-    mtx_unlock(&c->mtx);
+    must_unlock(&c->mtx);
     return error_reply("bad tag");
   }
   while (!c->closed && c->queue[tag].reply == NULL) {
-    cnd_wait(&c->cnd, &c->mtx);
+    must_wait(&c->cnd, &c->mtx);
   }
   Reply9p *r = c->queue[tag].reply;
   memset(&c->queue[tag], 0, sizeof(QueueEntry));
@@ -582,22 +583,22 @@ Reply9p *wait9p(Client9p *c, Tag9p tag) {
   } else {
     DEBUG("wait9p: got reply for %d\n", tag);
   }
-  cnd_broadcast(&c->cnd);
-  mtx_unlock(&c->mtx);
+  must_broadcast(&c->cnd);
+  must_unlock(&c->mtx);
   return r;
 }
 
 Reply9p *poll9p(Client9p *c, Tag9p tag) {
   DEBUG("poll9p: checking for a reply for %d\n", tag);
-  mtx_lock(&c->mtx);
+  must_lock(&c->mtx);
   if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
-    mtx_unlock(&c->mtx);
+    must_unlock(&c->mtx);
     return error_reply("bad tag");
   }
   Reply9p *r = c->queue[tag].reply;
   if (c->closed || r != NULL) {
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
-    cnd_broadcast(&c->cnd);
+    must_broadcast(&c->cnd);
   }
   if (r != NULL) {
     DEBUG("poll9p: got reply for %d\n", tag);
@@ -609,7 +610,7 @@ Reply9p *poll9p(Client9p *c, Tag9p tag) {
   if (r == NULL) {
     DEBUG("poll9p: no reply yet for %d\n", tag);
   }
-  mtx_unlock(&c->mtx);
+  must_unlock(&c->mtx);
   return r;
 }
 

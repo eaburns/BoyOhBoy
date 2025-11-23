@@ -1,6 +1,7 @@
 #include "acme.h"
 
 #include "9fsys.h"
+#include "thrd.h"
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -59,17 +60,23 @@ Acme *acme_connect() {
   Acme *acme = calloc(1, sizeof(*acme));
   acme->fsys = mount_acme();
   if (acme->fsys == NULL) {
-    free(acme);
-    return NULL;
+    goto mount_err;
   }
   acme->index = open9(acme->fsys, "index", OREAD_9);
   if (acme->index == NULL) {
-    unmount9(acme->fsys);
-    free(acme);
-    return NULL;
+    goto open_err;
   }
-  mtx_init(&acme->mtx, mtx_plain);
+  if (mtx_init(&acme->mtx, mtx_plain) != thrd_success) {
+    goto mtx_err;
+  }
   return acme;
+mtx_err:
+  close9(acme->index);
+open_err:
+  unmount9(acme->fsys);
+mount_err:
+  free(acme);
+  return NULL;
 }
 
 static void acme_release_win_with_lock(AcmeWin *win) {
@@ -83,14 +90,14 @@ static void acme_release_win_with_lock(AcmeWin *win) {
 }
 
 void acme_close(Acme *acme) {
-  mtx_lock(&acme->mtx);
+  must_lock(&acme->mtx);
   acme->closed = true;
   for (int i = 0; i < MAX_WINS; i++) {
     if (acme->wins[i] != NULL) {
       acme_release_win_with_lock(acme->wins[i]);
     }
   }
-  mtx_unlock(&acme->mtx);
+  must_unlock(&acme->mtx);
   close9(acme->index);
   unmount9(acme->fsys);
   mtx_destroy(&acme->mtx);
@@ -226,7 +233,7 @@ static File9 *open_win_file(Acme *acme, const char *id, const char *file) {
 }
 
 AcmeWin *acme_get_win(Acme *acme, const char *name) {
-  mtx_lock(&acme->mtx);
+  must_lock(&acme->mtx);
   if (acme->closed) {
     goto err;
   }
@@ -262,11 +269,15 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   if (win->body == NULL) {
     goto body_err;
   }
+  if (mtx_init(&win->mtx, mtx_plain) != thrd_success) {
+    goto mtx_err;
+  }
   win->acme = acme;
-  mtx_init(&win->mtx, mtx_plain);
   acme->wins[i] = win;
-  mtx_unlock(&acme->mtx);
+  must_unlock(&acme->mtx);
   return win;
+mtx_err:
+  close9(win->body);
 body_err:
   close9(win->data);
 data_err:
@@ -277,13 +288,13 @@ ctl_err:
   free(win->id);
   free(win);
 err:
-  mtx_unlock(&acme->mtx);
+  must_unlock(&acme->mtx);
   return NULL;
 }
 
 void acme_release_win(AcmeWin *win) {
   Acme *acme = win->acme;
-  mtx_lock(&acme->mtx);
+  must_lock(&acme->mtx);
   for (int i = 0; i < MAX_WINS; i++) {
     if (acme->wins[i] == win) {
       acme->wins[i] = NULL;
@@ -291,15 +302,15 @@ void acme_release_win(AcmeWin *win) {
     }
   }
   acme_release_win_with_lock(win);
-  mtx_unlock(&acme->mtx);
+  must_unlock(&acme->mtx);
 }
 
 int acme_win_write_ctl(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   int n = vfprint_file9(win->ctl, fmt, args);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   va_end(args);
   return n;
 }
@@ -307,47 +318,47 @@ int acme_win_write_ctl(AcmeWin *win, const char *fmt, ...) {
 int acme_win_write_addr(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   int n = vfprint_file9(win->addr, fmt, args);
   va_end(args);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return n;
 }
 
 int acme_win_write_data(AcmeWin *win, int size, const char *data) {
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   rewind9(win->data);
   int n = write9(win->data, size, data);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return n;
 }
 
 int acme_win_write_body(AcmeWin *win, int size, const char *data) {
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   rewind9(win->data);
   int n = write9(win->body, size, data);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return n;
 }
 
 char *acme_win_read_addr(AcmeWin *win) {
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   char *s = read_all(win->addr);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return s;
 }
 
 char *acme_win_read_data(AcmeWin *win) {
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   char *s = read_all(win->data);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return s;
 }
 
 char *acme_win_read_body(AcmeWin *win) {
-  mtx_lock(&win->mtx);
+  must_lock(&win->mtx);
   char *s = read_all(win->body);
-  mtx_unlock(&win->mtx);
+  must_unlock(&win->mtx);
   return s;
 }
 

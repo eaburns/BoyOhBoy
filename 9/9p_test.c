@@ -1,5 +1,6 @@
 #include "9p.h"
 
+#include "thrd.h"
 #include <errno.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -569,19 +570,19 @@ static int server_thread(void *arg) {
     DEBUG("TEST SERVER: read message type %d tag %d\n", type, tag);
     free(buf);
 
-    mtx_lock(&server->mtx);
+    must_lock(&server->mtx);
     while (!server->done && server->reply == NULL) {
-      cnd_wait(&server->cnd, &server->mtx);
+      must_wait(&server->cnd, &server->mtx);
     }
     if (server->done) {
-      mtx_unlock(&server->mtx);
+      must_unlock(&server->mtx);
       break;
     }
     if (server->reply == &NO_REPLY) {
-      mtx_unlock(&server->mtx);
+      must_unlock(&server->mtx);
       continue;
     }
-    mtx_unlock(&server->mtx);
+    must_unlock(&server->mtx);
 
     Reply9p *reply = NULL;
     if (server->reply->internal_data_size == 0) {
@@ -617,19 +618,25 @@ static Client9p *connect_test_server(TestServer *server) {
   if (server->socket == NULL) {
     FAIL("fdopen on server socket failed\n");
   }
-  mtx_init(&server->mtx, mtx_plain);
-  cnd_init(&server->cnd);
-  thrd_create(&server->thrd, server_thread, server);
+  if (mtx_init(&server->mtx, mtx_plain) != thrd_success) {
+    FAIL("failed to init mtx\n");
+  }
+  if (cnd_init(&server->cnd) != thrd_success) {
+    FAIL("failed to init cnd\n");
+  }
+  if (thrd_create(&server->thrd, server_thread, server) != thrd_success) {
+    FAIL("failed to create thread\n");
+  }
   server->client = connect_file9p(client);
   return server->client;
 }
 
 static void server_will_reply(TestServer *server, Reply9p *r, Tag9p tag) {
-  mtx_lock(&server->mtx);
+  must_lock(&server->mtx);
   server->reply = r;
   server->tag = tag;
-  cnd_broadcast(&server->cnd);
-  mtx_unlock(&server->mtx);
+  must_broadcast(&server->cnd);
+  must_unlock(&server->mtx);
 }
 
 static void exchange_version(Client9p *c, TestServer *server) {
@@ -647,12 +654,14 @@ static void exchange_version(Client9p *c, TestServer *server) {
 }
 
 static void close_test_server(TestServer *server) {
-  mtx_lock(&server->mtx);
+  must_lock(&server->mtx);
   server->done = true;
-  cnd_broadcast(&server->cnd);
-  mtx_unlock(&server->mtx);
+  must_broadcast(&server->cnd);
+  must_unlock(&server->mtx);
   close9p(server->client);
-  thrd_join(server->thrd, NULL);
+  if (thrd_join(server->thrd, NULL) != thrd_success) {
+    abort();
+  }
 }
 
 static void fprint_qid(FILE *f, Qid9p qid) {
