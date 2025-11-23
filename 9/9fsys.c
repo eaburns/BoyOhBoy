@@ -28,26 +28,37 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   Reply9p *r = wait9p(c, version9p(c, 1 << 20, VERSION_9P));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "version9p failed: %s\n", r->error.message);
-    close9p(c);
-    return NULL;
+    free(r);
+    goto err_version_attach;
   }
   free(r);
-
   Fid9p root_fid = MAX_OPEN_FILES;
   r = wait9p(c, attach9p(c, root_fid, NOFID, user, ""));
   if (r->type == R_ERROR_9P) {
     fprintf(stderr, "attach9p failed: %s\n", r->error.message);
-    close9p(c);
-    return NULL;
+    free(r);
+    goto err_version_attach;
   }
   free(r);
-
   Fsys9 *fsys = calloc(1, sizeof(*fsys));
   fsys->client = c;
   fsys->root = root_fid;
-  mtx_init(&fsys->mtx, mtx_plain);
-  cnd_init(&fsys->cnd);
+  if (mtx_init(&fsys->mtx, mtx_plain) != thrd_success) {
+    fprintf(stderr, "failed to initialize mtx\n");
+    goto err_mtx;
+  }
+  if (cnd_init(&fsys->cnd) != thrd_success) {
+    fprintf(stderr, "failed to initialize cnd\n");
+    goto err_cnd;
+  }
   return fsys;
+err_cnd:
+  mtx_destroy(&fsys->mtx);
+err_mtx:
+  free(fsys);
+err_version_attach:
+  close9p(c);
+  return NULL;
 }
 
 Fsys9 *mount9(const char *ns, const char *user) {
