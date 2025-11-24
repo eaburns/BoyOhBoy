@@ -1,9 +1,9 @@
 #include "9fsys.h"
 
 #include "9p.h"
+#include "errstr.h"
 #include "thrd.h"
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
@@ -28,7 +28,7 @@ struct fsys9 {
 Fsys9 *mount9_client(Client9p *c, const char *user) {
   Reply9p *r = wait9p(c, version9p(c, 1 << 20, VERSION_9P));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "version9p failed: %s\n", r->error.message);
+    errstr9f("version9p failed: %s", r->error.message);
     free(r);
     goto err_version;
   }
@@ -36,7 +36,7 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   Fid9p root_fid = MAX_OPEN_FILES;
   r = wait9p(c, attach9p(c, root_fid, NOFID, user, ""));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "attach9p failed: %s\n", r->error.message);
+    errstr9f("attach9p failed: %s", r->error.message);
     free(r);
     goto err_attach;
   }
@@ -45,11 +45,11 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   fsys->client = c;
   fsys->root = root_fid;
   if (mtx_init(&fsys->mtx, mtx_plain) != thrd_success) {
-    fprintf(stderr, "failed to initialize mtx\n");
+    errstr9f("failed to initialize mtx");
     goto err_mtx;
   }
   if (cnd_init(&fsys->cnd) != thrd_success) {
-    fprintf(stderr, "failed to initialize cnd\n");
+    errstr9f("failed to initialize cnd");
     goto err_cnd;
   }
   return fsys;
@@ -66,7 +66,7 @@ err_version:
 Fsys9 *mount9(const char *ns, const char *user) {
   Client9p *c = connect9p(ns);
   if (c == NULL) {
-    fprintf(stderr, "failed to connect\n");
+    errstr9f("connect9p failed");
     return NULL;
   }
   return mount9_client(c, user);
@@ -143,28 +143,28 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   Reply9p *r = wait9p(fsys->client,
                       walk_array9p(fsys->client, fsys->root, fid, nelms, elms));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "walk9p failed: %s\n", r->error.message);
+    errstr9f("walk9p failed: %s", r->error.message);
     goto walk_err;
   }
   if (r->type != R_WALK_9P) {
-    fprintf(stderr, "walk9p bad reply type: %d\n", r->type);
+    errstr9f("walk9p bad reply type: %d", r->type);
     goto walk_err;
   }
   free(r);
 
   r = wait9p(fsys->client, open9p(fsys->client, file->fid, mode));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "open9p failed: %s\n", r->error.message);
+    errstr9f("open9p failed: %s", r->error.message);
     goto open_err;
   }
   if (r->type != R_OPEN_9P) {
-    fprintf(stderr, "open9p bad reply type: %d\n", r->type);
+    errstr9f("open9p bad reply type: %d", r->type);
     goto open_err;
   }
   file->iounit = r->open.iounit;
   free(r);
   if (mtx_init(&file->mtx, mtx_plain) != thrd_success) {
-    fprintf(stderr, "failed to initialize mtx\n");
+    errstr9f("failed to initialize mtx");
     goto mtx_err;
   }
   return file;
@@ -210,13 +210,13 @@ int read9(File9 *file, int count, char *buf) {
   Client9p *c = file->fsys->client;
   Reply9p *r = wait9p(c, read9p(c, file->fid, file->offs, count, buf));
   if (r->type == R_ERROR_9P) {
-    fprintf(stderr, "read9p failed: %s\n", r->error.message);
+    errstr9f("read9p failed: %s", r->error.message);
     free(r);
     must_unlock(&file->mtx);
     return -1;
   }
   if (r->type != R_READ_9P) {
-    fprintf(stderr, "read9p bad reply type: %d\n", r->type);
+    errstr9f("read9p bad reply type: %d", r->type);
     free(r);
     must_unlock(&file->mtx);
     return -1;
@@ -235,7 +235,11 @@ int read9_full(File9 *file, int count, char *buf) {
     if (n == 0 && total == 0) {
       break;
     }
-    if (n <= 0) {
+    if (n < 0) {
+      return -1;
+    }
+    if (n == 0) {
+      errstr9f("unexpected end-of-file");
       return -1;
     }
     total += n;
@@ -276,12 +280,12 @@ int write9(File9 *file, int count, const char *buf) {
     Client9p *c = file->fsys->client;
     Reply9p *r = wait9p(c, write9p(c, file->fid, file->offs, n, buf));
     if (r->type == R_ERROR_9P) {
-      fprintf(stderr, "write9p failed: %s\n", r->error.message);
+      errstr9f("write9p failed: %s", r->error.message);
       free(r);
       break;
     }
     if (r->type != R_WRITE_9P) {
-      fprintf(stderr, "write9p bad reply type: %d\n", r->type);
+      errstr9f("write9p bad reply type: %d", r->type);
       free(r);
       break;
     }

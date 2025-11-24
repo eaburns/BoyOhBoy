@@ -1,6 +1,7 @@
 #include "acme.h"
 
 #include "9fsys.h"
+#include "errstr.h"
 #include "thrd.h"
 #include <ctype.h>
 #include <stdarg.h>
@@ -39,12 +40,12 @@ static char *alloc_sprintf(const char *fmt, ...);
 static Fsys9 *mount_acme() {
   const char *ns = getenv("NAMESPACE");
   if (ns == NULL) {
-    fprintf(stderr, "acme_connect: no $NAMESPACE\n");
+    errstr9f("acme_connect: no $NAMESPACE");
     return NULL;
   }
   const char *user = getenv("USER");
   if (user == NULL) {
-    fprintf(stderr, "acme_connect: no $USER\n");
+    errstr9f("acme_connect: no $USER");
     return NULL;
   }
   const char *acme = "/acme";
@@ -67,6 +68,7 @@ Acme *acme_connect() {
     goto open_err;
   }
   if (mtx_init(&acme->mtx, mtx_plain) != thrd_success) {
+    errstr9f("failed to init mtx");
     goto mtx_err;
   }
   return acme;
@@ -182,19 +184,16 @@ static char *find_win_id_or_new(Acme *acme, const char *name) {
   }
   File9 *f = open9(acme->fsys, "acme/new/ctl", ORDWR_9);
   if (f == NULL) {
-    DEBUG("failed to open acme/new/ctl\n");
     return NULL;
   }
   int n = fprint_file9(f, "name %s\n", name);
   if (n < 0) {
-    fprintf(stderr, "failed to write new win name\n");
     close9(f);
     return NULL;
   }
   rewind9(f);
   char *ctl = read9_all(f);
   if (ctl == NULL) {
-    fprintf(stderr, "failed to read acme/new/ctl\n");
     close9(f);
     return NULL;
   }
@@ -214,6 +213,7 @@ static File9 *open_win_file(Acme *acme, const char *id, const char *file) {
 AcmeWin *acme_get_win(Acme *acme, const char *name) {
   must_lock(&acme->mtx);
   if (acme->closed) {
+    errstr9f("acme was closed");
     goto err;
   }
   int i = 0;
@@ -227,7 +227,6 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   }
   char *id = find_win_id_or_new(acme, name);
   if (id == NULL) {
-    fprintf(stderr, "failed to find or create win\n");
     goto err;
   }
   AcmeWin *win = calloc(1, sizeof(*win));
@@ -249,6 +248,7 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
     goto body_err;
   }
   if (mtx_init(&win->mtx, mtx_plain) != thrd_success) {
+    errstr9f("failed to init mtx");
     goto mtx_err;
   }
   win->acme = acme;
@@ -351,7 +351,6 @@ static char *alloc_vsprintf(const char *fmt, va_list args) {
   int n = vsnprintf(small, sizeof(small), fmt, args);
   char *s = calloc(n + 1, sizeof(*s));
   if (vsnprintf(s, n + 1, fmt, args_copy) != n) {
-    fprintf(stderr, "impossibel vsnprintf failure\n");
     abort();
   }
   va_end(args_copy);

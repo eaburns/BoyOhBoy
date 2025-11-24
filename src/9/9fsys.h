@@ -22,6 +22,8 @@ typedef struct fsys9 Fsys9;
 typedef struct file9 File9;
 
 // Returns an Fsys9 representing the 9p file system at the Unix socked ns.
+//
+// Returns NULL and sets errstr on error.
 Fsys9 *mount9(const char *ns, const char *user);
 
 // Like mount9, but uses the already connected Client9p.
@@ -33,7 +35,9 @@ Fsys9 *mount9_client(Client9p *c, const char *user);
 void unmount9(Fsys9 *fsys);
 
 // Opens a file at the given path from the Fsys9 root
-// with the given mode. Returns NULL on error.
+// with the given mode.
+//
+// Returns NULL and sets errstr on error.
 File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode);
 
 // Closes the file freeing its resources.
@@ -46,7 +50,8 @@ void rewind9(File9 *file);
 // increases the file position by the number of bytes read.
 // On error the file position is unchanged.
 //
-// Returns the number of bytes read or -1 on error; 0 indicates end-of-file.
+// Returns the number of bytes read or -1 and sets errstr on error; 0 indicates
+// end-of-file.
 //
 // Note: there is an asymmetry between read9 and write9. It is not an error for
 // read9 to return fewer bytes than requested (an error is instead indicated
@@ -61,19 +66,21 @@ int read9(File9 *file, int count, char *buf);
 // The return value is 0 if no bytes were read and end-of-file was reached.
 // Otherwise the return value is count, indicating that exactly count bytes were
 // read, or it is -1 indicating an error. If end-of-file is reached after
-// reading any data, but before reading the full count bytes, -1 is returned.
+// reading any data, but before reading the full count bytes, -1 is returned. If
+// the return value is -1, errstr is set to the error message.
 int read9_full(File9 *file, int count, char *buf);
 
 // Reads all of the remaining contents of the file until end-of-file
 // and returns it as a \0-terminated string that must be free()d by the caller
-// or NULL on error.
+// or NULL on error and errstr is set.
 char *read9_all(File9 *file);
 
 // Writes count bytes from buf to the file and
 // increases the file position by count bytes.
 //
 // Returns the number of bytes written.
-// A return value of less than count indicates an error occurred.
+// A return value of less than count indicates an error occurred and errstr will
+// be set.
 //
 // Note: there is an asymmetry between read9 and write9. It is not an error for
 // read9 to return fewer bytes than requested (an error is instead indicated
