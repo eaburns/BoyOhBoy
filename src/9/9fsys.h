@@ -75,6 +75,43 @@ int read9_full(File9 *file, int count, char *buf);
 // or NULL on error and errstr is set.
 char *read9_all(File9 *file);
 
+typedef struct read9_tag Read9Tag;
+
+// Starts a read operation, reading count bytes from the given file offset into
+// buf, but does not wait for the data to be read. Instead, it returns a
+// Read9Tag* which can be used with read9_poll() to check whether the read is
+// complete or read9_wait() to wait for it to complete. The caller is not
+// responsible for free()ing the Read9Tag*. Instead if will be freed by a call
+// to read9_poll() that indicates the read is complete or by a call to
+// read9_wait().
+//
+// On error, NULL is returned and errstr() is set.
+Read9Tag *read9_async(File9 *file, unsigned long offs, int count, char *buf);
+
+// Waits for a read that started with read9_async() to complete, free() the
+// memory of the Read9Tag object passed as the argument to the call and returns
+// the number of bytes read or -1 and sets errstr on error; 0 indicates
+// end-of-file.
+//
+// If the tag argument is NULL, read9_wait() returns -1.
+int read9_wait(Read9Tag *tag);
+
+typedef struct {
+  bool done;
+  int n;
+} Read9PollResult;
+
+// Checks whether a read started with read9_async is complete.
+// If the read is complete, the return value has .done==true, and .n contains
+// the number of bytes read or -1 and sets errstr on error; 0 indicates
+// end-of-file; and the memory of the Read9Tag passed as the argument is
+// free()d. If the read is not yet complete, the return value has .done==false,
+// .n==0, and the Read9Tag is not free()d, and must be passed to a futher call
+// to read9_poll() or read9_wait().
+//
+// If the tag argument is NULL, read9_po00() returns .done==true, .n==-1.
+Read9PollResult read9_poll(Read9Tag *tag);
+
 // Writes count bytes from buf to the file and
 // increases the file position by count bytes.
 //

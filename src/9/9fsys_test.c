@@ -561,6 +561,111 @@ static void run_read_full_error_test() {
   must_join(server.thrd);
 }
 
+static void run_read9_wait_test() {
+  Qid9p qids[2] = {};
+  TestServer server = {
+      .test_name = __func__,
+      .script =
+          {
+              {
+                  .type = R_VERSION_9P,
+                  .version = {.msize = 1024, .version = "9P2000"},
+              },
+              {.type = R_ATTACH_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
+              {
+                  .type = R_OPEN_9P,
+                  .open = {.iounit = 100},
+              },
+              {
+                  .type = R_READ_9P,
+                  .read = {.count = 4, .data = "1234"},
+              },
+          },
+  };
+  Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
+  File9 *file = open9(fsys, "/foo/bar", OREAD_9);
+  if (file == NULL) {
+    FAIL("open9 returned NULL\n");
+  }
+  char buf[5] = {};
+  Read9Tag *tag = read9_async(file, 0, 4, buf);
+  if (tag == NULL) {
+    FAIL("read9_async returned NULL\n");
+  }
+  int n = read9_wait(tag);
+  if (n != 4) {
+    FAIL("read9_wait returned %d, expected 4\n", n);
+  }
+  if (strcmp(buf, "1234") != 0) {
+    FAIL("read9_wait, buf is %s, expected 1234\n", buf);
+  }
+  close9(file);
+  unmount9(fsys);
+  must_join(server.thrd);
+}
+
+static void run_read9_poll_test() {
+  Qid9p qids[2] = {};
+  TestServer server = {
+      .test_name = __func__,
+      .script =
+          {
+              {
+                  .type = R_VERSION_9P,
+                  .version = {.msize = 1024, .version = "9P2000"},
+              },
+              {.type = R_ATTACH_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
+              {
+                  .type = R_OPEN_9P,
+                  .open = {.iounit = 100},
+              },
+              {
+                  .type = R_READ_9P,
+                  .read = {.count = 4, .data = "1234"},
+              },
+          },
+  };
+  Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
+  File9 *file = open9(fsys, "/foo/bar", OREAD_9);
+  if (file == NULL) {
+    FAIL("open9 returned NULL\n");
+  }
+  char buf[5] = {};
+  Read9Tag *tag = read9_async(file, 0, 4, buf);
+  if (tag == NULL) {
+    FAIL("read9_async returned NULL\n");
+  }
+  Read9PollResult result = {};
+  while (!result.done) {
+    result = read9_poll(tag);
+  }
+  if (result.n != 4) {
+    FAIL("read9_poll returned %d, expected 4\n", result.n);
+  }
+  if (strcmp(buf, "1234") != 0) {
+    FAIL("read9_poll, buf is %s, expected 1234\n", buf);
+  }
+  close9(file);
+  unmount9(fsys);
+  must_join(server.thrd);
+}
+
 static void run_write_test() {
   Qid9p qids[2] = {};
   TestServer server = {
@@ -805,6 +910,8 @@ int main() {
   run_read_full_eof_test();
   run_read_full_unexpected_eof_test();
   run_read_full_error_test();
+  run_read9_wait_test();
+  run_read9_poll_test();
   run_write_test();
   run_write_short_test();
   run_write_error_test();

@@ -273,6 +273,81 @@ char *read9_all(File9 *file) {
   return buf;
 }
 
+struct read9_tag {
+  Client9p *client;
+  Tag9p tag;
+};
+
+Read9Tag *read9_async(File9 *file, unsigned long offs, int count, char *buf) {
+  must_lock(&file->mtx);
+  if (count > file->iounit) {
+    count = file->iounit;
+  }
+  Client9p *c = file->fsys->client;
+  Tag9p tag9p = read9p(c, file->fid, offs, count, buf);
+  must_unlock(&file->mtx);
+  if (tag9p < 0) {
+    errstr9f("failed to initiate read");
+    return NULL;
+  }
+  Read9Tag *tag = calloc(1, sizeof(*tag));
+  tag->client = c;
+  tag->tag = tag9p;
+  return tag;
+}
+
+int read9_wait(Read9Tag *tag) {
+  if (tag == NULL) {
+    return -1;
+  }
+  Client9p *c = tag->client;
+  Reply9p *r = wait9p(c, tag->tag);
+  free(tag);
+  if (r->type == R_ERROR_9P) {
+    errstr9f("read9p failed: %s", r->error.message);
+    free(r);
+    return -1;
+  }
+  if (r->type != R_READ_9P) {
+    errstr9f("read9p bad reply type: %d", r->type);
+    free(r);
+    return -1;
+  }
+  int total = r->read.count;
+  free(r);
+  return total;
+}
+
+Read9PollResult read9_poll(Read9Tag *tag) {
+  if (tag == NULL) {
+    errstr9f("tag is NULL");
+    Read9PollResult result = {.done = true, .n = -1};
+    return result;
+  }
+  Client9p *c = tag->client;
+  Reply9p *r = poll9p(c, tag->tag);
+  if (r == NULL) {
+    Read9PollResult result = {.done = false, .n = 0};
+    return result;
+  }
+  free(tag);
+  if (r->type == R_ERROR_9P) {
+    errstr9f("read9p failed: %s", r->error.message);
+    free(r);
+    Read9PollResult result = {.done = true, .n = -1};
+    return result;
+  }
+  if (r->type != R_READ_9P) {
+    errstr9f("read9p bad reply type: %d", r->type);
+    free(r);
+    Read9PollResult result = {.done = true, .n = -1};
+    return result;
+  }
+  Read9PollResult result = {.done = true, .n = r->read.count};
+  free(r);
+  return result;
+}
+
 int write9(File9 *file, int count, const char *buf) {
   must_lock(&file->mtx);
   int total = 0;
