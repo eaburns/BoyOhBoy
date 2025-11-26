@@ -33,6 +33,18 @@ struct acme_win {
   File9 *data;
   File9 *body;
   File9 *tag;
+
+  File9 *event;
+  Read9Tag *event_read_tag;
+  // Number of bytes currently in buf.
+  int n;
+  // Big enough to hold a full event message.
+  // Each message has ≤256 bytes of data,
+  // plus 2 characters of origin and type,
+  // plus 4 decimal integers of unspecified size,
+  // but surely less than 12 digits each, with a following space.
+  // That totals 256+2+13*4 = 310, round to 512 for good measure.
+  char buf[512];
 };
 
 static char *alloc_vsprintf(const char *fmt, va_list args);
@@ -389,4 +401,279 @@ static char *alloc_sprintf(const char *fmt, ...) {
   char *s = alloc_vsprintf(fmt, args);
   va_end(args);
   return s;
+}
+
+static bool start_event_read(AcmeWin *win) {
+  DEBUG("start_event_read\n");
+  char *buf = win->buf + win->n;
+  int n = sizeof(win->buf) - win->n;
+  win->event_read_tag = read9_async(win->event, 0, n, buf);
+  return win->event_read_tag != NULL;
+}
+
+bool acme_win_start_events(AcmeWin *win) {
+  must_lock(&win->mtx);
+  if (win->event != NULL) {
+    must_unlock(&win->mtx);
+    errstr9f("events already started");
+    return false;
+  }
+  DEBUG("opening event file\n");
+  win->event = open_win_file(win->acme, win->id, "event");
+  if (win->event == NULL) {
+    DEBUG("open win file failed\n");
+    must_unlock(&win->mtx);
+    return false;
+  }
+  win->n = 0;
+  if (!start_event_read(win)) {
+    DEBUG("start_event_read failed\n");
+    close9(win->event);
+    win->event = NULL;
+    win->event_read_tag = NULL;
+    must_unlock(&win->mtx);
+    return false;
+  }
+  must_unlock(&win->mtx);
+  return true;
+}
+
+void acme_win_stop_events(AcmeWin *win) {
+  DEBUG("stopping events\n");
+  must_lock(&win->mtx);
+  if (win->event != NULL) {
+    read9_wait(win->event_read_tag);
+    win->event_read_tag = NULL;
+    close9(win->event);
+    win->event = NULL;
+    win->n = 0;
+  }
+  must_unlock(&win->mtx);
+}
+
+static const int MALFORMED = -1;
+static const int FETCH_MORE = -2;
+
+static int get_event_int(AcmeWin *win, int *i) {
+  int x = 0;
+  char c = 0;
+  do {
+    if (*i >= win->n) {
+      DEBUG("returning FETCH_MORE\n");
+      return FETCH_MORE;
+    }
+    c = win->buf[(*i)++];
+    if ('0' <= c && c <= '9') {
+      c = c - '0';
+      if (x > x * 10 + c) {
+        DEBUG("%d *10 + %d overflows\n", x, c);
+        return MALFORMED;
+      }
+      x = x * 10 + c;
+    } else if (c != ' ') {
+      DEBUG("%c is not a digit or space\n", c);
+      return MALFORMED;
+    }
+  } while (c != ' ');
+  return x;
+}
+
+static AcmeEvent *error_event(const char *msg) {
+  int len = strlen(msg);
+  AcmeEvent *error = calloc(1, sizeof(*error) + len + 1);
+  error->count = len + 1;
+  strncpy(error->data, msg, len);
+  return error;
+}
+
+static AcmeEvent *deserialize_event(AcmeWin *win) {
+  DEBUG("trying to deserialize: n=%d\n", win->n);
+  int i = 0;
+  if (i >= win->n) {
+    DEBUG("not enough for anything: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  char origin = win->buf[i++];
+  if (i >= win->n) {
+    DEBUG("not enough for type: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  char type = win->buf[i++];
+  int addr0 = get_event_int(win, &i);
+  if (addr0 == MALFORMED) {
+    goto error;
+  }
+  if (addr0 == FETCH_MORE) {
+    DEBUG("not enough for addr0: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  int addr1 = get_event_int(win, &i);
+  if (addr1 == MALFORMED) {
+    goto error;
+  }
+  if (addr1 == FETCH_MORE) {
+    DEBUG("not enough for addr1: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  int flags = get_event_int(win, &i);
+  if (flags == MALFORMED) {
+    goto error;
+  }
+  if (flags == FETCH_MORE) {
+    DEBUG("not enough for flags: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  int count = get_event_int(win, &i);
+  if (count == MALFORMED) {
+    goto error;
+  }
+  DEBUG("count=%d\n", count);
+  // +1 is for the terminating \n.
+  if (count == FETCH_MORE || i + count + 1 > win->n) {
+    DEBUG("not enough for count and \\n: i=%d, n=%d\n", i, win->n);
+    return NULL;
+  }
+  if (win->buf[i + count] != '\n') {
+    DEBUG("expected newline, got %c\n", win->buf[i + count]);
+    goto error;
+  }
+  AcmeEvent *event = calloc(1, sizeof(*event) + count + 1);
+  event->origin = origin;
+  event->type = type;
+  event->addr[0] = addr0;
+  event->addr[1] = addr1;
+  event->flags = flags;
+  event->count = count;
+  memcpy(event->data, win->buf + i, count);
+  int event_size = i + count + 1;
+  DEBUG("event size: %d bytes\n", event_size);
+  memmove(win->buf, win->buf + event_size, win->n - event_size);
+  win->n -= i + count + 1;
+  return event;
+
+error:
+  return error_event("received malformed event");
+}
+
+AcmeEvent *acme_win_poll_event(AcmeWin *win) {
+  must_lock(&win->mtx);
+  if (win->event == NULL) {
+    must_unlock(&win->mtx);
+    return NULL;
+  }
+
+retry:
+  // We have data and aren't waiting for a pending read.
+  // Try to deserialize the data.
+  if (win->n > 0 && win->event_read_tag == NULL) {
+    AcmeEvent *event = deserialize_event(win);
+    if (event != NULL) {
+      must_unlock(&win->mtx);
+      return event;
+    }
+    DEBUG("failed to deserialize\n");
+  }
+
+  // We don't have enough data and aren't already waiting on a read.
+  // Start a read and return.
+  if (win->event_read_tag == NULL) {
+    DEBUG("fetch more (n=%d)\n", win->n);
+    if (start_event_read(win)) {
+      must_unlock(&win->mtx);
+      return NULL;
+    }
+    DEBUG("start_event_read failed\n");
+    close9(win->event);
+    win->event = NULL;
+    must_unlock(&win->mtx);
+    return error_event(errstr9());
+  }
+
+  // We don't have enough data, and have already started a read.
+  // Check whether it's done.
+  Read9PollResult poll_result = read9_poll(win->event_read_tag);
+  if (!poll_result.done) {
+    must_unlock(&win->mtx);
+    return NULL;
+  }
+  win->event_read_tag = NULL;
+  if (poll_result.n == 0) {
+    DEBUG("read9_poll unexpected eof\n");
+    close9(win->event);
+    win->event = NULL;
+    must_unlock(&win->mtx);
+    return error_event("unexpected-end-of-file");
+  }
+  if (poll_result.n < 0) {
+    DEBUG("read9_poll error: %s\n", errstr9());
+    close9(win->event);
+    win->event = NULL;
+    must_unlock(&win->mtx);
+    return error_event(errstr9());
+  }
+
+  // The read is done.
+  // Accumulate the data, and let's try to deserialize it.
+  win->n += poll_result.n;
+  DEBUG("read9_poll got %d bytes, n=%d\n", poll_result.n, win->n);
+  goto retry;
+}
+
+AcmeEvent *acme_win_wait_event(AcmeWin *win) {
+  must_lock(&win->mtx);
+  if (win->event == NULL) {
+    must_unlock(&win->mtx);
+    return error_event("events not started");
+  }
+
+retry:
+  if (win->n > 0 && win->event_read_tag == NULL) {
+    AcmeEvent *event = deserialize_event(win);
+    if (event != NULL) {
+      must_unlock(&win->mtx);
+      return event;
+    }
+  }
+  if (win->event_read_tag == NULL) {
+    DEBUG("fetch more (n=%d)\n", win->n);
+    if (!start_event_read(win)) {
+      DEBUG("start_event_read failed\n");
+      close9(win->event);
+      win->event = NULL;
+      must_unlock(&win->mtx);
+      return error_event(errstr9());
+    }
+  }
+  int n = read9_wait(win->event_read_tag);
+  win->event_read_tag = NULL;
+  if (n == 0) {
+    DEBUG("read9_wait unexpected eof\n");
+    close9(win->event);
+    win->event = NULL;
+    must_unlock(&win->mtx);
+    return error_event("unexpected-end-of-file");
+  }
+  if (n < 0) {
+    DEBUG("read9_wait error: %s\n", errstr9());
+    close9(win->event);
+    win->event = NULL;
+    must_unlock(&win->mtx);
+    return error_event(errstr9());
+  }
+  win->n += n;
+  DEBUG("read9_wait got %d bytes, n=%d\n", n, win->n);
+  goto retry;
+}
+
+bool acme_win_write_event(AcmeWin *win, AcmeEvent *event) {
+  must_lock(&win->mtx);
+  if (win->event == NULL) {
+    must_unlock(&win->mtx);
+    errstr9f("events not started");
+    return false;
+  }
+  int n = fprint_file9(win->event, "%c%c%d %d \n", event->origin, event->type,
+                       event->addr[0], event->addr[1]);
+  must_unlock(&win->mtx);
+  return n >= 0;
 }

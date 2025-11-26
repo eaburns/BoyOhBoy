@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 int main() {
   Acme *acme = acme_connect();
@@ -24,13 +23,31 @@ int main() {
     fprintf(stderr, "failed to write to tag: %s\n", errstr9());
     return 1;
   }
-  char *s = acme_win_read_body(win);
-  if (s == NULL) {
-    fprintf(stderr, "failed to read body: %s\n", errstr9());
+  if (!acme_win_start_events(win)) {
+    fprintf(stderr, "failed to start events: %s\n", errstr9());
     return 1;
   }
-  printf("%s", s);
-  free(s);
+  for (;;) {
+    AcmeEvent *event = acme_win_wait_event(win);
+    if (event->type == 0) {
+      fprintf(stderr, "error reading event: %s\n", event->data);
+      break;
+    }
+    fprintf(stderr, "got an event\n");
+    fprintf(stderr, "	origin: %c\n", event->origin);
+    fprintf(stderr, "	type: %c\n", event->type);
+    fprintf(stderr, "	addr: %d, %d\n", event->addr[0], event->addr[1]);
+    fprintf(stderr, "	flags: %02x\n", event->flags);
+    fprintf(stderr, "	count: %d\n", event->count);
+    fprintf(stderr, "	data: [%s]\n", event->data);
+    if (strchr("xXlLrR", event->type) != NULL) {
+      if (!acme_win_write_event(win, event)) {
+        fprintf(stderr, "failed to write event to acme: %s\n", errstr9());
+        // Errors writing to the event file are generally non-fatal.
+      }
+    }
+    free(event);
+  }
   acme_close(acme);
   return 0;
 }
