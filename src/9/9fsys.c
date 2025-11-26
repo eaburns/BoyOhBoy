@@ -150,6 +150,10 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
     errstr9f("walk9p bad reply type: %d", r->type);
     goto walk_err;
   }
+  if (r->walk.nqids != nelms) {
+    errstr9f("%s not found", path);
+    goto walk_err;
+  }
   free(r);
 
   r = wait9p(fsys->client, open9p(fsys->client, file->fid, mode));

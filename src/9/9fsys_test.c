@@ -1,6 +1,7 @@
 #include "9fsys.h"
 
 #include "9p.h"
+#include "errstr.h"
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>
@@ -100,6 +101,7 @@ static void run_mount_attach_error_test() {
 }
 
 static void run_open_close_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -109,14 +111,21 @@ static void run_open_close_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {.type = R_OPEN_9P},
           },
   };
   Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
   File9 *file = open9(fsys, "/foo/bar", OREAD_9);
   if (file == NULL) {
-    FAIL("open9 returned NULL\n");
+    FAIL("open9 returned NULL: %s\n", errstr9());
   }
   close9(file);
   unmount9(fsys);
@@ -148,7 +157,8 @@ static void run_open_walk_error_test() {
   must_join(server.thrd);
 }
 
-static void run_open_open_error_test() {
+static void run_open_walk_short_test() {
+  Qid9p qids[1] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -158,7 +168,47 @@ static void run_open_open_error_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 1, // expected 2
+                          .qids = qids,
+                      },
+              },
+          },
+  };
+  Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
+  File9 *file = open9(fsys, "/foo/bar", OREAD_9);
+  if (file != NULL) {
+    FAIL("open9 returned non-NULL, expected NULL\n");
+  }
+  if (strcmp(errstr9(), "/foo/bar not found") != 0) {
+    FAIL("open9 expected \"/foo/bar not found\", got \"%s\"\n", errstr9());
+  }
+  unmount9(fsys);
+  must_join(server.thrd);
+}
+
+static void run_open_open_error_test() {
+  Qid9p qids[2] = {};
+  TestServer server = {
+      .test_name = __func__,
+      .script =
+          {
+              {
+                  .type = R_VERSION_9P,
+                  .version = {.msize = 1024, .version = "9P2000"},
+              },
+              {.type = R_ATTACH_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_ERROR_9P,
                   .error = {.message = "test error"},
@@ -175,6 +225,7 @@ static void run_open_open_error_test() {
 }
 
 static void run_read_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -184,7 +235,14 @@ static void run_read_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -214,6 +272,7 @@ static void run_read_test() {
 }
 
 static void run_short_read_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -223,7 +282,14 @@ static void run_short_read_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -253,6 +319,7 @@ static void run_short_read_test() {
 }
 
 static void run_read_error_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -262,7 +329,14 @@ static void run_read_error_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -289,6 +363,7 @@ static void run_read_error_test() {
 }
 
 static void run_read_full_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -298,7 +373,14 @@ static void run_read_full_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -340,6 +422,7 @@ static void run_read_full_test() {
 }
 
 static void run_read_full_eof_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -349,7 +432,14 @@ static void run_read_full_eof_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -376,6 +466,7 @@ static void run_read_full_eof_test() {
 }
 
 static void run_read_full_unexpected_eof_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -385,7 +476,14 @@ static void run_read_full_unexpected_eof_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -416,6 +514,7 @@ static void run_read_full_unexpected_eof_test() {
 }
 
 static void run_read_full_error_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -425,7 +524,14 @@ static void run_read_full_error_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -456,6 +562,7 @@ static void run_read_full_error_test() {
 }
 
 static void run_write_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -465,7 +572,14 @@ static void run_write_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -500,6 +614,7 @@ static void run_write_test() {
 }
 
 static void run_write_short_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -509,7 +624,14 @@ static void run_write_short_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
@@ -544,6 +666,7 @@ static void run_write_short_test() {
 }
 
 static void run_write_error_test() {
+  Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -553,7 +676,14 @@ static void run_write_error_test() {
                   .version = {.msize = 1024, .version = "9P2000"},
               },
               {.type = R_ATTACH_9P},
-              {.type = R_WALK_9P},
+              {
+                  .type = R_WALK_9P,
+                  .walk =
+                      {
+                          .nqids = 2,
+                          .qids = qids,
+                      },
+              },
               {
                   .type = R_OPEN_9P,
                   .open = {.iounit = 100},
