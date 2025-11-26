@@ -25,8 +25,9 @@ void acme_release_win(AcmeWin *win);
 
 // Writes to the corresponding file, starting at offset 0.
 // Returns the number of bytes written or -1 on error and errstr is set.
-int acme_win_write_ctl(AcmeWin *win, const char *fmt, ...);
-int acme_win_write_addr(AcmeWin *win, const char *fmt, ...);
+int acme_win_fmt_ctl(AcmeWin *win, const char *fmt, ...);
+int acme_win_fmt_addr(AcmeWin *win, const char *fmt, ...);
+int acme_win_fmt_tag(AcmeWin *win, const char *fmt, ...);
 int acme_win_write_data(AcmeWin *win, int size, const char *data);
 int acme_win_write_body(AcmeWin *win, int size, const char *data);
 
@@ -36,5 +37,6 @@ int acme_win_write_body(AcmeWin *win, int size, const char *data);
 char *acme_win_read_addr(AcmeWin *win);
 char *acme_win_read_data(AcmeWin *win);
 char *acme_win_read_body(AcmeWin *win);
+char *acme_win_read_tag(AcmeWin *win);
 
 #endif // _ACME_H_

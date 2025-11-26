@@ -32,6 +32,7 @@ struct acme_win {
   File9 *addr;
   File9 *data;
   File9 *body;
+  File9 *tag;
 };
 
 static char *alloc_vsprintf(const char *fmt, va_list args);
@@ -86,6 +87,7 @@ static void acme_release_win_with_lock(AcmeWin *win) {
   close9(win->addr);
   close9(win->data);
   close9(win->body);
+  close9(win->tag);
   free(win->id);
   mtx_destroy(&win->mtx);
   free(win);
@@ -247,6 +249,10 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   if (win->body == NULL) {
     goto body_err;
   }
+  win->tag = open_win_file(acme, id, "tag");
+  if (win->body == NULL) {
+    goto tag_err;
+  }
   if (mtx_init(&win->mtx, mtx_plain) != thrd_success) {
     errstr9f("failed to init mtx");
     goto mtx_err;
@@ -256,6 +262,8 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   must_unlock(&acme->mtx);
   return win;
 mtx_err:
+  close9(win->tag);
+tag_err:
   close9(win->body);
 body_err:
   close9(win->data);
@@ -284,7 +292,7 @@ void acme_release_win(AcmeWin *win) {
   must_unlock(&acme->mtx);
 }
 
-int acme_win_write_ctl(AcmeWin *win, const char *fmt, ...) {
+int acme_win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   must_lock(&win->mtx);
@@ -294,11 +302,21 @@ int acme_win_write_ctl(AcmeWin *win, const char *fmt, ...) {
   return n;
 }
 
-int acme_win_write_addr(AcmeWin *win, const char *fmt, ...) {
+int acme_win_fmt_addr(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   must_lock(&win->mtx);
   int n = vfprint_file9(win->addr, fmt, args);
+  va_end(args);
+  must_unlock(&win->mtx);
+  return n;
+}
+
+int acme_win_fmt_tag(AcmeWin *win, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  must_lock(&win->mtx);
+  int n = vfprint_file9(win->tag, fmt, args);
   va_end(args);
   must_unlock(&win->mtx);
   return n;
@@ -340,6 +358,14 @@ char *acme_win_read_body(AcmeWin *win) {
   must_lock(&win->mtx);
   rewind9(win->body);
   char *s = read9_all(win->body);
+  must_unlock(&win->mtx);
+  return s;
+}
+
+char *acme_win_read_tag(AcmeWin *win) {
+  must_lock(&win->mtx);
+  rewind9(win->tag);
+  char *s = read9_all(win->tag);
   must_unlock(&win->mtx);
   return s;
 }

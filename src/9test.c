@@ -16,8 +16,12 @@ int main() {
     fprintf(stderr, "failed to open win: %s\n", errstr9());
     return 1;
   }
-  if (acme_win_write_ctl(win, "get\n") < 0) {
+  if (acme_win_fmt_ctl(win, "get\n") < 0) {
     fprintf(stderr, "failed to write to ctl: %s\n", errstr9());
+    return 1;
+  }
+  if (acme_win_fmt_tag(win, "Foo Bar Baz\n") < 0) {
+    fprintf(stderr, "failed to write to tag: %s\n", errstr9());
     return 1;
   }
   char *s = acme_win_read_body(win);
