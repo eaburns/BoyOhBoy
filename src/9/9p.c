@@ -11,8 +11,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-
-
 #include <threads.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
@@ -524,6 +522,7 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
   if (c->closed) {
     DEBUG("send: closed before getting a tag\n");
     must_unlock(&c->mtx);
+    free(msg);
     return -1;
   }
   uint8_t type;
@@ -565,6 +564,7 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
 done:
   must_broadcast(&c->cnd);
   must_unlock(&c->mtx);
+  free(msg);
   return tag;
 }
 
