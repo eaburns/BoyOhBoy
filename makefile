@@ -52,7 +52,7 @@ src/9/%_test: src/9/%_test.o $(LIB_9)
 debug: src/debug.c $(LIB_GB)
 	$(CC) $(CFLAGS) $^ -o $@
 
-disasm: src/disasm.c $(LIB_GB)
+disasm: src/disasm.c $(LIB_GB) $(LIB_9)
 	$(CC) $(CFLAGS) $^ -o $@
 
 
