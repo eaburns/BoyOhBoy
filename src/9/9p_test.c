@@ -2,6 +2,7 @@
 
 #include "thrd.h"
 #include <errno.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -585,17 +586,20 @@ static int server_thread(void *arg) {
     must_unlock(&server->mtx);
 
     Reply9p *reply = NULL;
+    bool free_reply = false;
     if (server->reply->internal_data_size == 0) {
       reply = serialize_reply9p(server->reply, server->tag);
+      free_reply = true;
     } else {
       reply = server->reply;
     }
+    server->reply = NULL;
     if (fwrite((char *)reply + sizeof(Reply9p), 1, reply->internal_data_size,
                server->socket) != reply->internal_data_size) {
       FAIL("server: failed to write reply\n");
     }
     DEBUG("TEST SERVER: sent message type %d\n", reply->type);
-    if (server->reply->internal_data_size == 0) {
+    if (free_reply) {
       free(reply);
     }
   }
@@ -678,6 +682,8 @@ static void fprint_qid(FILE *f, Qid9p qid) {
 }
 
 int main() {
+  // Don't SIGPIPE writing to closed socket, return an error.
+  signal(SIGPIPE, SIG_IGN);
   run_version9p_test();
   run_auth9p_test();
   run_attach9p_test();

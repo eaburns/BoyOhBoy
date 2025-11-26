@@ -142,6 +142,8 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   Fid9p dir = fsys->root;
   Reply9p *r = wait9p(fsys->client,
                       walk_array9p(fsys->client, fsys->root, fid, nelms, elms));
+  free(elms);
+  free(path_copy);
   if (r->type == R_ERROR_9P) {
     errstr9f("walk9p failed: %s", r->error.message);
     goto walk_err;

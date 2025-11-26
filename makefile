@@ -1,6 +1,6 @@
 CC=clang
 AR=llvm-ar
-CFLAGS=-Werror -std=c23 -g
+CFLAGS=-Werror -std=c23 -g -fsanitize=address
 
 BINS=9test debug disasm
 
