@@ -71,6 +71,18 @@ void do_print(Gameboy *g, const char *arg_in) {
       return;
     }
   }
+  if (strcmp(arg, "IR") == 0) {
+    printf("IR=$%02x\n", g->cpu.ir);
+    return;
+  }
+  if (strcmp(arg, "PC") == 0) {
+    printf("PC=$%04x\n", g->cpu.pc);
+    return;
+  }
+  if (strcmp(arg, "FLAGS") == 0) {
+    printf("FLAGS=$%02x\n", g->cpu.flags >> 8);
+    return;
+  }
   if (strcmp(arg, "FLAGS") == 0) {
     printf("FLAGS=$%02x\n", g->cpu.flags >> 8);
     return;
