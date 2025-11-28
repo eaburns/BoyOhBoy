@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -9,13 +10,22 @@
 #include <string.h>
 #include <time.h>
 
+static sig_atomic_t go = false;
+static sig_atomic_t done = false;
+
 enum {
   LINE_MAX = 128,
 
   HALT = 0x76,
 };
 
-void step(Gameboy *g) {}
+void sigint_handler(int s) {
+  if (go) {
+    go = false;
+  } else {
+    done = true;
+  }
+}
 
 static void print_current_instruction(const Gameboy *g) {
   // IR has already been fetched into PC, so we go back one,
@@ -93,59 +103,63 @@ void do_print(Gameboy *g, const char *arg_in) {
   return;
 }
 
+static double time_ns() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec * NsPerSecond + (double)ts.tv_nsec;
+}
+
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("expected 1 argument, got %d", argc);
   }
 
+  signal(SIGINT, sigint_handler);
+
   Rom rom = read_rom(argv[1]);
   Gameboy g = init_gameboy(&rom);
-
-  printf("%lu Mhz; %lu ns per tick\n", Hz, NsPerTick);
-
   long num = 0;
   double ns_avg = 0;
-  bool go = false;
-  for (;;) {
-    struct timespec start;
-    clock_gettime(CLOCK_MONOTONIC, &start);
 
+  while (!done) {
+    PpuMode orig_ppu_mode = g.ppu.mode;
+    int orig_ly = g.mem[MEM_LY];
+    double start_ns = time_ns();
     cpu_mcycle(&g);
-    PpuMode ppu_mode = g.ppu.mode;
-    int ly = g.mem[MEM_LY];
     ppu_tcycle(&g);
     ppu_tcycle(&g);
     ppu_tcycle(&g);
     ppu_tcycle(&g);
-    if (g.ppu.mode != ppu_mode) {
-      printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
-             g.mem[MEM_LY]);
-    }
-    if (ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
-      printf("PPU ENTERED VERTICAL BLANK\n");
+    long ns = time_ns() - start_ns;
+
+    if (go) {
+      if (num == 0) {
+        ns_avg = ns;
+      } else {
+        ns_avg = ns_avg + (ns - ns_avg) / (num + 1);
+      }
+      num++;
+      if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
+        continue;
+      }
     }
 
-    struct timespec end;
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long ns = (end.tv_sec - start.tv_sec) * NsPerSecond +
-              (end.tv_nsec - start.tv_nsec);
-    if (num == 0) {
-      ns_avg = ns;
-    } else {
-      ns_avg = ns_avg + (ns - ns_avg) / (num + 1);
-    }
-    num++;
-    if (num % 10000 == 0) {
-      printf("%lfns\n", ns_avg);
-    }
-
-    if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
-      continue;
+    if (!go) {
+      if (num > 0) {
+        printf("avg M cycle time: %lf ns\n", ns_avg);
+        num = 0;
+      }
+      if (g.ppu.mode != orig_ppu_mode) {
+        printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
+               g.mem[MEM_LY]);
+      }
+      if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
+        printf("PPU ENTERED VERTICAL BLANK\n");
+      }
+      print_current_instruction(&g);
     }
 
-    print_current_instruction(&g);
-
-    while (!go) {
+    while (!go && !done) {
       char line[LINE_MAX];
       if (fgets(line, sizeof(line), stdin) == NULL) {
         fail("error reading stdin");
@@ -164,7 +178,10 @@ int main(int argc, const char *argv[]) {
         do_print(&g, arg);
       } else if (strcmp(line, "go") == 0) {
         go = true;
+      } else if (strcmp(line, "quit") == 0) {
+        done = true;
       }
     }
   }
+  return 0;
 }
