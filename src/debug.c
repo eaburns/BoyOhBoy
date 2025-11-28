@@ -122,6 +122,9 @@ int main(int argc, const char *argv[]) {
   double ns_avg = 0;
 
   while (!done) {
+    if (!go && g.cpu.state == DONE) {
+      print_current_instruction(&g);
+    }
     PpuMode orig_ppu_mode = g.ppu.mode;
     int orig_ly = g.mem[MEM_LY];
     double start_ns = time_ns();
@@ -139,9 +142,9 @@ int main(int argc, const char *argv[]) {
         ns_avg = ns_avg + (ns - ns_avg) / (num + 1);
       }
       num++;
-      if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
-        continue;
-      }
+    }
+    if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
+      continue;
     }
 
     if (!go) {
@@ -156,11 +159,11 @@ int main(int argc, const char *argv[]) {
       if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
         printf("PPU ENTERED VERTICAL BLANK\n");
       }
-      print_current_instruction(&g);
     }
 
     while (!go && !done) {
       char line[LINE_MAX];
+      printf("> ");
       if (fgets(line, sizeof(line), stdin) == NULL) {
         fail("error reading stdin");
       }

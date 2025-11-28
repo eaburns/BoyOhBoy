@@ -3322,6 +3322,54 @@ static struct exec_test
                 .cycles = 3,
             },
             {
+                .name = "(exec_jr_imm8) JR NZ -4 (true)",
+                .init =
+                    {
+                        .cpu = {.pc = 0x026E, .ir = 0x20},
+                        .mem =
+                            {
+                                [0x026B] = 0xAA,
+                                [0x026D] = 0x20,
+                                [0x026E] = 0xFC, // -4
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 0x026C, .ir = 0xAA},
+                        .mem =
+                            {
+                                [0x026B] = 0xAA,
+                                [0x026D] = 0x20,
+                                [0x026E] = 0xFC, // -4
+                            },
+                    },
+                .cycles = 3,
+            },
+            {
+                .name = "(exec_jr_imm8) JR NZ -4 (false)",
+                .init =
+                    {
+                        .cpu = {.pc = 0x026E, .ir = 0x20, .flags = FLAG_Z},
+                        .mem =
+                            {
+                                [0x026D] = 0x20,
+                                [0x026E] = 0xFC, // -4
+                                [0x026F] = 0xAA,
+                            },
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 0x0270, .ir = 0xAA, .flags = FLAG_Z},
+                        .mem =
+                            {
+                                [0x026D] = 0x20,
+                                [0x026E] = 0xFC, // -4
+                                [0x026F] = 0xAA,
+                            },
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_jr_cond_imm8) JR NZ 1 (false)",
                 .init =
                     {
