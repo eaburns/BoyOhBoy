@@ -73,20 +73,129 @@ static uint8_t fetch(const Gameboy *g, Addr addr) {
 // Fetches the byte at the PC register and increments it.
 static uint8_t fetch_pc(Gameboy *g) { return fetch(g, g->cpu.pc++); }
 
+static void ignore_write_only_store(Gameboy *, uint16_t, uint8_t x) {}
+
+static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  // TODO: check PPU to determine whether this is OK.
+  g->mem[addr] = x;
+}
+
+static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
+
+static void do_echo_ram_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  // Echo ram is mapped to 0xC000-0xDDFF.
+  g->mem[addr - MEM_ECHO_RAM_START + 0xC000] = x;
+}
+
+static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  // TODO: check PPU to determine whether this is OK.
+  g->mem[addr] = x;
+}
+
+typedef struct {
+  const char *name;
+  uint16_t start;
+  uint16_t end;
+  void (*do_store)(Gameboy *, uint16_t, uint8_t);
+} MemRegion;
+
+static const MemRegion mem_regions[] = {
+    {
+        .name = "ROM",
+        .start = MEM_ROM_START,
+        .end = MEM_ROM_END,
+        .do_store = ignore_write_only_store,
+    },
+    {
+        .name = "VRAM",
+        .start = MEM_VRAM_START,
+        .end = MEM_VRAM_END,
+        .do_store = do_vram_store,
+    },
+    {
+        .name = "External RAM",
+        .start = MEM_EXT_RAM_START,
+        .end = MEM_EXT_RAM_END,
+        .do_store = do_store,
+    },
+    {
+        .name = "Working RAM",
+        .start = MEM_WRAM_START,
+        .end = MEM_WRAM_END,
+        .do_store = do_store,
+    },
+    {
+        .name = "Echo RAM",
+        .start = MEM_ECHO_RAM_START,
+        .end = MEM_ECHO_RAM_END,
+        .do_store = do_echo_ram_store,
+    },
+    {
+        .name = "OAM",
+        .start = MEM_OAM_START,
+        .end = MEM_OAM_END,
+        .do_store = do_oam_store,
+    },
+    {
+        .name = "Prohibited",
+        .start = MEM_PROHIBITED_START,
+        .end = MEM_PROHIBITED_END,
+        .do_store = do_oam_store,
+    },
+    {
+        .name = "I/O",
+        .start = MEM_IO_START,
+        .end = MEM_IO_END,
+        // TODO: This needs to be broken up to handle the individual I/O mapped
+        // devices. For the moment, just treat everything as read/write.
+        .do_store = do_store,
+    },
+    {
+        .name = "High RAM",
+        .start = MEM_HIGH_RAM_START,
+        .end = MEM_HIGH_RAM_END,
+        .do_store = do_store,
+    },
+    {
+        .name = "IE",
+        .start = MEM_IE,
+        .end = MEM_IE,
+        .do_store = do_store,
+    },
+};
+
+static const int num_mem_regions = sizeof(mem_regions) / sizeof(mem_regions[0]);
+
+static const MemRegion *find_mem_region(uint16_t addr) {
+  int left = 0;
+  int right = num_mem_regions - 1;
+  while (left < right) {
+    int mid = left + (right - left) / 2;
+    if (addr <= mem_regions[mid].end) {
+      right = mid;
+    } else {
+      left = mid + 1;
+    }
+  }
+  if (left < 0 || left >= num_mem_regions) {
+    fail("out-of-bounds");
+  }
+  if (addr >= mem_regions[left].start && addr <= mem_regions[left].end) {
+    return &mem_regions[left];
+  }
+  return NULL;
+}
+
 // Writes the byte to the given memory address.
 // CPU emulation should always write memory using store instead of accessing
 // memory directly. This is because store takes care of situations were certain
 // memory is not actually writable by the CPU.
 void store(Gameboy *g, Addr addr, uint8_t x) {
-  // TODO: actually deal with cases where memory is not writable by the CPU.
-  if (/* wram */ (addr < 0xC000 || 0xDFFF < addr) &&
-      /* high ram */ (addr < 0xFF80 || 0xFFFE < addr)) {
-    // For the moment, only allow store() in wram and high ram.
-    // This isn't right, but let's just do it for the moment
-    // to make sure unit tests aren't writing to read-only memory.
-    fail("store to possibly read-only memory $%04x", addr);
+  const MemRegion *region = find_mem_region(addr);
+  if (region == NULL) {
+    fail("unknown mem region for address $%04x\n", addr);
   }
-  g->mem[addr] = x;
+  region->do_store(g, addr, x);
 }
 
 enum { EI = 0xFB };

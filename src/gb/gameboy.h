@@ -57,10 +57,24 @@ enum {
   MEM_PROHIBITED_START = 0xFEA0,
   MEM_PROHIBITED_END = 0xFEFF,
 
-  // Various mem-mappend I/O.
+  // Various mem-mapped I/O.
   MEM_IO_START = 0xFF00,
-  // The memory address of the IF (interrupts pending) flags.
+  MEM_JOYPAD = 0xFF00,
+  MEM_SERIAL_DATA = 0xFF01,
+  MEM_SERIAL_CONTROL = 0xFF02,
+  // 0xFF03??
+  MEM_DIV = 0xFF04,
+  MEM_TIMA = 0xFF05,
+  MEM_TMA = 0xFF06,
+  MEM_TAC = 0xFF07,
+  // 0xFF08-0xFF0E??
   MEM_IF = 0xFF0F,
+  MEM_AUDIO_START = 0xFF10,
+  MEM_AUDIO_END = 0xFF26,
+  // 0xFF27-0xFF2F ??
+  MEM_WAVE_START = 0xFF30,
+  MEM_WAVE_END = 0xFF3F,
+  // ...
   MEM_IO_END = 0xFF7F,
 
   // High RAM.

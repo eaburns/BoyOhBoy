@@ -5197,6 +5197,22 @@ static struct exec_test
                 .want = {.cpu = {.pc = 1, .ime = 0, .ei_pend = true}},
                 .cycles = 1,
             },
+            {
+                // Let's make sure that find_mem_region can find the highest
+                // region.
+                .name = "LD [0xFFFF], A",
+                .init =
+                    {
+                        .cpu = {.ir = 0xEA, .registers = {[REG_A] = 3}},
+                        .mem = {0xFF, 0xFF},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 3, .registers = {[REG_A] = 3}},
+                        .mem = {0xFF, 0xFF, [0xFFFF] = 0x03},
+                    },
+                .cycles = 4,
+            },
 };
 
 void _run_exec_tests(struct exec_test exec_tests[], int n) {
