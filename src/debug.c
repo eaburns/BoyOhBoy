@@ -21,6 +21,7 @@ enum {
 
 void sigint_handler(int s) {
   if (go) {
+    printf("\n");
     go = false;
   } else {
     done = true;
@@ -109,6 +110,30 @@ static double time_ns() {
   return (double)ts.tv_sec * NsPerSecond + (double)ts.tv_nsec;
 }
 
+static long num_mcycle = 0;
+static double mcycle_ns_avg = 0;
+
+static void mcycle(Gameboy *g) {
+  do {
+    double start_ns = time_ns();
+    cpu_mcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    long ns = time_ns() - start_ns;
+
+    if (go) {
+      if (num_mcycle == 0) {
+        mcycle_ns_avg = ns;
+      } else {
+        mcycle_ns_avg = mcycle_ns_avg + (ns - mcycle_ns_avg) / (num_mcycle + 1);
+      }
+      num_mcycle++;
+    }
+  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
+}
+
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("expected 1 argument, got %d", argc);
@@ -118,8 +143,6 @@ int main(int argc, const char *argv[]) {
 
   Rom rom = read_rom(argv[1]);
   Gameboy g = init_gameboy(&rom);
-  long num = 0;
-  double ns_avg = 0;
 
   while (!done) {
     if (!go && g.cpu.state == DONE) {
@@ -127,30 +150,14 @@ int main(int argc, const char *argv[]) {
     }
     PpuMode orig_ppu_mode = g.ppu.mode;
     int orig_ly = g.mem[MEM_LY];
-    double start_ns = time_ns();
-    cpu_mcycle(&g);
-    ppu_tcycle(&g);
-    ppu_tcycle(&g);
-    ppu_tcycle(&g);
-    ppu_tcycle(&g);
-    long ns = time_ns() - start_ns;
 
-    if (go) {
-      if (num == 0) {
-        ns_avg = ns;
-      } else {
-        ns_avg = ns_avg + (ns - ns_avg) / (num + 1);
-      }
-      num++;
-    }
-    if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
-      continue;
-    }
+    mcycle(&g);
 
     if (!go) {
-      if (num > 0) {
-        printf("avg M cycle time: %lf ns\n", ns_avg);
-        num = 0;
+      if (num_mcycle > 0) {
+        printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
+               mcycle_ns_avg);
+        num_mcycle = 0;
       }
       if (g.ppu.mode != orig_ppu_mode) {
         printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
