@@ -571,25 +571,59 @@ static CpuState exec_add_hl_r16(Gameboy *g, const Instruction *instr,
 static CpuState exec_inc_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, x + 1);
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, add_half_carries(x, 1));
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  if (r != REG_HL_MEM) {
+    uint8_t x = get_reg8(cpu, r);
+    set_reg8(cpu, r, x + 1);
+    assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, add_half_carries(x, 1));
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+  switch (cycle) {
+  case 0:
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
+    return EXECUTING;
+  case 1:
+    uint8_t result = cpu->z + 1;
+    assign_flag(cpu, FLAG_Z, result == 0);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, add_half_carries(cpu->z, 1));
+    store(g, get_reg16(cpu, REG_HL), result);
+    return EXECUTING;
+  default: // 2
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static CpuState exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
   Reg8 r = decode_reg8(instr->shift, cpu->ir);
-  uint8_t x = get_reg8(cpu, r);
-  set_reg8(cpu, r, x - 1);
-  assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
-  assign_flag(cpu, FLAG_N, true);
-  assign_flag(cpu, FLAG_H, sub_half_borrows(x, 1));
-  cpu->ir = fetch_pc(g);
-  return DONE;
+  if (r != REG_HL_MEM) {
+    uint8_t x = get_reg8(cpu, r);
+    set_reg8(cpu, r, x - 1);
+    assign_flag(cpu, FLAG_Z, get_reg8(cpu, r) == 0);
+    assign_flag(cpu, FLAG_N, true);
+    assign_flag(cpu, FLAG_H, sub_half_borrows(x, 1));
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
+  switch (cycle) {
+  case 0:
+    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
+    return EXECUTING;
+  case 1:
+    uint8_t result = cpu->z - 1;
+    assign_flag(cpu, FLAG_Z, result == 0);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, sub_half_borrows(cpu->z, 1));
+    store(g, get_reg16(cpu, REG_HL), result);
+    return EXECUTING;
+  default: // 2
+    cpu->ir = fetch_pc(g);
+    return DONE;
+  }
 }
 
 static CpuState exec_ld_r8_imm8(Gameboy *g, const Instruction *instr,

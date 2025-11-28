@@ -1210,6 +1210,40 @@ static struct exec_test
                 .cycles = 1,
             },
             {
+                .name = "(exec_inc_r8) INC [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x34,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 5},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 6},
+                    },
+                .cycles = 3,
+            },
+            {
                 .name = "(exec_dec_r8) DEC A (non-zero, no borrow)",
                 .init =
                     {
@@ -1306,6 +1340,40 @@ static struct exec_test
                         .mem = {1, 2, 3, 4},
                     },
                 .cycles = 1,
+            },
+            {
+                .name = "(exec_inc_r8) DEC [HL]",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x35,
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_ZNH,
+                            },
+                        .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 5},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_H] = HIGH_RAM_START >> 8,
+                                        [REG_L] = HIGH_RAM_START & 0xFF,
+                                    },
+                                .flags = 0,
+                                .pc = 1,
+                                .ir = 1,
+                            },
+                        .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 4},
+                    },
+                .cycles = 3,
             },
             {
                 .name = "(exec_ld_r8_imm8) LD A, imm8",
