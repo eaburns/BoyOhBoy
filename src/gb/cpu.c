@@ -2246,8 +2246,8 @@ static int format_operand(char *buf, int size, Operand operand, int shift,
   case IMM8:
     return snprintf(buf, size, "%d ($%02x)", data[offs], data[offs]);
   case IMM8_OFFSET:
-    return snprintf(buf, size, "%+d ($%04x)", data[offs],
-                    offs + 1 + data[offs]);
+    return snprintf(buf, size, "%+d ($%04x)", (int8_t)data[offs],
+                    offs + 1 + (int8_t)data[offs]);
   case IMM8MEM:
     return snprintf(buf, size, "[$FF%02x]", data[offs]);
   case IMM16:
