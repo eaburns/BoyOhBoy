@@ -60,36 +60,59 @@ struct instruction {
   CpuState (*exec)(Gameboy *g, const Instruction *instr, int cycle);
 };
 
-// Reads the byte at the given memory address.
-// CPU emulation should always read memory using fetch or one of the variants
-// that call into fetch instead of accessing memory directly. This is because
-// fetch takes care of situations were certain memory is not actually readable
-// by the CPU.
-static uint8_t fetch(const Gameboy *g, Addr addr) {
-  // TODO: actually deal with cases where memory is not readable by the CPU.
-  return g->mem[addr];
-}
+static void ignore_store(Gameboy *, uint16_t, uint8_t x) {}
 
-// Fetches the byte at the PC register and increments it.
-static uint8_t fetch_pc(Gameboy *g) { return fetch(g, g->cpu.pc++); }
-
-static void ignore_write_only_store(Gameboy *, uint16_t, uint8_t x) {}
-
-static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  // TODO: check PPU to determine whether this is OK.
-  g->mem[addr] = x;
-}
+static uint8_t ignore_fetch(const Gameboy *, uint16_t) { return 0xFF; }
 
 static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
 
+static uint8_t do_fetch(const Gameboy *g, uint16_t addr) {
+  return g->mem[addr];
+}
+
+static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  if (g->ppu.mode == DRAWING) {
+    return;
+  }
+  g->mem[addr] = x;
+}
+
+static uint8_t do_vram_fetch(const Gameboy *g, uint16_t addr) {
+  if (g->ppu.mode == DRAWING) {
+    return 0xFF;
+  }
+  return g->mem[addr];
+}
+
+// Echo ram is mapped to 0xC000-0xDDFF.
 static void do_echo_ram_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  // Echo ram is mapped to 0xC000-0xDDFF.
   g->mem[addr - MEM_ECHO_RAM_START + 0xC000] = x;
 }
 
+static uint8_t do_echo_ram_fetch(const Gameboy *g, uint16_t addr) {
+  return g->mem[addr - MEM_ECHO_RAM_START + 0xC000];
+}
+
 static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  // TODO: check PPU to determine whether this is OK.
+  if (g->ppu.mode != OAM_SCAN) {
+    g->mem[addr] = x;
+  }
+}
+
+static uint8_t do_oam_fetch(const Gameboy *g, uint16_t addr) {
+  return g->ppu.mode == OAM_SCAN ? 0xFF : g->mem[addr];
+}
+
+static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  switch (addr) {
+  case MEM_LY:
+    return; // read only
+  }
   g->mem[addr] = x;
+}
+
+static uint8_t do_io_fetch(const Gameboy *g, uint16_t addr) {
+  return g->mem[addr];
 }
 
 typedef struct {
@@ -97,6 +120,7 @@ typedef struct {
   uint16_t start;
   uint16_t end;
   void (*do_store)(Gameboy *, uint16_t, uint8_t);
+  uint8_t (*do_fetch)(const Gameboy *, uint16_t);
 } MemRegion;
 
 static const MemRegion mem_regions[] = {
@@ -104,43 +128,50 @@ static const MemRegion mem_regions[] = {
         .name = "ROM",
         .start = MEM_ROM_START,
         .end = MEM_ROM_END,
-        .do_store = ignore_write_only_store,
+        .do_store = ignore_store,
+        .do_fetch = do_fetch,
     },
     {
         .name = "VRAM",
         .start = MEM_VRAM_START,
         .end = MEM_VRAM_END,
         .do_store = do_vram_store,
+        .do_fetch = do_vram_fetch,
     },
     {
         .name = "External RAM",
         .start = MEM_EXT_RAM_START,
         .end = MEM_EXT_RAM_END,
         .do_store = do_store,
+        .do_fetch = do_fetch,
     },
     {
         .name = "Working RAM",
         .start = MEM_WRAM_START,
         .end = MEM_WRAM_END,
         .do_store = do_store,
+        .do_fetch = do_fetch,
     },
     {
         .name = "Echo RAM",
         .start = MEM_ECHO_RAM_START,
         .end = MEM_ECHO_RAM_END,
         .do_store = do_echo_ram_store,
+        .do_fetch = do_echo_ram_fetch,
     },
     {
         .name = "OAM",
         .start = MEM_OAM_START,
         .end = MEM_OAM_END,
         .do_store = do_oam_store,
+        .do_fetch = do_oam_fetch,
     },
     {
         .name = "Prohibited",
         .start = MEM_PROHIBITED_START,
         .end = MEM_PROHIBITED_END,
-        .do_store = do_oam_store,
+        .do_store = ignore_store,
+        .do_fetch = ignore_fetch,
     },
     {
         .name = "I/O",
@@ -148,19 +179,22 @@ static const MemRegion mem_regions[] = {
         .end = MEM_IO_END,
         // TODO: This needs to be broken up to handle the individual I/O mapped
         // devices. For the moment, just treat everything as read/write.
-        .do_store = do_store,
+        .do_store = do_io_store,
+        .do_fetch = do_io_fetch,
     },
     {
         .name = "High RAM",
         .start = MEM_HIGH_RAM_START,
         .end = MEM_HIGH_RAM_END,
         .do_store = do_store,
+        .do_fetch = do_fetch,
     },
     {
         .name = "IE",
         .start = MEM_IE,
         .end = MEM_IE,
         .do_store = do_store,
+        .do_fetch = do_fetch,
     },
 };
 
@@ -186,6 +220,19 @@ static const MemRegion *find_mem_region(uint16_t addr) {
   return NULL;
 }
 
+// Reads the byte at the given memory address.
+// CPU emulation should always read memory using fetch or one of the variants
+// that call into fetch instead of accessing memory directly. This is because
+// fetch takes care of situations were certain memory is not actually readable
+// by the CPU.
+static uint8_t fetch(const Gameboy *g, Addr addr) {
+  const MemRegion *region = find_mem_region(addr);
+  if (region == NULL) {
+    fail("unknown mem region for address $%04X\n", addr);
+  }
+  return region->do_fetch(g, addr);
+}
+
 // Writes the byte to the given memory address.
 // CPU emulation should always write memory using store instead of accessing
 // memory directly. This is because store takes care of situations were certain
@@ -193,10 +240,13 @@ static const MemRegion *find_mem_region(uint16_t addr) {
 void store(Gameboy *g, Addr addr, uint8_t x) {
   const MemRegion *region = find_mem_region(addr);
   if (region == NULL) {
-    fail("unknown mem region for address $%04x\n", addr);
+    fail("unknown mem region for address $%04X\n", addr);
   }
   region->do_store(g, addr, x);
 }
+
+// Fetches the byte at the PC register and increments it.
+static uint8_t fetch_pc(Gameboy *g) { return fetch(g, g->cpu.pc++); }
 
 enum { EI = 0xFB };
 

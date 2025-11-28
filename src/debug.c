@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 enum {
   LINE_MAX = 128,
@@ -14,11 +15,7 @@ enum {
   HALT = 0x76,
 };
 
-void step(Gameboy *g) {
-  do {
-    cpu_mcycle(g);
-  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
-}
+void step(Gameboy *g) {}
 
 static void print_current_instruction(const Gameboy *g) {
   // IR has already been fetched into PC, so we go back one,
@@ -104,10 +101,49 @@ int main(int argc, const char *argv[]) {
   Rom rom = read_rom(argv[1]);
   Gameboy g = init_gameboy(&rom);
 
+  printf("%lu Mhz; %lu ns per tick\n", Hz, NsPerTick);
+
+  long num = 0;
+  double ns_avg = 0;
   bool go = false;
   for (;;) {
+    struct timespec start;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    cpu_mcycle(&g);
+    PpuMode ppu_mode = g.ppu.mode;
+    int ly = g.mem[MEM_LY];
+    ppu_tcycle(&g);
+    ppu_tcycle(&g);
+    ppu_tcycle(&g);
+    ppu_tcycle(&g);
+    if (g.ppu.mode != ppu_mode) {
+      printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
+             g.mem[MEM_LY]);
+    }
+    if (ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
+      printf("PPU ENTERED VERTICAL BLANK\n");
+    }
+
+    struct timespec end;
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    long ns = (end.tv_sec - start.tv_sec) * NsPerSecond +
+              (end.tv_nsec - start.tv_nsec);
+    if (num == 0) {
+      ns_avg = ns;
+    } else {
+      ns_avg = ns_avg + (ns - ns_avg) / (num + 1);
+    }
+    num++;
+    if (num % 10000 == 0) {
+      printf("%lfns\n", ns_avg);
+    }
+
+    if (g.cpu.state == EXECUTING || g.cpu.state == INTERRUPTING) {
+      continue;
+    }
+
     print_current_instruction(&g);
-    step(&g);
 
     while (!go) {
       char line[LINE_MAX];

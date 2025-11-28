@@ -74,7 +74,17 @@ enum {
   // 0xFF27-0xFF2F ??
   MEM_WAVE_START = 0xFF30,
   MEM_WAVE_END = 0xFF3F,
-  // ...
+  // …
+  MEM_LCDC = 0xFF40,
+  MEM_STAT = 0xFF41,
+  MEM_SCX = 0xFF42,
+  MEM_SCY = 0xFF43,
+  MEM_LY = 0xFF44,
+  // 0xFF46
+  MEM_BGP = 0xFF47,
+  MEM_OBP0 = 0xFF48,
+  MEM_OBP1 = 0xFF48,
+  // …
   MEM_IO_END = 0xFF7F,
 
   // High RAM.
@@ -216,8 +226,40 @@ uint16_t get_reg16(const Cpu *cpu, Reg16 r);
 void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high);
 void set_reg16(Cpu *cpu, Reg16 r, uint16_t x);
 
+enum {
+  SCREEN_WIDTH = 160,
+  SCREEN_HEIGHT = 144,
+
+  XMAX = 160,
+  YMAX = 154,
+};
+
+typedef enum {
+  OAM_SCAN,
+  DRAWING,
+  HORIZONTAL_BLANK,
+} PpuMode;
+
+const char *ppu_mode_name(PpuMode mode);
+
+typedef struct {
+  PpuMode mode;
+  int ticks;
+  int x, y;
+} Ppu;
+
+enum : unsigned long {
+  // The clock tickes at 2²² Hertz.
+  // The PPU does a cycle ever tick.
+  // The CPU does a cycle every 4 ticks.
+  Hz = 1 << 22, // ticks persecond
+  NsPerSecond = 1000000000,
+  NsPerTick = NsPerSecond / Hz,
+};
+
 typedef struct {
   Cpu cpu;
+  Ppu ppu;
   Mem mem;
   const Rom *rom;
 } Gameboy;
@@ -226,6 +268,10 @@ typedef struct {
 // The Gameboy maintains a pointer to rom,
 // so rom must outlive the use of the returned Gameboy.
 Gameboy init_gameboy(const Rom *rom);
+
+// Executes a single "T cycle" of the PPU.
+// There are 4 T cycles of the PPU for every M cycle of the CPU.
+void ppu_tcycle(Gameboy *g);
 
 // Executes a single "M cycle" of the CPU.
 void cpu_mcycle(Gameboy *g);

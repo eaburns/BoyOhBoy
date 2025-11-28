@@ -1,6 +1,7 @@
 CC=clang
 AR=llvm-ar
-CFLAGS=-Werror -std=c23 -g -fsanitize=address
+CFLAGS_POSIX=-O2 -Werror -g
+CFLAGS=-O2 -Werror -std=c23 -g
 
 BINS=9test debug disasm
 
@@ -13,7 +14,7 @@ all: test $(BINS)
 #
 
 LIB_GB=src/gb/libgb.a
-SRCS_GB=src/gb/cpu.c src/gb/gameboy.c
+SRCS_GB=src/gb/cpu.c src/gb/ppu.c src/gb/gameboy.c
 TESTS_GB=src/gb/cpu_test.c
 
 DEPS_GB=$(SRCS_GB:.c=.d) $(TESTS_GB:.c=.d)
@@ -22,7 +23,7 @@ DEPS_GB=$(SRCS_GB:.c=.d) $(TESTS_GB:.c=.d)
 $(LIB_GB): $(SRCS_GB:.c=.o)
 
 src/gb/%_test: src/gb/%_test.o $(LIB_GB)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) -fsanitize=address $^ -o $@
 
 
 #
@@ -39,7 +40,7 @@ DEPS_9=$(SRCS_9:.c=.d) $(TESTS_9:.c=.d)
 $(LIB_9): $(SRCS_9:.c=.o)
 
 src/9/%_test: src/9/%_test.o $(LIB_9)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) -fsanitize=address $^ -o $@
 
 
 #
@@ -50,7 +51,7 @@ src/9/%_test: src/9/%_test.o $(LIB_9)
 	$(CC) $(CFLAGS) $^ -o $@
 
 debug: src/debug.c $(LIB_GB)
-	$(CC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS_POSIX) $^ -o $@
 
 disasm: src/disasm.c $(LIB_GB) $(LIB_9)
 	$(CC) $(CFLAGS) $^ -o $@
