@@ -1,7 +1,21 @@
 #include "gameboy.h"
 
-static void store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
-static uint8_t fetch(const Gameboy *g, uint16_t addr) { return g->mem[addr]; }
+static void store(Gameboy *g, uint16_t addr, uint8_t x) {
+  if (g->dma_ticks_remaining > 0 && addr >= MEM_OAM_START &&
+      addr <= MEM_OAM_END) {
+    // During DMA OAM is inaccessible.
+    return;
+  }
+  g->mem[addr] = x;
+}
+static uint8_t fetch(const Gameboy *g, uint16_t addr) {
+  if (g->dma_ticks_remaining > 0 && addr >= MEM_OAM_START &&
+      addr <= MEM_OAM_END) {
+    // During DMA OAM is inaccessible.
+    return 0xFF;
+  }
+  return g->mem[addr];
+}
 
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;

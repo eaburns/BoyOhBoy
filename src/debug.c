@@ -224,7 +224,7 @@ static void do_print_bg_map(const Gameboy *g, int map_index) {
 static double time_ns() {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec * NsPerSecond + (double)ts.tv_nsec;
+  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
 }
 
 static long num_mcycle = 0;

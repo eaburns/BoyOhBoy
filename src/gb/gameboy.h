@@ -258,19 +258,13 @@ typedef struct {
   int x, y;
 } Ppu;
 
-enum : unsigned long {
-  // The clock tickes at 2²² Hertz.
-  // The PPU does a cycle ever tick.
-  // The CPU does a cycle every 4 ticks.
-  Hz = 1 << 22, // ticks persecond
-  NsPerSecond = 1000000000,
-  NsPerTick = NsPerSecond / Hz,
-};
+enum { DMA_MCYCLES = 160 };
 
 typedef struct {
   Cpu cpu;
   Ppu ppu;
   Mem mem;
+  int dma_ticks_remaining;
   const Rom *rom;
 } Gameboy;
 

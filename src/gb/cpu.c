@@ -107,6 +107,8 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
   switch (addr) {
   case MEM_LY:
     return; // read only
+  case MEM_DMA:
+    g->dma_ticks_remaining = DMA_MCYCLES;
   }
   g->mem[addr] = x;
 }
@@ -226,6 +228,11 @@ static const MemRegion *find_mem_region(uint16_t addr) {
 // fetch takes care of situations were certain memory is not actually readable
 // by the CPU.
 static uint8_t fetch(const Gameboy *g, Addr addr) {
+  if (g->dma_ticks_remaining > 0 &&
+      (addr < MEM_HIGH_RAM_START || addr > MEM_HIGH_RAM_END)) {
+    // During DMA, only high RAM is accessible.
+    return 0xFF;
+  }
   const MemRegion *region = find_mem_region(addr);
   if (region == NULL) {
     fail("unknown mem region for address $%04X\n", addr);
@@ -238,6 +245,11 @@ static uint8_t fetch(const Gameboy *g, Addr addr) {
 // memory directly. This is because store takes care of situations were certain
 // memory is not actually writable by the CPU.
 void store(Gameboy *g, Addr addr, uint8_t x) {
+  if (g->dma_ticks_remaining > 0 &&
+      (addr < MEM_HIGH_RAM_START || addr > MEM_HIGH_RAM_END)) {
+    // During DMA, only high RAM is accessible.
+    return;
+  }
   const MemRegion *region = find_mem_region(addr);
   if (region == NULL) {
     fail("unknown mem region for address $%04X\n", addr);
@@ -343,6 +355,13 @@ done:
     cpu->cycle = 0;
     cpu->w = 0;
     cpu->z = 0;
+  }
+  if (g->dma_ticks_remaining > 0) {
+    uint16_t offs = DMA_MCYCLES - g->dma_ticks_remaining;
+    uint16_t src = g->mem[MEM_DMA] * 0x100 + offs;
+    uint16_t dst = MEM_OAM_START + offs;
+    g->mem[dst] = g->mem[src];
+    g->dma_ticks_remaining--;
   }
 }
 
