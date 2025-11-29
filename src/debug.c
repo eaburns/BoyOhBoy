@@ -125,10 +125,10 @@ static void print_px(int px) {
     printf(" ");
     break;
   case 1:
-    printf("·");
+    printf(".");
     break;
   case 2:
-    printf("•");
+    printf("x");
     break;
   case 3:
     printf("0");
@@ -197,7 +197,7 @@ static void do_print_tile_map(const Gameboy *g) {
   }
 }
 
-// /mnt/font/GoMono-Bold/2a/font
+// /mnt/font/GoMono-Bold/3a/font
 static void do_print_bg_map(const Gameboy *g, int map_index) {
   if (map_index != 0 && map_index != 1) {
     printf("bgmap must be 0 or 1\n");
@@ -209,15 +209,7 @@ static void do_print_bg_map(const Gameboy *g, int map_index) {
     for (int y = 0; y < 8; y++) {
       for (int map_x = 0; map_x < 32; map_x++) {
         int tile = g->mem[map_addr + (32 * map_y) + map_x];
-        uint16_t addr = 0;
-        if (g->mem[MEM_LCDC] & 0x4) {
-          addr = MEM_TILE_BLOCK0_START + tile * 16;
-        } else if (tile <= 127) {
-          addr = MEM_TILE_BLOCK2_START + tile * 16;
-        } else {
-          addr = MEM_TILE_BLOCK1_END + (int8_t)tile * 16;
-        }
-
+        uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
         uint8_t row_low = g->mem[addr + y * 2];
         uint8_t row_high = g->mem[addr + y * 2 + 1];
         for (int x = 0; x < 8; x++) {
@@ -283,7 +275,7 @@ int main(int argc, const char *argv[]) {
     if (go && g.break_point) {
       go = false;
     }
-    g.break_point= false;
+    g.break_point = false;
 
     if (!go) {
       if (num_mcycle > 0) {
