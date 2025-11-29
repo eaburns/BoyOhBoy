@@ -122,16 +122,16 @@ static void do_print(Gameboy *g, const char *arg_in) {
 static void print_px(int px) {
   switch (px) {
   case 0:
-    printf("0");
+    printf(" ");
     break;
   case 1:
-    printf("•");
-    break;
-  case 2:
     printf("·");
     break;
+  case 2:
+    printf("•");
+    break;
   case 3:
-    printf(" ");
+    printf("0");
     break;
   default:
     fail("impossible pixel value %d\n", px);
@@ -147,13 +147,18 @@ static void do_print_tile(const Gameboy *g, int tile_index) {
   }
   printf("tile %d:\n", tile_index);
   uint16_t addr = MEM_TILE_BLOCK0_START + tile_index * 16;
+  printf("$%04X-$%04X\n", addr, addr + 16 - 1);
+  for (int i = 0; i < 16; i++) {
+    printf("%02X ", g->mem[addr + i]);
+  }
+  printf("\n");
 
   for (int y = 0; y < 8; y++) {
-    uint8_t row_low = g->mem[addr + y * 2];
-    uint8_t row_high = g->mem[addr + y * 2 + 1];
+    uint8_t row_low = g->mem[addr++];
+    uint8_t row_high = g->mem[addr++];
     for (int x = 0; x < 8; x++) {
-      uint8_t px_low = row_low >> (8 - x) & 1;
-      uint8_t px_high = row_high >> (8 - x) & 1;
+      uint8_t px_low = row_low >> (7 - x) & 1;
+      uint8_t px_high = row_high >> (7 - x) & 1;
       print_px(px_high << 1 | px_low);
     }
     printf("\n");
@@ -163,7 +168,7 @@ static void do_print_tile(const Gameboy *g, int tile_index) {
 static void do_print_tile_map(const Gameboy *g) {
   int row = 0;
   int row_start = 0;
-  static const int COLS = 20;
+  static const int COLS = 24;
   while (row_start <= MAX_TILE_INDEX) {
     for (int y = 0; y < 8; y++) {
       int tile = row_start;
@@ -175,14 +180,19 @@ static void do_print_tile_map(const Gameboy *g) {
         uint8_t row_low = g->mem[addr + y * 2];
         uint8_t row_high = g->mem[addr + y * 2 + 1];
         for (int x = 0; x < 8; x++) {
-          uint8_t px_low = row_low >> (8 - x) & 1;
-          uint8_t px_high = row_high >> (8 - x) & 1;
+          uint8_t px_low = row_low >> (7 - x) & 1;
+          uint8_t px_high = row_high >> (7 - x) & 1;
           print_px(px_high << 1 | px_low);
         }
+        printf("|");
         tile++;
       }
       printf("\n");
     }
+    for (int i = 0; i < 9 * COLS; i++) {
+      printf("-");
+    }
+    printf("\n");
     row_start += COLS;
   }
 }
@@ -211,8 +221,8 @@ static void do_print_bg_map(const Gameboy *g, int map_index) {
         uint8_t row_low = g->mem[addr + y * 2];
         uint8_t row_high = g->mem[addr + y * 2 + 1];
         for (int x = 0; x < 8; x++) {
-          uint8_t px_low = row_low >> (8 - x) & 1;
-          uint8_t px_high = row_high >> (8 - x) & 1;
+          uint8_t px_low = row_low >> (7 - x) & 1;
+          uint8_t px_high = row_high >> (7 - x) & 1;
           print_px(px_high << 1 | px_low);
         }
       }
