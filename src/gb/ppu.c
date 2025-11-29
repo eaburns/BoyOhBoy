@@ -19,8 +19,16 @@ static uint8_t fetch(const Gameboy *g, uint16_t addr) {
 
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;
+  if ((g->mem[MEM_LCDC] & 0x80) == 0) {
+    ppu->mode = STOPPED;
+    return;
+  }
   ppu->ticks++;
   switch (ppu->mode) {
+  case STOPPED:
+    ppu->mode = OAM_SCAN;
+    ppu->ticks = 0;
+    // FALLTHROUGH
   case OAM_SCAN:
     if (ppu->ticks == 80) {
       ppu->ticks = 0;

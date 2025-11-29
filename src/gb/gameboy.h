@@ -245,6 +245,7 @@ enum {
 };
 
 typedef enum {
+  STOPPED,
   OAM_SCAN,
   DRAWING,
   HORIZONTAL_BLANK,
@@ -266,6 +267,8 @@ typedef struct {
   Mem mem;
   int dma_ticks_remaining;
   const Rom *rom;
+
+  bool break_point;
 } Gameboy;
 
 // Returns a new Gameboy for the given Rom.

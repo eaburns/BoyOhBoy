@@ -280,6 +280,11 @@ int main(int argc, const char *argv[]) {
 
     mcycle(&g);
 
+    if (go && g.break_point) {
+      go = false;
+    }
+    g.break_point= false;
+
     if (!go) {
       if (num_mcycle > 0) {
         printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
