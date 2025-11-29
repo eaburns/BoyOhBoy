@@ -52,7 +52,7 @@ struct {
     {"SP", REG_SP}, {"AF", REG_AF},
 };
 
-void do_print(Gameboy *g, const char *arg_in) {
+static void do_print(Gameboy *g, const char *arg_in) {
   char arg[LINE_MAX] = {};
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
@@ -60,31 +60,31 @@ void do_print(Gameboy *g, const char *arg_in) {
   for (int i = 0; i < sizeof(reg8_names) / sizeof(reg8_names[0]); i++) {
     if (strcmp(arg, reg8_names[i].name) == 0) {
       uint8_t x = get_reg8(&g->cpu, reg8_names[i].r);
-      printf("%s=%d ($%02x)\n", arg, x, x);
+      printf("%s=%d ($%02X)\n", arg, x, x);
       return;
     }
   }
   for (int i = 0; i < sizeof(reg16_names) / sizeof(reg16_names[0]); i++) {
     if (strcmp(arg, reg16_names[i].name) == 0) {
       uint16_t x = get_reg16(&g->cpu, reg16_names[i].r);
-      printf("%s=%d ($%04x)\n", arg, x, x);
+      printf("%s=%d ($%04X)\n", arg, x, x);
       return;
     }
   }
   if (strcmp(arg, "IR") == 0) {
-    printf("IR=$%02x\n", g->cpu.ir);
+    printf("IR=$%02X\n", g->cpu.ir);
     return;
   }
   if (strcmp(arg, "PC") == 0) {
-    printf("PC=$%04x\n", g->cpu.pc);
+    printf("PC=$%04X\n", g->cpu.pc);
     return;
   }
   if (strcmp(arg, "FLAGS") == 0) {
-    printf("FLAGS=$%02x\n", g->cpu.flags >> 8);
+    printf("FLAGS=$%02X\n", g->cpu.flags >> 8);
     return;
   }
   if (strcmp(arg, "FLAGS") == 0) {
-    printf("FLAGS=$%02x\n", g->cpu.flags >> 8);
+    printf("FLAGS=$%02X\n", g->cpu.flags >> 8);
     return;
   }
   if (strcmp(arg, "Z") == 0) {
@@ -111,9 +111,114 @@ void do_print(Gameboy *g, const char *arg_in) {
     printf("N=%d\n", (g->cpu.flags | FLAG_N) == 0);
     return;
   }
-
+  if (strcmp(arg, "LCDC") == 0) {
+    printf("LCDC=$%02X\n", g->mem[MEM_LCDC]);
+    return;
+  }
   printf("unknown argument %s\n", arg);
   return;
+}
+
+static void print_px(int px) {
+  switch (px) {
+  case 0:
+    printf("0");
+    break;
+  case 1:
+    printf("•");
+    break;
+  case 2:
+    printf("·");
+    break;
+  case 3:
+    printf(" ");
+    break;
+  default:
+    fail("impossible pixel value %d\n", px);
+  }
+}
+
+enum { MAX_TILE_INDEX = 384 };
+
+static void do_print_tile(const Gameboy *g, int tile_index) {
+  if (tile_index < 0 || tile_index > MAX_TILE_INDEX) {
+    printf("tile index must be between 0 and %d\n", MAX_TILE_INDEX);
+    return;
+  }
+  printf("tile %d:\n", tile_index);
+  uint16_t addr = MEM_TILE_BLOCK0_START + tile_index * 16;
+
+  for (int y = 0; y < 8; y++) {
+    uint8_t row_low = g->mem[addr + y * 2];
+    uint8_t row_high = g->mem[addr + y * 2 + 1];
+    for (int x = 0; x < 8; x++) {
+      uint8_t px_low = row_low >> (8 - x) & 1;
+      uint8_t px_high = row_high >> (8 - x) & 1;
+      print_px(px_high << 1 | px_low);
+    }
+    printf("\n");
+  }
+}
+
+static void do_print_tile_map(const Gameboy *g) {
+  int row = 0;
+  int row_start = 0;
+  static const int COLS = 20;
+  while (row_start <= MAX_TILE_INDEX) {
+    for (int y = 0; y < 8; y++) {
+      int tile = row_start;
+      for (int col = 0; col < COLS; col++) {
+        if (tile > MAX_TILE_INDEX) {
+          break;
+        }
+        uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
+        uint8_t row_low = g->mem[addr + y * 2];
+        uint8_t row_high = g->mem[addr + y * 2 + 1];
+        for (int x = 0; x < 8; x++) {
+          uint8_t px_low = row_low >> (8 - x) & 1;
+          uint8_t px_high = row_high >> (8 - x) & 1;
+          print_px(px_high << 1 | px_low);
+        }
+        tile++;
+      }
+      printf("\n");
+    }
+    row_start += COLS;
+  }
+}
+
+// /mnt/font/GoMono-Bold/2a/font
+static void do_print_bg_map(const Gameboy *g, int map_index) {
+  if (map_index != 0 && map_index != 1) {
+    printf("bgmap must be 0 or 1\n");
+    return;
+  }
+  uint16_t map_addr =
+      map_index == 0 ? MEM_TILE_MAP0_START : MEM_TILE_MAP1_START;
+  for (int map_y = 0; map_y < 32; map_y++) {
+    for (int y = 0; y < 8; y++) {
+      for (int map_x = 0; map_x < 32; map_x++) {
+        int tile = g->mem[map_addr + (32 * map_y) + map_x];
+        uint16_t addr = 0;
+        if (g->mem[MEM_LCDC] & 0x4) {
+          addr = MEM_TILE_BLOCK0_START + tile * 16;
+        } else if (tile <= 127) {
+          addr = MEM_TILE_BLOCK2_START + tile * 16;
+        } else {
+          addr = MEM_TILE_BLOCK1_END + (int8_t)tile * 16;
+        }
+
+        uint8_t row_low = g->mem[addr + y * 2];
+        uint8_t row_high = g->mem[addr + y * 2 + 1];
+        for (int x = 0; x < 8; x++) {
+          uint8_t px_low = row_low >> (8 - x) & 1;
+          uint8_t px_high = row_high >> (8 - x) & 1;
+          print_px(px_high << 1 | px_low);
+        }
+      }
+      printf("\n");
+    }
+  }
 }
 
 static double time_ns() {
@@ -195,9 +300,16 @@ int main(int argc, const char *argv[]) {
       }
       line[strlen(line) - 1] = '\0';
 
-      char arg[LINE_MAX];
-      if (sscanf(line, "print %s", arg) == 1) {
-        do_print(&g, arg);
+      char arg_s[LINE_MAX];
+      int arg_d = 0;
+      if (sscanf(line, "print %s", arg_s) == 1) {
+        do_print(&g, arg_s);
+      } else if (sscanf(line, "tile %d", &arg_d) == 1) {
+        do_print_tile(&g, arg_d);
+      } else if (strcmp(line, "tilemap") == 0) {
+        do_print_tile_map(&g);
+      } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
+        do_print_bg_map(&g, arg_d);
       } else if (strcmp(line, "go") == 0) {
         go = true;
       } else if (strcmp(line, "quit") == 0) {
