@@ -153,12 +153,18 @@ static void do_tilemap(const Gameboy *g) {
   int row = 0;
   int row_start = 0;
   static const int COLS = 24;
+  for (int i = 0; i < 9 * COLS; i++) {
+    printf("-");
+  }
+  printf("\n");
   while (row_start <= MAX_TILE_INDEX) {
     for (int y = 0; y < 8; y++) {
       int tile = row_start;
+      printf("|");
       for (int col = 0; col < COLS; col++) {
         if (tile > MAX_TILE_INDEX) {
-          break;
+          printf("        |");
+          continue;
         }
         uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
         uint8_t row_low = g->mem[addr + y * 2];
