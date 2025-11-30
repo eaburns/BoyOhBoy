@@ -1,6 +1,8 @@
 #ifndef _ACME_H_
 #define _ACME_H_
 
+#include <stdbool.h>
+
 typedef struct acme Acme;
 typedef struct acme_win AcmeWin;
 

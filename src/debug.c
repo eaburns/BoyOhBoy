@@ -1,5 +1,5 @@
+#include "9/acme.h"
 #include "gb/gameboy.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
@@ -13,6 +13,7 @@
 
 static sig_atomic_t go = false;
 static sig_atomic_t done = false;
+static Acme *acme = NULL;
 
 enum { LINE_MAX = 128 };
 
