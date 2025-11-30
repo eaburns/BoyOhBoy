@@ -13,11 +13,7 @@
 static sig_atomic_t go = false;
 static sig_atomic_t done = false;
 
-enum {
-  LINE_MAX = 128,
-
-  HALT = 0x76,
-};
+enum { LINE_MAX = 128 };
 
 void sigint_handler(int s) {
   if (go) {
@@ -29,6 +25,7 @@ void sigint_handler(int s) {
 }
 
 static void print_current_instruction(const Gameboy *g) {
+  static const uint16_t HALT = 0x76;
   // IR has already been fetched into PC, so we go back one,
   // except for HALT, which doesn't increment PC.
   Addr pc = g->cpu.ir == HALT ? g->cpu.pc : g->cpu.pc - 1;
