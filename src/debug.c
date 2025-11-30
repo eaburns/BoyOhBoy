@@ -253,6 +253,40 @@ static void mcycle(Gameboy *g) {
   } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
 }
 
+// Returns whether to step the next instruction.
+static bool handle_input(Gameboy *g) {
+  char line[LINE_MAX];
+  printf("> ");
+  if (fgets(line, sizeof(line), stdin) == NULL) {
+    fail("error reading stdin");
+  }
+  // If the line is just \n, then break the read loop and step.
+  if (strlen(line) == 1) {
+    return false;
+  }
+  if (line[strlen(line) - 1] != '\n') {
+    fail("line too long (max %d characters)", sizeof(line) - 1);
+  }
+  line[strlen(line) - 1] = '\0';
+
+  char arg_s[LINE_MAX];
+  int arg_d = 0;
+  if (sscanf(line, "print %s", arg_s) == 1) {
+    do_print(g, arg_s);
+  } else if (sscanf(line, "tile %d", &arg_d) == 1) {
+    do_print_tile(g, arg_d);
+  } else if (strcmp(line, "tilemap") == 0) {
+    do_print_tile_map(g);
+  } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
+    do_print_bg_map(g, arg_d);
+  } else if (strcmp(line, "go") == 0) {
+    go = true;
+  } else if (strcmp(line, "quit") == 0) {
+    done = true;
+  }
+  return true;
+}
+
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("expected 1 argument, got %d", argc);
@@ -266,6 +300,8 @@ int main(int argc, const char *argv[]) {
   while (!done) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction(&g);
+      while (!go && !done && handle_input(&g)) {
+      }
     }
     PpuMode orig_ppu_mode = g.ppu.mode;
     int orig_ly = g.mem[MEM_LY];
@@ -289,38 +325,6 @@ int main(int argc, const char *argv[]) {
       }
       if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
         printf("PPU ENTERED VERTICAL BLANK\n");
-      }
-    }
-
-    while (!go && !done) {
-      char line[LINE_MAX];
-      printf("> ");
-      if (fgets(line, sizeof(line), stdin) == NULL) {
-        fail("error reading stdin");
-      }
-      // If the line is just \n, then break the read loop and step.
-      if (strlen(line) == 1) {
-        break;
-      }
-      if (line[strlen(line) - 1] != '\n') {
-        fail("line too long (max %d characters)", sizeof(line) - 1);
-      }
-      line[strlen(line) - 1] = '\0';
-
-      char arg_s[LINE_MAX];
-      int arg_d = 0;
-      if (sscanf(line, "print %s", arg_s) == 1) {
-        do_print(&g, arg_s);
-      } else if (sscanf(line, "tile %d", &arg_d) == 1) {
-        do_print_tile(&g, arg_d);
-      } else if (strcmp(line, "tilemap") == 0) {
-        do_print_tile_map(&g);
-      } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
-        do_print_bg_map(&g, arg_d);
-      } else if (strcmp(line, "go") == 0) {
-        go = true;
-      } else if (strcmp(line, "quit") == 0) {
-        done = true;
       }
     }
   }
