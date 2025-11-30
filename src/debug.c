@@ -229,30 +229,6 @@ static double time_ns() {
   return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
 }
 
-static long num_mcycle = 0;
-static double mcycle_ns_avg = 0;
-
-static void mcycle(Gameboy *g) {
-  do {
-    double start_ns = time_ns();
-    cpu_mcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    long ns = time_ns() - start_ns;
-
-    if (go) {
-      if (num_mcycle == 0) {
-        mcycle_ns_avg = ns;
-      } else {
-        mcycle_ns_avg = mcycle_ns_avg + (ns - mcycle_ns_avg) / (num_mcycle + 1);
-      }
-      num_mcycle++;
-    }
-  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
-}
-
 // Returns whether to step the next instruction.
 static bool handle_input(Gameboy *g) {
   char line[LINE_MAX];
@@ -297,36 +273,48 @@ int main(int argc, const char *argv[]) {
   Rom rom = read_rom(argv[1]);
   Gameboy g = init_gameboy(&rom);
 
+  long num_mcycle = 0;
+  double mcycle_ns_avg = 0;
+
   while (!done) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction(&g);
       while (!go && !done && handle_input(&g)) {
       }
     }
+
     PpuMode orig_ppu_mode = g.ppu.mode;
     int orig_ly = g.mem[MEM_LY];
-
+    double start_ns = time_ns();
     mcycle(&g);
+    long ns = time_ns() - start_ns;
 
-    if (go && g.break_point) {
-      go = false;
+    if (go) {
+      if (num_mcycle == 0) {
+        mcycle_ns_avg = ns;
+      } else {
+        mcycle_ns_avg = mcycle_ns_avg + (ns - mcycle_ns_avg) / (num_mcycle + 1);
+      }
+      num_mcycle++;
+      if (g.break_point) {
+        go = false;
+        g.break_point = false;
+      }
+      continue;
+    }
+
+    if (num_mcycle > 0) {
+      printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle, mcycle_ns_avg);
+      num_mcycle = 0;
+    }
+    if (g.ppu.mode != orig_ppu_mode) {
+      printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
+             g.mem[MEM_LY]);
+    }
+    if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
+      printf("PPU ENTERED VERTICAL BLANK\n");
     }
     g.break_point = false;
-
-    if (!go) {
-      if (num_mcycle > 0) {
-        printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
-               mcycle_ns_avg);
-        num_mcycle = 0;
-      }
-      if (g.ppu.mode != orig_ppu_mode) {
-        printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
-               g.mem[MEM_LY]);
-      }
-      if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
-        printf("PPU ENTERED VERTICAL BLANK\n");
-      }
-    }
   }
   return 0;
 }

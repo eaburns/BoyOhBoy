@@ -136,3 +136,20 @@ void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
     }
   }
 }
+
+void mcycle(Gameboy *g) {
+  do {
+    cpu_mcycle(g);
+    if (g->dma_ticks_remaining > 0) {
+      uint16_t offs = DMA_MCYCLES - g->dma_ticks_remaining;
+      uint16_t src = g->mem[MEM_DMA] * 0x100 + offs;
+      uint16_t dst = MEM_OAM_START + offs;
+      g->mem[dst] = g->mem[src];
+      g->dma_ticks_remaining--;
+    }
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
+}

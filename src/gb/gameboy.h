@@ -276,11 +276,21 @@ typedef struct {
 // so rom must outlive the use of the returned Gameboy.
 Gameboy init_gameboy(const Rom *rom);
 
-// Executes a single "T cycle" of the PPU.
-// There are 4 T cycles of the PPU for every M cycle of the CPU.
+// Executes a single "M cycle" of the entire Gameboy.
+// The Gameboy clock ticks at 2²² Hz.
+// Each clock tick is referred to as a T cycle.
+// The PPU, for example, makes progress every T cycle.
+// However, the CPU make logical progress only every 4 T cycles.
+// This is referred to as an M cycle — 4 T cycles == 1 M cycle.
+// This function executes a single M cycle of the CPU
+// followed by 4 T cycles of the PPU,
+// and any relevant cycles of other systems such as OAM DMA.
+void mcycle(Gameboy *g);
+
+// Executes a single T cycle of the PPU.
 void ppu_tcycle(Gameboy *g);
 
-// Executes a single "M cycle" of the CPU.
+// Executes a single M cycle of the CPU.
 void cpu_mcycle(Gameboy *g);
 
 // Returns whether two Gameboy states are equal.

@@ -356,13 +356,6 @@ done:
     cpu->w = 0;
     cpu->z = 0;
   }
-  if (g->dma_ticks_remaining > 0) {
-    uint16_t offs = DMA_MCYCLES - g->dma_ticks_remaining;
-    uint16_t src = g->mem[MEM_DMA] * 0x100 + offs;
-    uint16_t dst = MEM_OAM_START + offs;
-    g->mem[dst] = g->mem[src];
-    g->dma_ticks_remaining--;
-  }
 }
 
 static Reg8 decode_reg8(int shift, uint8_t op_code) {
