@@ -79,12 +79,14 @@ static void do_reg(Gameboy *g, const char *arg_in) {
     }
     return;
   }
-  if (strcmp(arg, "LCDC") == 0) {
-    printf("LCDC=$%02X\n", g->mem[MEM_LCDC]);
-    return;
+  printf("Unknown register %s\nRegisters are: ", arg);
+  for (int i = 0; i < sizeof(regs) / sizeof(regs[0]); i++) {
+    if (i > 0) {
+      printf(", ");
+    }
+    printf("%s", regs[i].name);
   }
-  printf("unknown argument %s\n", arg);
-  return;
+  printf("\n");
 }
 
 static void do_dump(const Gameboy *g) {
