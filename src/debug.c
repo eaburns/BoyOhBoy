@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -156,23 +157,48 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
   printf("$%04X: %d ($%02X)\n", addr, x, x);
 }
 
-static void print_px(int px) {
+typedef struct {
+  char *data;
+  int size, cap;
+} Buffer;
+
+static void bprintf(Buffer *b, const char *fmt, ...) {
+  char one[1];
+  va_list args;
+  va_start(args, fmt);
+  int n = vsnprintf(one, 1, fmt, args);
+  va_end(args);
+
+  if (b->size + n + 1 >= b->cap) {
+    if (b->cap == 0) {
+      b->cap = 32;
+    }
+    while (b->size + n + 1 >= b->cap) {
+      b->cap *= 2;
+    }
+    b->data = realloc(b->data, b->cap);
+  }
+
+  va_start(args, fmt);
+  vsnprintf(b->data + b->size, n + 1, fmt, args);
+  va_end(args);
+  b->size += n;
+}
+
+static const char *px_str(int px) {
   switch (px) {
   case 0:
-    printf(" ");
-    break;
+    return " ";
   case 1:
-    printf(".");
-    break;
+    return ".";
   case 2:
-    printf("x");
-    break;
+    return "x";
   case 3:
-    printf("0");
-    break;
+    return "0";
   default:
     fail("impossible pixel value %d\n", px);
   }
+  return ""; // impossible
 }
 
 enum { MAX_TILE_INDEX = 384 };
@@ -182,41 +208,47 @@ static void do_tile(const Gameboy *g, int tile_index) {
     printf("tile index must be between 0 and %d\n", MAX_TILE_INDEX);
     return;
   }
-  printf("tile %d:\n", tile_index);
+  Buffer b = {};
+  bprintf(&b, "tile %d:\n", tile_index);
   uint16_t addr = MEM_TILE_BLOCK0_START + tile_index * 16;
-  printf("$%04X-$%04X\n", addr, addr + 16 - 1);
+  bprintf(&b, "$%04X-$%04X: ", addr, addr + 16 - 1);
   for (int i = 0; i < 16; i++) {
-    printf("%02X ", g->mem[addr + i]);
+    bprintf(&b, "%02X ", g->mem[addr + i]);
   }
-  printf("\n");
-
+  bprintf(&b, "\n");
+  bprintf(&b, "+--------+\n");
   for (int y = 0; y < 8; y++) {
+    bprintf(&b, "|");
     uint8_t row_low = g->mem[addr++];
     uint8_t row_high = g->mem[addr++];
     for (int x = 0; x < 8; x++) {
       uint8_t px_low = row_low >> (7 - x) & 1;
       uint8_t px_high = row_high >> (7 - x) & 1;
-      print_px(px_high << 1 | px_low);
+      bprintf(&b, "%s", px_str(px_high << 1 | px_low));
     }
-    printf("\n");
+    bprintf(&b, "|\n");
   }
+  bprintf(&b, "+--------+\n");
+  printf("%s", b.data);
+  free(b.data);
 }
 
 static void do_tilemap(const Gameboy *g) {
   int row = 0;
   int row_start = 0;
   static const int COLS = 24;
+  Buffer b = {};
   for (int i = 0; i < 9 * COLS; i++) {
-    printf("-");
+    bprintf(&b, "-");
   }
-  printf("\n");
+  bprintf(&b, "\n");
   while (row_start <= MAX_TILE_INDEX) {
     for (int y = 0; y < 8; y++) {
       int tile = row_start;
-      printf("|");
+      bprintf(&b, "|");
       for (int col = 0; col < COLS; col++) {
         if (tile > MAX_TILE_INDEX) {
-          printf("        |");
+          bprintf(&b, "        |");
           continue;
         }
         uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
@@ -225,19 +257,21 @@ static void do_tilemap(const Gameboy *g) {
         for (int x = 0; x < 8; x++) {
           uint8_t px_low = row_low >> (7 - x) & 1;
           uint8_t px_high = row_high >> (7 - x) & 1;
-          print_px(px_high << 1 | px_low);
+          bprintf(&b, "%s", px_str(px_high << 1 | px_low));
         }
-        printf("|");
+        bprintf(&b, "|");
         tile++;
       }
-      printf("\n");
+      bprintf(&b, "\n");
     }
     for (int i = 0; i < 9 * COLS; i++) {
-      printf("-");
+      bprintf(&b, "-");
     }
-    printf("\n");
+    bprintf(&b, "\n");
     row_start += COLS;
   }
+  printf("%s", b.data);
+  free(b.data);
 }
 
 static void do_bgmap(const Gameboy *g, int map_index) {
@@ -245,6 +279,7 @@ static void do_bgmap(const Gameboy *g, int map_index) {
     printf("bgmap must be 0 or 1\n");
     return;
   }
+  Buffer b = {};
   uint16_t map_addr =
       map_index == 0 ? MEM_TILE_MAP0_START : MEM_TILE_MAP1_START;
   for (int map_y = 0; map_y < 32; map_y++) {
@@ -257,12 +292,14 @@ static void do_bgmap(const Gameboy *g, int map_index) {
         for (int x = 0; x < 8; x++) {
           uint8_t px_low = row_low >> (7 - x) & 1;
           uint8_t px_high = row_high >> (7 - x) & 1;
-          print_px(px_high << 1 | px_low);
+          bprintf(&b, "%s", px_str(px_high << 1 | px_low));
         }
       }
-      printf("\n");
+      bprintf(&b, "\n");
     }
   }
+  printf("%s", b.data);
+  free(b.data);
 }
 
 // Returns whether to step the next instruction.
