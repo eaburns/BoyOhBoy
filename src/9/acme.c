@@ -24,7 +24,7 @@ struct acme {
   AcmeWin *wins[MAX_WINS];
 };
 
-struct acme_win {
+struct win {
   Acme *acme;
   char *id;
   mtx_t mtx;
@@ -94,7 +94,7 @@ mount_err:
   return NULL;
 }
 
-static void acme_release_win_with_lock(AcmeWin *win) {
+static void win_release_with_lock(AcmeWin *win) {
   close9(win->ctl);
   close9(win->addr);
   close9(win->data);
@@ -110,7 +110,7 @@ void acme_close(Acme *acme) {
   acme->closed = true;
   for (int i = 0; i < MAX_WINS; i++) {
     if (acme->wins[i] != NULL) {
-      acme_release_win_with_lock(acme->wins[i]);
+      win_release_with_lock(acme->wins[i]);
     }
   }
   must_unlock(&acme->mtx);
@@ -291,7 +291,7 @@ err:
   return NULL;
 }
 
-void acme_release_win(AcmeWin *win) {
+void win_release(AcmeWin *win) {
   Acme *acme = win->acme;
   must_lock(&acme->mtx);
   for (int i = 0; i < MAX_WINS; i++) {
@@ -300,11 +300,11 @@ void acme_release_win(AcmeWin *win) {
       break;
     }
   }
-  acme_release_win_with_lock(win);
+  win_release_with_lock(win);
   must_unlock(&acme->mtx);
 }
 
-int acme_win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
+int win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   must_lock(&win->mtx);
@@ -314,7 +314,7 @@ int acme_win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
   return n;
 }
 
-int acme_win_fmt_addr(AcmeWin *win, const char *fmt, ...) {
+int win_fmt_addr(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   must_lock(&win->mtx);
@@ -324,7 +324,7 @@ int acme_win_fmt_addr(AcmeWin *win, const char *fmt, ...) {
   return n;
 }
 
-int acme_win_fmt_tag(AcmeWin *win, const char *fmt, ...) {
+int win_fmt_tag(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   must_lock(&win->mtx);
@@ -334,7 +334,7 @@ int acme_win_fmt_tag(AcmeWin *win, const char *fmt, ...) {
   return n;
 }
 
-int acme_win_write_data(AcmeWin *win, int size, const char *data) {
+int win_write_data(AcmeWin *win, int size, const char *data) {
   must_lock(&win->mtx);
   rewind9(win->data);
   int n = write9(win->data, size, data);
@@ -342,7 +342,7 @@ int acme_win_write_data(AcmeWin *win, int size, const char *data) {
   return n;
 }
 
-int acme_win_write_body(AcmeWin *win, int size, const char *data) {
+int win_write_body(AcmeWin *win, int size, const char *data) {
   must_lock(&win->mtx);
   rewind9(win->body);
   int n = write9(win->body, size, data);
@@ -350,7 +350,7 @@ int acme_win_write_body(AcmeWin *win, int size, const char *data) {
   return n;
 }
 
-char *acme_win_read_addr(AcmeWin *win) {
+char *win_read_addr(AcmeWin *win) {
   must_lock(&win->mtx);
   rewind9(win->addr);
   char *s = read9_all(win->addr);
@@ -358,7 +358,7 @@ char *acme_win_read_addr(AcmeWin *win) {
   return s;
 }
 
-char *acme_win_read_data(AcmeWin *win) {
+char *win_read_data(AcmeWin *win) {
   must_lock(&win->mtx);
   rewind9(win->data);
   char *s = read9_all(win->data);
@@ -366,7 +366,7 @@ char *acme_win_read_data(AcmeWin *win) {
   return s;
 }
 
-char *acme_win_read_body(AcmeWin *win) {
+char *win_read_body(AcmeWin *win) {
   must_lock(&win->mtx);
   rewind9(win->body);
   char *s = read9_all(win->body);
@@ -374,7 +374,7 @@ char *acme_win_read_body(AcmeWin *win) {
   return s;
 }
 
-char *acme_win_read_tag(AcmeWin *win) {
+char *win_read_tag(AcmeWin *win) {
   must_lock(&win->mtx);
   rewind9(win->tag);
   char *s = read9_all(win->tag);
@@ -411,7 +411,7 @@ static bool start_event_read(AcmeWin *win) {
   return win->event_read_tag != NULL;
 }
 
-bool acme_win_start_events(AcmeWin *win) {
+bool win_start_events(AcmeWin *win) {
   must_lock(&win->mtx);
   if (win->event != NULL) {
     must_unlock(&win->mtx);
@@ -438,7 +438,7 @@ bool acme_win_start_events(AcmeWin *win) {
   return true;
 }
 
-void acme_win_stop_events(AcmeWin *win) {
+void win_stop_events(AcmeWin *win) {
   DEBUG("stopping events\n");
   must_lock(&win->mtx);
   if (win->event != NULL) {
@@ -555,7 +555,7 @@ error:
   return error_event("received malformed event");
 }
 
-AcmeEvent *acme_win_poll_event(AcmeWin *win) {
+AcmeEvent *win_poll_event(AcmeWin *win) {
   must_lock(&win->mtx);
   if (win->event == NULL) {
     must_unlock(&win->mtx);
@@ -619,7 +619,7 @@ retry:
   goto retry;
 }
 
-AcmeEvent *acme_win_wait_event(AcmeWin *win) {
+AcmeEvent *win_wait_event(AcmeWin *win) {
   must_lock(&win->mtx);
   if (win->event == NULL) {
     must_unlock(&win->mtx);
@@ -665,7 +665,7 @@ retry:
   goto retry;
 }
 
-bool acme_win_write_event(AcmeWin *win, AcmeEvent *event) {
+bool win_write_event(AcmeWin *win, AcmeEvent *event) {
   must_lock(&win->mtx);
   if (win->event == NULL) {
     must_unlock(&win->mtx);

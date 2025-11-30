@@ -15,20 +15,20 @@ int main() {
     fprintf(stderr, "failed to open win: %s\n", errstr9());
     return 1;
   }
-  if (acme_win_fmt_ctl(win, "get\n") < 0) {
+  if (win_fmt_ctl(win, "get\n") < 0) {
     fprintf(stderr, "failed to write to ctl: %s\n", errstr9());
     return 1;
   }
-  if (acme_win_fmt_tag(win, "Foo Bar Baz\n") < 0) {
+  if (win_fmt_tag(win, "Foo Bar Baz\n") < 0) {
     fprintf(stderr, "failed to write to tag: %s\n", errstr9());
     return 1;
   }
-  if (!acme_win_start_events(win)) {
+  if (!win_start_events(win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
     return 1;
   }
   for (;;) {
-    AcmeEvent *event = acme_win_wait_event(win);
+    AcmeEvent *event = win_wait_event(win);
     if (event->type == 0) {
       fprintf(stderr, "error reading event: %s\n", event->data);
       break;
@@ -41,7 +41,7 @@ int main() {
     fprintf(stderr, "	count: %d\n", event->count);
     fprintf(stderr, "	data: [%s]\n", event->data);
     if (strchr("xXlLrR", event->type) != NULL) {
-      if (!acme_win_write_event(win, event)) {
+      if (!win_write_event(win, event)) {
         fprintf(stderr, "failed to write event to acme: %s\n", errstr9());
         // Errors writing to the event file are generally non-fatal.
       }

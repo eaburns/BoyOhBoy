@@ -147,11 +147,11 @@ static void redraw_disasm_win(DisasmWin *dwin, AcmeWin *awin) {
     n += line_len;
     buf[n - 1] = '\n';
   }
-  acme_win_fmt_addr(awin, "%d,%d", start + 1, end + 1);
-  acme_win_write_data(awin, n, buf);
+  win_fmt_addr(awin, "%d,%d", start + 1, end + 1);
+  win_write_data(awin, n, buf);
   free(buf);
-  acme_win_fmt_addr(awin, "%d", dwin->cur + 1);
-  acme_win_fmt_ctl(awin, "dot=addr\nshow\n");
+  win_fmt_addr(awin, "%d", dwin->cur + 1);
+  win_fmt_ctl(awin, "dot=addr\nshow\n");
 }
 
 static void step(Gameboy *g) {
@@ -178,7 +178,7 @@ int main(int argc, const char *argv[]) {
     fprintf(stderr, "failed to open win: %s\n", errstr9());
     return 1;
   }
-  acme_win_fmt_ctl(awin, "font /mnt/font/GoMono/11a/font\n");
+  win_fmt_ctl(awin, "font /mnt/font/GoMono/11a/font\n");
   DisasmWin dwin;
   init_disasm_win(&dwin, g.mem, MEM_SIZE);
   step(&g); // step over the initial NOP
