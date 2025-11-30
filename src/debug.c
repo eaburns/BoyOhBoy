@@ -1,4 +1,5 @@
 #include "9/acme.h"
+#include "9/errstr.h"
 #include "gb/gameboy.h"
 #include <ctype.h>
 #include <errno.h>
@@ -14,6 +15,10 @@
 static sig_atomic_t go = false;
 static sig_atomic_t done = false;
 static Acme *acme = NULL;
+static AcmeWin *vram_win = NULL;
+
+static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
+static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
 enum { LINE_MAX = 128 };
 
@@ -204,6 +209,57 @@ static const char *px_str(int px) {
 
 enum { MAX_TILE_INDEX = 384 };
 
+static AcmeWin *get_vram_win() {
+  if (acme == NULL) {
+    return NULL;
+  }
+  if (vram_win == NULL) {
+    vram_win = acme_get_win(acme, "vram");
+    if (vram_win == NULL) {
+      printf("Failed to open Acme win for vram display\n");
+      return NULL;
+    }
+    return vram_win;
+  }
+  // Check whether the win may have been deleted by writing to it.
+  char *orig_err = NULL;
+  if (win_fmt_ctl(vram_win, "show") >= 0) {
+    // It seems to be not deleted.
+    return vram_win;
+  }
+  // It may have been deleted. Let's stash the error and try to reopen it.
+  orig_err = strdup(errstr9());
+  vram_win = acme_get_win(acme, "vram");
+  if (vram_win == NULL) {
+    // Failed to open it too. Let's just print the original error.
+    printf("Error getting vram window: %s\n", orig_err);
+    free(orig_err);
+    return NULL;
+  }
+  free(orig_err);
+  return vram_win;
+}
+
+static void print_vram(Buffer *b, const char *font) {
+  AcmeWin *vram_win = get_vram_win();
+  if (vram_win == NULL) {
+    printf("%s", b->data);
+    return;
+  }
+  if (win_fmt_addr(vram_win, ",") < 0) {
+    printf("error writing to vram win addr: %s\n", errstr9());
+  }
+  if (win_write_data(vram_win, b->size, b->data) < 0) {
+    printf("error writing to vram win data: %s\n", errstr9());
+  }
+  if (win_fmt_addr(vram_win, "#0") < 0) {
+    printf("error writing to vram win addr: %s\n", errstr9());
+  }
+  if (win_fmt_ctl(vram_win, "font %s\nclean\ndot=addr\nshow\n", font) < 0) {
+    printf("error writing to vram win ctl: %s\n", errstr9());
+  }
+}
+
 static void do_tile(const Gameboy *g, int tile_index) {
   if (tile_index < 0 || tile_index > MAX_TILE_INDEX) {
     printf("tile index must be between 0 and %d\n", MAX_TILE_INDEX);
@@ -230,7 +286,8 @@ static void do_tile(const Gameboy *g, int tile_index) {
     bprintf(&b, "|\n");
   }
   bprintf(&b, "+--------+\n");
-  printf("%s", b.data);
+
+  print_vram(&b, TILE_FONT);
   free(b.data);
 }
 
@@ -271,7 +328,7 @@ static void do_tilemap(const Gameboy *g) {
     bprintf(&b, "\n");
     row_start += COLS;
   }
-  printf("%s", b.data);
+  print_vram(&b, VRAM_MAP_FONT);
   free(b.data);
 }
 
@@ -299,12 +356,12 @@ static void do_bgmap(const Gameboy *g, int map_index) {
       bprintf(&b, "\n");
     }
   }
-  printf("%s", b.data);
+  print_vram(&b, VRAM_MAP_FONT);
   free(b.data);
 }
 
 // Returns whether to step the next instruction.
-static bool handle_input(Gameboy *g) {
+static bool handle_input_line(Gameboy *g) {
   char line[LINE_MAX];
   printf("> ");
   if (fgets(line, sizeof(line), stdin) == NULL) {
@@ -349,7 +406,11 @@ static double time_ns() {
 
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
-    fail("expected 1 argument, got %d", argc);
+    fail("Expected 1 argument, got %d", argc);
+  }
+  acme = acme_connect();
+  if (acme == NULL) {
+    printf("Failed to connect to Acme. Acme integration disabled.\n");
   }
 
   signal(SIGINT, sigint_handler);
@@ -363,12 +424,10 @@ int main(int argc, const char *argv[]) {
   while (!done) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction(&g);
-      while (!go && !done && handle_input(&g)) {
+      while (!go && !done && handle_input_line(&g)) {
       }
     }
 
-    PpuMode orig_ppu_mode = g.ppu.mode;
-    int orig_ly = g.mem[MEM_LY];
     double start_ns = time_ns();
     mcycle(&g);
     long ns = time_ns() - start_ns;
@@ -391,14 +450,14 @@ int main(int argc, const char *argv[]) {
       printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle, mcycle_ns_avg);
       num_mcycle = 0;
     }
-    if (g.ppu.mode != orig_ppu_mode) {
-      printf("PPU ENTERED %s MODE (LY=%d)\n", ppu_mode_name(g.ppu.mode),
-             g.mem[MEM_LY]);
-    }
-    if (orig_ly < SCREEN_HEIGHT && g.mem[MEM_LY] == SCREEN_HEIGHT) {
-      printf("PPU ENTERED VERTICAL BLANK\n");
-    }
     g.break_point = false;
+  }
+
+  if (vram_win != NULL) {
+    // clean and del must be sent separately or else a bug in Acme triggers a
+    // SEGFAULT.
+    win_fmt_ctl(vram_win, "clean\n");
+    win_fmt_ctl(vram_win, "del\n");
   }
   return 0;
 }

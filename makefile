@@ -50,7 +50,7 @@ src/9/%_test: src/9/%_test.o $(LIB_9)
 9test: src/9test.c $(LIB_9)
 	$(CC) $(CFLAGS) $^ -o $@
 
-debug: src/debug.c $(LIB_GB)
+debug: src/debug.c $(LIB_GB) $(LIB_9)
 	$(CC) $(CFLAGS_POSIX) $^ -o $@
 
 disasm: src/disasm.c $(LIB_GB) $(LIB_9)
