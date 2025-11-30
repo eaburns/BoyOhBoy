@@ -61,7 +61,7 @@ static const struct {
     {.name = "IR", .size = REG16, .r16 = REG_IR},
 };
 
-static void do_print(Gameboy *g, const char *arg_in) {
+static void do_reg(Gameboy *g, const char *arg_in) {
   char arg[LINE_MAX] = {};
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
@@ -124,7 +124,7 @@ static void print_px(int px) {
 
 enum { MAX_TILE_INDEX = 384 };
 
-static void do_print_tile(const Gameboy *g, int tile_index) {
+static void do_tile(const Gameboy *g, int tile_index) {
   if (tile_index < 0 || tile_index > MAX_TILE_INDEX) {
     printf("tile index must be between 0 and %d\n", MAX_TILE_INDEX);
     return;
@@ -149,7 +149,7 @@ static void do_print_tile(const Gameboy *g, int tile_index) {
   }
 }
 
-static void do_print_tile_map(const Gameboy *g) {
+static void do_tilemap(const Gameboy *g) {
   int row = 0;
   int row_start = 0;
   static const int COLS = 24;
@@ -181,8 +181,7 @@ static void do_print_tile_map(const Gameboy *g) {
   }
 }
 
-// /mnt/font/GoMono-Bold/3a/font
-static void do_print_bg_map(const Gameboy *g, int map_index) {
+static void do_bgmap(const Gameboy *g, int map_index) {
   if (map_index != 0 && map_index != 1) {
     printf("bgmap must be 0 or 1\n");
     return;
@@ -225,14 +224,14 @@ static bool handle_input(Gameboy *g) {
 
   char arg_s[LINE_MAX];
   int arg_d = 0;
-  if (sscanf(line, "print %s", arg_s) == 1) {
-    do_print(g, arg_s);
+  if (sscanf(line, "reg %s", arg_s) == 1) {
+    do_reg(g, arg_s);
   } else if (sscanf(line, "tile %d", &arg_d) == 1) {
-    do_print_tile(g, arg_d);
+    do_tile(g, arg_d);
   } else if (strcmp(line, "tilemap") == 0) {
-    do_print_tile_map(g);
+    do_tilemap(g);
   } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
-    do_print_bg_map(g, arg_d);
+    do_bgmap(g, arg_d);
   } else if (strcmp(line, "dump") == 0) {
     do_dump(g);
   } else if (strcmp(line, "go") == 0) {
