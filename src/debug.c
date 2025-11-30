@@ -106,7 +106,7 @@ static void do_dump(const Gameboy *g) {
 static const struct {
   const char *name;
   uint16_t addr;
-} named_mem[] = {
+} mems[] = {
     {"DIV", MEM_DIV},   {"TIMA", MEM_TIMA}, {"TMA", MEM_TMA},
     {"TAC", MEM_TAC},   {"IF", MEM_IF},     {"LCDC", MEM_LCDC},
     {"STAT", MEM_STAT}, {"SCX", MEM_SCX},   {"SCY", MEM_SCY},
@@ -119,11 +119,10 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
   }
-  for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
-    if (strcmp(arg, named_mem[i].name) == 0) {
-      uint8_t x = g->mem[named_mem[i].addr];
-      printf("%s ($%04X): %d ($%02X)\n", named_mem[i].name, named_mem[i].addr,
-             x, x);
+  for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
+    if (strcmp(arg, mems[i].name) == 0) {
+      uint8_t x = g->mem[mems[i].addr];
+      printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
       return;
     }
   }
@@ -133,11 +132,11 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
     printf("Invalid peek: %s\n", arg_in);
     printf("Expected a named location, decimal, or $hex address\n");
     printf("Available named locations are: ");
-    for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
+    for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
       if (i > 0) {
         printf(", ");
       }
-      printf("%s", named_mem[i].name);
+      printf("%s", mems[i].name);
     }
     printf("\n");
     return;
@@ -148,10 +147,9 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
     return;
   }
   uint8_t x = g->mem[addr];
-  for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
-    if (named_mem[i].addr == addr) {
-      printf("%s ($%04X): %d ($%02X)\n", named_mem[i].name, named_mem[i].addr,
-             x, x);
+  for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
+    if (mems[i].addr == addr) {
+      printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
       return;
     }
   }
