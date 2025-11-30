@@ -36,20 +36,29 @@ static void print_current_instruction(const Gameboy *g) {
   printf("%s\n", disasm.full);
 }
 
-struct {
+static const struct {
   const char *name;
-  Reg8 r;
-} reg8_names[] = {
-    {"A", REG_A}, {"B", REG_B}, {"C", REG_C}, {"D", REG_D},
-    {"E", REG_E}, {"H", REG_H}, {"L", REG_L},
-};
-
-struct {
-  const char *name;
-  Reg16 r;
-} reg16_names[] = {
-    {"BC", REG_BC}, {"DE", REG_DE}, {"HL", REG_HL},
-    {"SP", REG_SP}, {"AF", REG_AF},
+  enum { REG8, REG16 } size;
+  union {
+    Reg8 r8;
+    Reg16 r16;
+  };
+} regs[] = {
+    {.name = "B", .size = REG8, .r8 = REG_B},
+    {.name = "C", .size = REG8, .r8 = REG_C},
+    {.name = "BC", .size = REG16, .r16 = REG_BC},
+    {.name = "D", .size = REG8, .r8 = REG_D},
+    {.name = "E", .size = REG8, .r8 = REG_E},
+    {.name = "DE", .size = REG16, .r16 = REG_DE},
+    {.name = "H", .size = REG8, .r8 = REG_H},
+    {.name = "L", .size = REG8, .r8 = REG_L},
+    {.name = "HL", .size = REG16, .r16 = REG_HL},
+    {.name = "A", .size = REG8, .r8 = REG_A},
+    {.name = "F", .size = REG8, .r8 = REG_F},
+    {.name = "AF", .size = REG16, .r16 = REG_AF},
+    {.name = "SP", .size = REG16, .r16 = REG_SP},
+    {.name = "PC", .size = REG16, .r16 = REG_PC},
+    {.name = "IR", .size = REG16, .r16 = REG_IR},
 };
 
 static void do_print(Gameboy *g, const char *arg_in) {
@@ -57,58 +66,17 @@ static void do_print(Gameboy *g, const char *arg_in) {
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
   }
-  for (int i = 0; i < sizeof(reg8_names) / sizeof(reg8_names[0]); i++) {
-    if (strcmp(arg, reg8_names[i].name) == 0) {
-      uint8_t x = get_reg8(&g->cpu, reg8_names[i].r);
-      printf("%s=%d ($%02X)\n", arg, x, x);
-      return;
+  for (int i = 0; i < sizeof(regs) / sizeof(regs[0]); i++) {
+    if (strcmp(arg, regs[i].name) != 0) {
+      continue;
     }
-  }
-  for (int i = 0; i < sizeof(reg16_names) / sizeof(reg16_names[0]); i++) {
-    if (strcmp(arg, reg16_names[i].name) == 0) {
-      uint16_t x = get_reg16(&g->cpu, reg16_names[i].r);
-      printf("%s=%d ($%04X)\n", arg, x, x);
-      return;
+    if (regs[i].size == REG8) {
+      uint8_t x = get_reg8(&g->cpu, regs[i].r8);
+      printf("%s:%d ($%02X)\n", arg, x, x);
+    } else {
+      uint16_t x = get_reg16(&g->cpu, regs[i].r16);
+      printf("%s: %d ($%04X)\n", arg, x, x);
     }
-  }
-  if (strcmp(arg, "IR") == 0) {
-    printf("IR=$%02X\n", g->cpu.ir);
-    return;
-  }
-  if (strcmp(arg, "PC") == 0) {
-    printf("PC=$%04X\n", g->cpu.pc);
-    return;
-  }
-  if (strcmp(arg, "FLAGS") == 0) {
-    printf("FLAGS=$%02X\n", g->cpu.flags >> 8);
-    return;
-  }
-  if (strcmp(arg, "FLAGS") == 0) {
-    printf("FLAGS=$%02X\n", g->cpu.flags >> 8);
-    return;
-  }
-  if (strcmp(arg, "Z") == 0) {
-    printf("Z=%d\n", (g->cpu.flags | FLAG_Z) == 1);
-    return;
-  }
-  if (strcmp(arg, "NZ") == 0) {
-    printf("NZ=%d\n", (g->cpu.flags | FLAG_Z) == 0);
-    return;
-  }
-  if (strcmp(arg, "C") == 0) {
-    printf("C=%d\n", (g->cpu.flags | FLAG_C) == 1);
-    return;
-  }
-  if (strcmp(arg, "NC") == 0) {
-    printf("NC=%d\n", (g->cpu.flags | FLAG_C) == 0);
-    return;
-  }
-  if (strcmp(arg, "H") == 0) {
-    printf("H=%d\n", (g->cpu.flags | FLAG_H) == 0);
-    return;
-  }
-  if (strcmp(arg, "N") == 0) {
-    printf("N=%d\n", (g->cpu.flags | FLAG_N) == 0);
     return;
   }
   if (strcmp(arg, "LCDC") == 0) {
@@ -117,6 +85,22 @@ static void do_print(Gameboy *g, const char *arg_in) {
   }
   printf("unknown argument %s\n", arg);
   return;
+}
+
+static void do_dump(const Gameboy *g) {
+  static const int NCOL = 3;
+  int col = 0;
+  for (int i = 0; i < sizeof(regs) / sizeof(regs[0]); i++) {
+    if (regs[i].size == REG8) {
+      uint8_t x = get_reg8(&g->cpu, regs[i].r8);
+      printf("%s:  %-5d ($%02X)  ", regs[i].name, x, x);
+    } else {
+      uint16_t x = get_reg16(&g->cpu, regs[i].r16);
+      printf("%2s: %-5d ($%04X)", regs[i].name, x, x);
+    }
+    printf(col == NCOL - 1 ? "\n" : "\t");
+    col = (col + 1) % NCOL;
+  }
 }
 
 static void print_px(int px) {
@@ -223,12 +207,6 @@ static void do_print_bg_map(const Gameboy *g, int map_index) {
   }
 }
 
-static double time_ns() {
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
-}
-
 // Returns whether to step the next instruction.
 static bool handle_input(Gameboy *g) {
   char line[LINE_MAX];
@@ -255,12 +233,20 @@ static bool handle_input(Gameboy *g) {
     do_print_tile_map(g);
   } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
     do_print_bg_map(g, arg_d);
+  } else if (strcmp(line, "dump") == 0) {
+    do_dump(g);
   } else if (strcmp(line, "go") == 0) {
     go = true;
   } else if (strcmp(line, "quit") == 0) {
     done = true;
   }
   return true;
+}
+
+static double time_ns() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
 }
 
 int main(int argc, const char *argv[]) {

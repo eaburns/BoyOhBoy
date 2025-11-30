@@ -188,6 +188,8 @@ typedef enum {
   REG_L = 5,
   REG_HL_MEM = 6, // [HL]
   REG_A = 7,
+
+  REG_F
 } Reg8;
 
 // The 16-bit registers.
@@ -203,6 +205,9 @@ typedef enum {
   REG_AF,       // 3
   REG_HL_PLUS,  // 2
   REG_HL_MINUS, // 3
+
+  REG_PC,
+  REG_IR,
 } Reg16;
 
 typedef enum {
