@@ -22,7 +22,7 @@ Rom read_rom(const char *path);
 // Frees any memory allocated for the Rom.
 void free_rom(Rom *rom);
 
-enum {
+enum : uint16_t {
   MEM_ROM_START = 0x0000,
   MEM_ROM_END = 0x7FFF,
 
@@ -103,9 +103,9 @@ enum {
 
   // The memory address of the IE (interrupts enabled) flags.
   MEM_IE = 0xFFFF,
-
-  MEM_SIZE = 0x10000,
 };
+
+enum { MEM_SIZE = 0x10000 };
 
 typedef uint8_t Mem[MEM_SIZE];
 
@@ -247,21 +247,41 @@ enum {
 
   XMAX = 160,
   YMAX = 154,
+
+  MAX_SCANLINE_OBJS = 10,
+
+  LCDC_BG_WIN_ENABLED = 1 << 0,
+  LCDC_OBJ_ENABLED = 1 << 1,
+  LCDC_OBJ_SIZE = 1 << 2,
+  LCDC_ENABLED = 1 << 7,
 };
 
 typedef enum {
   STOPPED,
   OAM_SCAN,
   DRAWING,
-  HORIZONTAL_BLANK,
+  HBLANK,
+  VBLANK,
 } PpuMode;
 
 const char *ppu_mode_name(PpuMode mode);
 
 typedef struct {
+  uint8_t y;
+  uint8_t x;
+  uint8_t tile;
+  uint8_t flags;
+} Object;
+
+typedef struct {
   PpuMode mode;
   int ticks;
-  int x, y;
+
+  // Objects on the current scanline.
+  Object objs[MAX_SCANLINE_OBJS];
+  int nobjs;
+
+  int x;
 } Ppu;
 
 enum { DMA_MCYCLES = 160 };
@@ -272,7 +292,7 @@ typedef struct {
   Mem mem;
   int dma_ticks_remaining;
   const Rom *rom;
-
+  uint8_t lcd[SCREEN_WIDTH * SCREEN_HEIGHT];
   bool break_point;
 } Gameboy;
 
