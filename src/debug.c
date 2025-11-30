@@ -105,6 +105,62 @@ static void do_dump(const Gameboy *g) {
   }
 }
 
+// Various named memory locations.
+static const struct {
+  const char *name;
+  uint16_t addr;
+} named_mem[] = {
+    {"DIV", MEM_DIV},   {"TIMA", MEM_TIMA}, {"TMA", MEM_TMA},
+    {"TAC", MEM_TAC},   {"IF", MEM_IF},     {"LCDC", MEM_LCDC},
+    {"STAT", MEM_STAT}, {"SCX", MEM_SCX},   {"SCY", MEM_SCY},
+    {"LY", MEM_LY},     {"DMA", MEM_DMA},   {"BGP", MEM_BGP},
+    {"OBP0", MEM_OBP0}, {"OBP1", MEM_OBP1}, {"IE", MEM_IE},
+};
+
+static void do_peek(const Gameboy *g, const char *arg_in) {
+  char arg[LINE_MAX] = {};
+  for (int i = 0; i < strlen(arg_in); i++) {
+    arg[i] = toupper(arg_in[i]);
+  }
+  for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
+    if (strcmp(arg, named_mem[i].name) == 0) {
+      uint8_t x = g->mem[named_mem[i].addr];
+      printf("%s ($%04X): %d ($%02X)\n", named_mem[i].name, named_mem[i].addr,
+             x, x);
+      return;
+    }
+  }
+
+  int addr = 0;
+  if (sscanf(arg_in, "%d", &addr) != 1 && sscanf(arg_in, "$%x", &addr) != 1) {
+    printf("Invalid peek: %s\n", arg_in);
+    printf("Expected a named location, decimal, or $hex address\n");
+    printf("Available named locations are: ");
+    for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
+      if (i > 0) {
+        printf(", ");
+      }
+      printf("%s", named_mem[i].name);
+    }
+    printf("\n");
+    return;
+  }
+  if (addr < 0 || addr > 0xFFFF) {
+    printf("Invalid address %d ($%04X), must be in range 0-0xFFFF\n", addr,
+           addr);
+    return;
+  }
+  uint8_t x = g->mem[addr];
+  for (int i = 0; i < sizeof(named_mem) / sizeof(named_mem[0]); i++) {
+    if (named_mem[i].addr == addr) {
+      printf("%s ($%04X): %d ($%02X)\n", named_mem[i].name, named_mem[i].addr,
+             x, x);
+      return;
+    }
+  }
+  printf("$%04X: %d ($%02X)\n", addr, x, x);
+}
+
 static void print_px(int px) {
   switch (px) {
   case 0:
@@ -234,6 +290,8 @@ static bool handle_input(Gameboy *g) {
   int arg_d = 0;
   if (sscanf(line, "reg %s", arg_s) == 1) {
     do_reg(g, arg_s);
+  } else if (sscanf(line, "peek %s", arg_s) == 1) {
+    do_peek(g, arg_s);
   } else if (sscanf(line, "tile %d", &arg_d) == 1) {
     do_tile(g, arg_d);
   } else if (strcmp(line, "tilemap") == 0) {
