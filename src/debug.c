@@ -18,6 +18,7 @@ static Acme *acme = NULL;
 static AcmeWin *vram_win = NULL;
 static AcmeWin *lcd_win = NULL;
 static bool lcd = false;
+static int step = 0;
 
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
@@ -410,6 +411,14 @@ static void do_lcd(const Gameboy *g) {
   win_fmt_ctl(lcd_win, "del\n");
 }
 
+static void do_step(int n) {
+  if (n < 0) {
+    printf("step argument must be positive\n");
+  }
+  step = n;
+  go = true;
+}
+
 // Returns whether to step the next instruction.
 static bool handle_input_line(Gameboy *g) {
   char line[LINE_MAX];
@@ -442,6 +451,8 @@ static bool handle_input_line(Gameboy *g) {
     do_lcd(g);
   } else if (strcmp(line, "dump") == 0) {
     do_dump(g);
+  } else if (sscanf(line, "step %d", &arg_d) == 1) {
+    do_step(arg_d);
   } else if (strcmp(line, "go") == 0) {
     go = true;
   } else if (strcmp(line, "quit") == 0) {
@@ -499,6 +510,15 @@ int main(int argc, const char *argv[]) {
         go = false;
         g.break_point = false;
       }
+      if (step > 0) {
+        step--;
+        if (step == 0) {
+          go = false;
+        }
+      }
+    }
+    // Step handling above may have set go==false, so re-check here.
+    if (go) {
       continue;
     }
 
