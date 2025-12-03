@@ -16,6 +16,8 @@ static sig_atomic_t go = false;
 static sig_atomic_t done = false;
 static Acme *acme = NULL;
 static AcmeWin *vram_win = NULL;
+static AcmeWin *lcd_win = NULL;
+static bool lcd = false;
 
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
@@ -209,36 +211,40 @@ static const char *px_str(int px) {
 
 enum { MAX_TILE_INDEX = 384 };
 
-static AcmeWin *get_vram_win() {
+static AcmeWin *get_win(AcmeWin **win_ptr, const char *name) {
   if (acme == NULL) {
     return NULL;
   }
-  if (vram_win == NULL) {
-    vram_win = acme_get_win(acme, "vram");
-    if (vram_win == NULL) {
-      printf("Failed to open Acme win for vram display\n");
+  if (*win_ptr == NULL) {
+    *win_ptr = acme_get_win(acme, name);
+    if (*win_ptr == NULL) {
+      printf("Failed to open Acme win %s\n", name);
       return NULL;
     }
-    return vram_win;
+    return *win_ptr;
   }
   // Check whether the win may have been deleted by writing to it.
   char *orig_err = NULL;
-  if (win_fmt_ctl(vram_win, "show") >= 0) {
+  if (win_fmt_ctl(*win_ptr, "show") >= 0) {
     // It seems to be not deleted.
-    return vram_win;
+    return *win_ptr;
   }
   // It may have been deleted. Let's stash the error and try to reopen it.
   orig_err = strdup(errstr9());
-  vram_win = acme_get_win(acme, "vram");
-  if (vram_win == NULL) {
+  *win_ptr = acme_get_win(acme, name);
+  if (*win_ptr == NULL) {
     // Failed to open it too. Let's just print the original error.
-    printf("Error getting vram window: %s\n", orig_err);
+    printf("Error getting %s window: %s\n", name, orig_err);
     free(orig_err);
     return NULL;
   }
   free(orig_err);
-  return vram_win;
+  return *win_ptr;
 }
+
+static AcmeWin *get_vram_win() { return get_win(&vram_win, "vram"); }
+
+static AcmeWin *get_lcd_win() { return get_win(&lcd_win, "lcd"); }
 
 static void print_vram(Buffer *b, const char *font) {
   AcmeWin *vram_win = get_vram_win();
@@ -360,6 +366,50 @@ static void do_bgmap(const Gameboy *g, int map_index) {
   free(b.data);
 }
 
+static void draw_lcd(const Gameboy *g) {
+  AcmeWin *lcd_win = get_lcd_win();
+  if (lcd_win == NULL) {
+    return;
+  }
+  Buffer b = {};
+  for (int y = 0; y < SCREEN_HEIGHT; y++) {
+    for (int x = 0; x < SCREEN_WIDTH; x++) {
+      bprintf(&b, "%s", px_str(g->lcd[y][x]));
+    }
+    bprintf(&b, "\n");
+  }
+  if (win_fmt_addr(lcd_win, ",") < 0) {
+    printf("error writing to vram win addr: %s\n", errstr9());
+  }
+  if (win_write_data(lcd_win, b.size, b.data) < 0) {
+    printf("error writing to vram win data: %s\n", errstr9());
+  }
+  if (win_fmt_addr(lcd_win, "#0") < 0) {
+    printf("error writing to vram win addr: %s\n", errstr9());
+  }
+  if (win_fmt_ctl(lcd_win, "font %s\nclean\ndot=addr\nshow\n", VRAM_MAP_FONT) <
+      0) {
+    printf("error writing to vram win ctl: %s\n", errstr9());
+  }
+  free(b.data);
+}
+
+static void do_lcd(const Gameboy *g) {
+  AcmeWin *lcd_win = get_lcd_win();
+  lcd = !lcd;
+  if (lcd_win == NULL) {
+    return;
+  }
+  if (lcd) {
+    draw_lcd(g);
+    return;
+  }
+  // clean and del must be sent separately or else a bug in Acme triggers a
+  // SEGFAULT.
+  win_fmt_ctl(lcd_win, "clean\n");
+  win_fmt_ctl(lcd_win, "del\n");
+}
+
 // Returns whether to step the next instruction.
 static bool handle_input_line(Gameboy *g) {
   char line[LINE_MAX];
@@ -388,6 +438,8 @@ static bool handle_input_line(Gameboy *g) {
     do_tilemap(g);
   } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
     do_bgmap(g, arg_d);
+  } else if (strcmp(line, "lcd") == 0) {
+    do_lcd(g);
   } else if (strcmp(line, "dump") == 0) {
     do_dump(g);
   } else if (strcmp(line, "go") == 0) {
@@ -429,7 +481,11 @@ int main(int argc, const char *argv[]) {
     }
 
     double start_ns = time_ns();
+    PpuMode orig_ppu_mode = g.ppu.mode;
     mcycle(&g);
+    if (lcd && g.ppu.mode == VBLANK && orig_ppu_mode != VBLANK) {
+      draw_lcd(&g);
+    }
     long ns = time_ns() - start_ns;
 
     if (go) {
@@ -458,6 +514,12 @@ int main(int argc, const char *argv[]) {
     // SEGFAULT.
     win_fmt_ctl(vram_win, "clean\n");
     win_fmt_ctl(vram_win, "del\n");
+  }
+  if (lcd_win != NULL) {
+    // clean and del must be sent separately or else a bug in Acme triggers a
+    // SEGFAULT.
+    win_fmt_ctl(lcd_win, "clean\n");
+    win_fmt_ctl(lcd_win, "del\n");
   }
   return 0;
 }

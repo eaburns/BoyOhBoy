@@ -244,15 +244,21 @@ void set_reg16(Cpu *cpu, Reg16 r, uint16_t x);
 enum {
   SCREEN_WIDTH = 160,
   SCREEN_HEIGHT = 144,
-
-  XMAX = 160,
-  YMAX = 154,
+  YMAX = 153,
 
   MAX_SCANLINE_OBJS = 10,
+
+  TILE_WIDTH = 8,
+  TILE_HEIGHT = 8,
+  TILE_BIG_HEIGHT = 16,
+  TILE_MAP_WIDTH = 32,
+  TILE_MAP_HEIGHT = 32,
 
   LCDC_BG_WIN_ENABLED = 1 << 0,
   LCDC_OBJ_ENABLED = 1 << 1,
   LCDC_OBJ_SIZE = 1 << 2,
+  LCDC_BG_TILE_MAP = 1 << 3,
+  LCDC_WIN_ENABLED = 1 << 5,
   LCDC_ENABLED = 1 << 7,
 };
 
@@ -280,8 +286,6 @@ typedef struct {
   // Objects on the current scanline.
   Object objs[MAX_SCANLINE_OBJS];
   int nobjs;
-
-  int x;
 } Ppu;
 
 enum { DMA_MCYCLES = 160 };
@@ -292,7 +296,7 @@ typedef struct {
   Mem mem;
   int dma_ticks_remaining;
   const Rom *rom;
-  uint8_t lcd[SCREEN_WIDTH * SCREEN_HEIGHT];
+  uint8_t lcd[SCREEN_HEIGHT][SCREEN_WIDTH];
   bool break_point;
 } Gameboy;
 
