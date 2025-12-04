@@ -94,6 +94,8 @@ enum : uint16_t {
   MEM_BGP = 0xFF47,
   MEM_OBP0 = 0xFF48,
   MEM_OBP1 = 0xFF49,
+  MEM_WY = 0xFF4A,
+  MEM_WX = 0xFF4B,
   // …
   MEM_IO_END = 0xFF7F,
 
