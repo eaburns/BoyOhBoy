@@ -475,7 +475,7 @@ static void run_receive_version_with_0byte() {
 
   Reply9p reply = {.type = R_VERSION_9P, .version = {.version = "XYZ"}};
   Reply9p *bad_reply = serialize_reply9p(&reply, tag);
-  char *p = bad_reply->internal_data;
+  uint8_t *p = bad_reply->internal_data;
   p += HEADER_SIZE;
   p += sizeof(bad_reply->version.msize);
   p += sizeof(uint16_t); // string size field
@@ -503,7 +503,7 @@ static void run_receive_error_with_0byte() {
 
   Reply9p reply = {.type = R_ERROR_9P, .error = {.message = "XYZ"}};
   Reply9p *bad_reply = serialize_reply9p(&reply, tag);
-  char *p = bad_reply->internal_data;
+  uint8_t *p = bad_reply->internal_data;
   p += HEADER_SIZE;
   p += sizeof(uint16_t); // string size field
   p[1] = 0;              // Add a null within the version string.

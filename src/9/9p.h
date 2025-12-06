@@ -77,7 +77,7 @@ typedef struct {
   // If this Rread9p is in response to a call to read9p(),
   // this will be the same pointer passed to read9p()'s
   // buf argument.
-  const char *data;
+  const void *data;
 } Rread9p;
 
 typedef struct {
@@ -97,7 +97,7 @@ typedef struct {
     Rwrite9p write;
   };
   int internal_data_size;
-  char internal_data[];
+  uint8_t internal_data[];
 } Reply9p;
 
 Client9p *connect9p(const char *path);
@@ -111,9 +111,9 @@ Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...);
 Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
                    const char **elms);
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode);
-Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf);
+Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, void *buf);
 Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
-              const char *data);
+              const void *data);
 Tag9p clunk9p(Client9p *c, Fid9p fid);
 
 // Caller must free() Reply9p.

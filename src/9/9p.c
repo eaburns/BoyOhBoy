@@ -37,7 +37,7 @@ typedef struct {
   Reply9p *reply;
   // Size and pointer passed to read9p().
   int read_buf_size;
-  char *read_buf;
+  uint8_t *read_buf;
 } QueueEntry;
 
 struct Client9p {
@@ -58,27 +58,27 @@ static FILE *dial_unix_socket(const char *path);
 static void* recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
-static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf);
-static Tag9p send_msg(Client9p *c, char *msg);
-static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf);
+static bool deserialize_reply(Reply9p *r, uint8_t type, const uint8_t *read_buf);
+static Tag9p send_msg(Client9p *c, uint8_t *msg);
+static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size, uint8_t *buf);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
 static bool queue_empty(Client9p *c);
 static int free_queue_slot(Client9p *c);
 static int string_size(const char *s);
-static char *put1(char *p, uint8_t x);
-static char *put_le2(char *p, uint16_t x);
-static char *put_le4(char *p, uint32_t x);
-static char *put_le8(char *p, uint64_t x);
-static char *put_qid(char *p, Qid9p qid);
-static char *put_string(char *p, const char *s);
-static char *get1(char *p, uint8_t *x);
-static char *get_le2(char *p, uint16_t *x);
-static char *get_le4(char *p, uint32_t *x);
-static char *get_le8(char *p, uint64_t *x);
-static char *get_qid(char *p, Qid9p qid);
-static char *get_data(char *p, uint16_t *size, const char **s);
-static char *get_string_or_null(char *p, const char **s);
+static uint8_t *put1(uint8_t *p, uint8_t x);
+static uint8_t *put_le2(uint8_t *p, uint16_t x);
+static uint8_t *put_le4(uint8_t *p, uint32_t x);
+static uint8_t *put_le8(uint8_t *p, uint64_t x);
+static uint8_t *put_qid(uint8_t *p, Qid9p qid);
+static uint8_t *put_string(uint8_t *p, const char *s);
+static uint8_t *get1(uint8_t *p, uint8_t *x);
+static uint8_t *get_le2(uint8_t *p, uint16_t *x);
+static uint8_t *get_le4(uint8_t *p, uint32_t *x);
+static uint8_t *get_le8(uint8_t *p, uint64_t *x);
+static uint8_t *get_qid(uint8_t *p, Qid9p qid);
+static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s);
+static uint8_t *get_string_or_null(uint8_t *p, const char **s);
 
 Client9p *connect9p(const char *path) {
   FILE *f = dial_unix_socket(path);
@@ -228,13 +228,13 @@ void* recv_thread(void *arg) {
 
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag) {
-  char buf[HEADER_SIZE];
+  uint8_t buf[HEADER_SIZE];
   int n = fread(buf, 1, sizeof(buf), c->f);
   if (n != sizeof(buf)) {
     DEBUG("recv_header: only got %d bytes\n", n);
     return false;
   }
-  char *p = get_le4(buf, size);
+  uint8_t *p = get_le4(buf, size);
   p = get1(p, type);
   p = get_le2(p, tag);
   return true;
@@ -279,7 +279,7 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   Reply9p *s = calloc(1, sizeof(Reply9p) + size);
   memcpy(s, r, sizeof(*r));
   s->internal_data_size = size;
-  char *p = s->internal_data;
+  uint8_t *p = s->internal_data;
   p = put_le4(p, size);
   p = put1(p, r->type);
   p = put_le2(p, tag);
@@ -328,10 +328,10 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   return s;
 }
 
-static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
+static bool deserialize_reply(Reply9p *r, uint8_t type, const uint8_t *read_buf) {
   r->type = type;
-  char *start = r->internal_data;
-  char *p = start;
+  uint8_t *start = r->internal_data;
+  uint8_t *p = start;
   switch (r->type) {
   case R_VERSION_9P:
     p = get_le4(p, &r->version.msize);
@@ -366,7 +366,7 @@ static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
     break;
   case R_READ_9P:
     p = get_le4(p, &r->read.count);
-    r->read.data = read_buf;
+    r->read.data = (char*) read_buf;
     break;
   case R_WRITE_9P:
     p = get_le4(p, &r->write.count);
@@ -384,8 +384,8 @@ static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
   c->max_recv_size = msize;
   int size = HEADER_SIZE + sizeof(msize) + string_size(version);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_VERSION_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, msize);
@@ -396,8 +396,8 @@ Tag9p version9p(Client9p *c, uint32_t msize, const char *version) {
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname) {
   int size =
       HEADER_SIZE + sizeof(afid) + string_size(uname) + string_size(aname);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_AUTH_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, afid);
@@ -410,8 +410,8 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
                const char *aname) {
   int size = HEADER_SIZE + sizeof(fid) + sizeof(afid) + string_size(uname) +
              string_size(aname);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_ATTACH_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
@@ -421,9 +421,9 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
   return send_msg(c, msg);
 }
 
-static int count(const char *path, char c) {
+static int count(const uint8_t *path, char c) {
   int n = 0;
-  for (const char *p = path; *p != '\0'; p++) {
+  for (const uint8_t *p = path; *p != '\0'; p++) {
     if (*p == c) {
       n++;
     }
@@ -450,8 +450,8 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
   for (int i = 0; i < nelms; i++) {
     size += string_size(elms[i]);
   }
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_WALK_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
@@ -465,8 +465,8 @@ Tag9p walk_array9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms,
 
 Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
   int size = HEADER_SIZE + sizeof(fid) + sizeof(mode);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_OPEN_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
@@ -474,23 +474,23 @@ Tag9p open9p(Client9p *c, Fid9p fid, OpenMode9p mode) {
   return send_msg(c, msg);
 }
 
-Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, char *buf) {
+Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, void *buf) {
   int size = HEADER_SIZE + sizeof(fid) + sizeof(offs) + sizeof(count);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_READ_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
   p = put_le8(p, offs);
   p = put_le4(p, count);
-  return send_with_buffer(c, msg, count, buf);
+  return send_with_buffer(c, msg, count, (uint8_t*) buf);
 }
 
 Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
-              const char *data) {
+              const void *data) {
   int size = HEADER_SIZE + sizeof(fid) + sizeof(offs) + sizeof(count) + count;
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_WRITE_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
@@ -498,24 +498,24 @@ Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
   p = put_le4(p, count);
   // Casting out of const char*, is OK because send_with_buffer will never write
   // to this in the case of type==T_WRITE_9P.
-  return send_with_buffer(c, msg, count, (char *)data);
+  return send_with_buffer(c, msg, count, (uint8_t*)data);
 }
 
 Tag9p clunk9p(Client9p *c, Fid9p fid) {
   int size = HEADER_SIZE + sizeof(fid);
-  char *msg = calloc(1, size);
-  char *p = put_le4(msg, size);
+  uint8_t *msg = calloc(1, size);
+  uint8_t *p = put_le4(msg, size);
   p = put1(p, T_CLUNK_9P);
   p = put_le2(p, 0); // Tag place holder
   p = put_le4(p, fid);
   return send_msg(c, msg);
 }
 
-static Tag9p send_msg(Client9p *c, char *msg) {
+static Tag9p send_msg(Client9p *c, uint8_t *msg) {
   return send_with_buffer(c, msg, 0, NULL);
 }
 
-static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
+static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size, uint8_t *buf) {
   must_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
@@ -542,7 +542,7 @@ static Tag9p send_with_buffer(Client9p *c, char *msg, int buf_size, char *buf) {
     c->queue[tag].reply = error_reply("message too big");
     goto done;
   }
-  put_le2((char *)msg + sizeof(uint32_t) + sizeof(uint8_t), tag);
+  put_le2((uint8_t *)msg + sizeof(uint32_t) + sizeof(uint8_t), tag);
   if (type == T_WRITE_9P) {
     // For T_WRITE_9P, the message will only contain the header and write count.
     // The rest of the buf_size bytes of data will be sent separately from the
@@ -631,12 +631,12 @@ static Reply9p *error_reply(const char *fmt, ...) {
   Reply9p *r = calloc(1, sizeof(Reply9p) + n + 1);
   r->type = R_ERROR_9P;
   va_start(args, fmt);
-  int m = vsnprintf(r->internal_data, n + 1, fmt, args);
+  int m = vsnprintf((char*) r->internal_data, n + 1, fmt, args);
   va_end(args);
   if (m != n) {
     abort(); // impossible
   }
-  r->error.message = r->internal_data;
+  r->error.message = (char*) r->internal_data;
   return r;
 }
 
@@ -671,18 +671,18 @@ static int free_queue_slot(Client9p *c) {
 
 static int string_size(const char *s) { return sizeof(uint16_t) + strlen(s); }
 
-static char *put1(char *p, uint8_t x) {
+static uint8_t *put1(uint8_t *p, uint8_t x) {
   *p++ = x;
   return p;
 }
 
-static char *put_le2(char *p, uint16_t x) {
+static uint8_t *put_le2(uint8_t *p, uint16_t x) {
   *p++ = (x >> 0) & 0xFF;
   *p++ = (x >> 8) & 0xFF;
   return p;
 }
 
-static char *put_le4(char *p, uint32_t x) {
+static uint8_t *put_le4(uint8_t *p, uint32_t x) {
   *p++ = (x >> 0) & 0xFF;
   *p++ = (x >> 8) & 0xFF;
   *p++ = (x >> 16) & 0xFF;
@@ -690,7 +690,7 @@ static char *put_le4(char *p, uint32_t x) {
   return p;
 }
 
-static char *put_le8(char *p, uint64_t x) {
+static uint8_t *put_le8(uint8_t *p, uint64_t x) {
   *p++ = (x >> 0) & 0xFF;
   *p++ = (x >> 8) & 0xFF;
   *p++ = (x >> 16) & 0xFF;
@@ -702,13 +702,13 @@ static char *put_le8(char *p, uint64_t x) {
   return p;
 }
 
-static char *put_qid(char *p, Qid9p qid) {
+static uint8_t *put_qid(uint8_t *p, Qid9p qid) {
   memcpy(p, qid, sizeof(Qid9p));
   p += sizeof(Qid9p);
   return p;
 }
 
-static char *put_string(char *p, const char *s) {
+static uint8_t *put_string(uint8_t *p, const char *s) {
   int size = strlen(s);
   p = put_le2(p, size);
   memcpy(p, s, size);
@@ -716,18 +716,18 @@ static char *put_string(char *p, const char *s) {
   return p;
 }
 
-static char *get1(char *p, uint8_t *x) {
+static uint8_t *get1(uint8_t *p, uint8_t *x) {
   *x = *p++;
   return p;
 }
 
-static char *get_le2(char *p, uint16_t *x) {
+static uint8_t *get_le2(uint8_t *p, uint16_t *x) {
   *x = (uint16_t)(uint8_t)*p++ << 0;
   *x |= (uint16_t)(uint8_t)*p++ << 8;
   return p;
 }
 
-static char *get_le4(char *p, uint32_t *x) {
+static uint8_t *get_le4(uint8_t *p, uint32_t *x) {
   *x = (uint32_t)(uint8_t)*p++ << 0;
   *x |= (uint32_t)(uint8_t)*p++ << 8;
   *x |= (uint32_t)(uint8_t)*p++ << 16;
@@ -735,7 +735,7 @@ static char *get_le4(char *p, uint32_t *x) {
   return p;
 }
 
-static char *get_le8(char *p, uint64_t *x) {
+static uint8_t *get_le8(uint8_t *p, uint64_t *x) {
   *x = (uint64_t)(uint8_t)*p++ << 0;
   *x |= (uint64_t)(uint8_t)*p++ << 8;
   *x |= (uint64_t)(uint8_t)*p++ << 16;
@@ -747,18 +747,18 @@ static char *get_le8(char *p, uint64_t *x) {
   return p;
 }
 
-static char *get_qid(char *p, Qid9p qid) {
+static uint8_t *get_qid(uint8_t *p, Qid9p qid) {
   memcpy(qid, p, sizeof(Qid9p));
   return p + sizeof(Qid9p);
 }
 
-static char *get_data(char *p, uint16_t *size, const char **s) {
+static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s) {
   p = get_le2(p, size);
-  *s = p;
+  *s = (char*) p;
   return p + *size;
 }
 
-static char *get_string_or_null(char *p, const char **s) {
+static uint8_t *get_string_or_null(uint8_t *p, const char **s) {
   uint16_t size;
   p = get_le2(p, &size);
   if (memchr(p, '\0', size) != NULL) {
@@ -767,7 +767,7 @@ static char *get_string_or_null(char *p, const char **s) {
   p--;
   memmove(p, p + 1, size);
   p[size] = '\0';
-  *s = p;
+  *s = (char*) p;
   return p + size + 1;
 }
 
