@@ -121,11 +121,25 @@ static const struct {
   const char *name;
   uint16_t addr;
 } mems[] = {
-    {"DIV", MEM_DIV},   {"TIMA", MEM_TIMA}, {"TMA", MEM_TMA},
-    {"TAC", MEM_TAC},   {"IF", MEM_IF},     {"LCDC", MEM_LCDC},
-    {"STAT", MEM_STAT}, {"SCX", MEM_SCX},   {"SCY", MEM_SCY},
-    {"LY", MEM_LY},     {"DMA", MEM_DMA},   {"BGP", MEM_BGP},
-    {"OBP0", MEM_OBP0}, {"OBP1", MEM_OBP1}, {"IE", MEM_IE},
+    {"P1_JOYPAD", MEM_P1_JOYPAD},
+    {"JOYP", MEM_P1_JOYPAD},
+    {"P1", MEM_P1_JOYPAD},
+    {"JOYPAD", MEM_P1_JOYPAD},
+    {"DIV", MEM_DIV},
+    {"TIMA", MEM_TIMA},
+    {"TMA", MEM_TMA},
+    {"TAC", MEM_TAC},
+    {"IF", MEM_IF},
+    {"LCDC", MEM_LCDC},
+    {"STAT", MEM_STAT},
+    {"SCX", MEM_SCX},
+    {"SCY", MEM_SCY},
+    {"LY", MEM_LY},
+    {"DMA", MEM_DMA},
+    {"BGP", MEM_BGP},
+    {"OBP0", MEM_OBP0},
+    {"OBP1", MEM_OBP1},
+    {"IE", MEM_IE},
 };
 
 static void do_peek(const Gameboy *g, const char *arg_in) {

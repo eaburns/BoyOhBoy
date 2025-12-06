@@ -69,7 +69,7 @@ enum : uint16_t {
 
   // Various mem-mapped I/O.
   MEM_IO_START = 0xFF00,
-  MEM_JOYPAD = 0xFF00,
+  MEM_P1_JOYPAD = 0xFF00, // joypad
   MEM_SERIAL_DATA = 0xFF01,
   MEM_SERIAL_CONTROL = 0xFF02,
   // 0xFF03??
@@ -290,6 +290,19 @@ typedef struct {
   int nobjs;
 } Ppu;
 
+enum {
+  BUTTON_RIGHT = 1 << 0,
+  BUTTON_A = 1 << 0,
+  BUTTON_LEFT = 1 << 1,
+  BUTTON_B = 1 << 1,
+  BUTTON_DOWN = 1 << 2,
+  BUTTON_START = 1 << 2,
+  BUTTON_UP = 1 << 3,
+  BUTTON_SELECT = 1 << 3,
+  SELECT_BUTTONS = 1 << 5,
+  SELECT_DPAD = 1 << 4,
+};
+
 enum { DMA_MCYCLES = 160 };
 
 typedef struct {
@@ -299,6 +312,16 @@ typedef struct {
   int dma_ticks_remaining;
   const Rom *rom;
   uint8_t lcd[SCREEN_HEIGHT][SCREEN_WIDTH];
+
+  // Bit mask of BUTTON_{A, B, START, SELECT}.
+  // A 1 bit means the button is pressed.
+  uint8_t buttons;
+
+  // Bit mask of BUTTON_{UP, DOWN, LEFT, RIGHT}.
+  // A 1 bit means the button is pressed.
+  uint8_t dpad;
+
+  // For debugging; can set this to true to cause the debugger to break.
   bool break_point;
 } Gameboy;
 

@@ -105,6 +105,18 @@ static uint8_t do_oam_fetch(const Gameboy *g, uint16_t addr) {
 
 static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
   switch (addr) {
+  case MEM_P1_JOYPAD:
+    uint8_t state = 0;
+    if ((x & (SELECT_BUTTONS | SELECT_DPAD)) == 0) {
+      state = 0xF;
+    } else {
+      uint8_t buttons = x & SELECT_BUTTONS ? g->buttons : 0;
+      uint8_t dpad = x & SELECT_DPAD ? g->dpad : 0;
+      state = ~(buttons | dpad);
+    }
+    g->mem[addr] = (x & 0xF0) | (state & 0xF);
+    return;
+
   case MEM_LY:
     return; // read only
   case MEM_DMA:
