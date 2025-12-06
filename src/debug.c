@@ -385,6 +385,27 @@ static void do_bgmap(const Gameboy *g, int map_index) {
   free(b.data);
 }
 
+static bool lcd_changed(const Buffer *b) {
+  static int cur_lcd_size = 0;
+  static char *cur_lcd = NULL;
+  if (cur_lcd == NULL) {
+    goto changed;
+  }
+  if (cur_lcd_size != b->size) {
+    goto changed;
+  }
+  if (memcmp(cur_lcd, b->data, cur_lcd_size) == 0) {
+    return false;
+  }
+changed:
+  if (cur_lcd_size != b->size) {
+    cur_lcd = realloc(cur_lcd, b->size);
+    cur_lcd_size = b->size;
+  }
+  memcpy(cur_lcd, b->data, cur_lcd_size);
+  return true;
+}
+
 static void draw_lcd(const Gameboy *g) {
   AcmeWin *lcd_win = get_lcd_win();
   if (lcd_win == NULL) {
@@ -396,6 +417,12 @@ static void draw_lcd(const Gameboy *g) {
       bprintf(&b, "%s", px_str(g->lcd[y][x]));
     }
     bprintf(&b, "\n");
+  }
+  // TODO: instead of refreshing the entire thing if any of it has changed,
+  // check which lines have changed and just redraw those.
+  if (!lcd_changed(&b)) {
+    free(b.data);
+    return;
   }
   if (win_fmt_addr(lcd_win, ",") < 0) {
     printf("error writing to vram win addr: %s\n", errstr9());
