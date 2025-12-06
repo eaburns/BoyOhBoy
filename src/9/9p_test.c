@@ -596,7 +596,9 @@ static void* server_thread(void *arg) {
     } else {
       reply = server->reply;
     }
+    must_lock(&server->mtx);
     server->reply = NULL;
+    must_unlock(&server->mtx);
     if (fwrite(reply->internal_data, 1, reply->internal_data_size,
                server->socket) != reply->internal_data_size) {
       FAIL("server: failed to write reply\n");
