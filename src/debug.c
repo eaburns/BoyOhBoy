@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include <time.h>
 
 static sig_atomic_t go = false;
@@ -17,7 +18,6 @@ static sig_atomic_t done = false;
 static Acme *acme = NULL;
 static AcmeWin *vram_win = NULL;
 static AcmeWin *lcd_win = NULL;
-static bool lcd = false;
 static int step = 0;
 static int next_sp = -1;
 enum { MAX_BREAKS = 10 };
@@ -230,40 +230,78 @@ static const char *px_str(int px) {
 
 enum { MAX_TILE_INDEX = 384 };
 
-static AcmeWin *get_win(AcmeWin **win_ptr, const char *name) {
+static AcmeWin *get_vram_win() {
   if (acme == NULL) {
     return NULL;
   }
-  if (*win_ptr == NULL) {
-    *win_ptr = acme_get_win(acme, name);
-    if (*win_ptr == NULL) {
-      printf("Failed to open Acme win %s\n", name);
+  if (vram_win == NULL) {
+    vram_win = acme_get_win(acme, "vram");
+    if (vram_win == NULL) {
+      printf("Failed to open Acme win %s\n", "vram");
       return NULL;
     }
-    return *win_ptr;
+    return vram_win;
   }
   // Check whether the win may have been deleted by writing to it.
   char *orig_err = NULL;
-  if (win_fmt_ctl(*win_ptr, "show") >= 0) {
+  if (win_fmt_ctl(vram_win, "show") >= 0) {
     // It seems to be not deleted.
-    return *win_ptr;
+    return vram_win;
   }
   // It may have been deleted. Let's stash the error and try to reopen it.
   orig_err = strdup(errstr9());
-  *win_ptr = acme_get_win(acme, name);
-  if (*win_ptr == NULL) {
+  vram_win = acme_get_win(acme, "vram");
+  if (vram_win == NULL) {
     // Failed to open it too. Let's just print the original error.
-    printf("Error getting %s window: %s\n", name, orig_err);
+    printf("Error getting vram window: %s\n", orig_err);
     free(orig_err);
     return NULL;
   }
   free(orig_err);
-  return *win_ptr;
+  return vram_win;
 }
 
-static AcmeWin *get_vram_win() { return get_win(&vram_win, "vram"); }
-
-static AcmeWin *get_lcd_win() { return get_win(&lcd_win, "lcd"); }
+static int poll_events(void *arg) {
+  Gameboy *g = arg;
+  win_start_events(lcd_win);
+  for (;;) {
+    fprintf(stderr, "waiting for an event\n");
+    AcmeEvent *event = win_wait_event(lcd_win);
+    if (event->type == 0) {
+      fprintf(stderr, "event error: %s\n", event->data);
+      free(event);
+      break;
+    }
+    fprintf(stderr, "got event [%c] (%d) flags=%x\n", event->type, event->type,
+            event->flags);
+    if (event->type == 'x') {
+      if (strcmp(event->data, "Up") == 0) {
+        g->dpad ^= BUTTON_UP;
+      } else if (strcmp(event->data, "Down") == 0) {
+        g->dpad ^= BUTTON_DOWN;
+      } else if (strcmp(event->data, "Left") == 0) {
+        g->dpad ^= BUTTON_LEFT;
+      } else if (strcmp(event->data, "Right") == 0) {
+        g->dpad ^= BUTTON_RIGHT;
+      } else if (strcmp(event->data, "A") == 0) {
+        g->buttons ^= BUTTON_A;
+      } else if (strcmp(event->data, "B") == 0) {
+        g->buttons ^= BUTTON_B;
+      } else if (strcmp(event->data, "Start") == 0) {
+        g->buttons ^= BUTTON_START;
+      } else if (strcmp(event->data, "Select") == 0) {
+        g->buttons ^= BUTTON_SELECT;
+      } else {
+        win_write_event(lcd_win, event);
+      }
+    } else if (event->type == 'X' || event->type == 'l' || event->type == 'L' ||
+               event->type == 'r' || event->type == 'R') {
+      win_write_event(lcd_win, event);
+    }
+    free(event);
+  }
+  return 0;
+}
 
 static void print_vram(Buffer *b, const char *font) {
   AcmeWin *vram_win = get_vram_win();
@@ -406,8 +444,7 @@ changed:
   return true;
 }
 
-static void draw_lcd(const Gameboy *g) {
-  AcmeWin *lcd_win = get_lcd_win();
+static void draw_lcd(Gameboy *g) {
   if (lcd_win == NULL) {
     return;
   }
@@ -424,36 +461,46 @@ static void draw_lcd(const Gameboy *g) {
     free(b.data);
     return;
   }
+  fprintf(stderr, "drawing lcd\n");
   if (win_fmt_addr(lcd_win, ",") < 0) {
-    printf("error writing to vram win addr: %s\n", errstr9());
+    printf("error writing to lcd win addr: %s\n", errstr9());
+    lcd_win = NULL;
+    free(b.data);
+    return;
   }
+  fprintf(stderr, "drawing wrote addr\n");
   if (win_write_data(lcd_win, b.size, b.data) < 0) {
-    printf("error writing to vram win data: %s\n", errstr9());
+    printf("error writing to lcd win data: %s\n", errstr9());
   }
+  fprintf(stderr, "drawing wrote data\n");
   if (win_fmt_addr(lcd_win, "#0") < 0) {
-    printf("error writing to vram win addr: %s\n", errstr9());
+    printf("error writing to lcd win addr: %s\n", errstr9());
   }
+  fprintf(stderr, "drawing wrote addr #0\n");
   if (win_fmt_ctl(lcd_win, "font %s\nclean\ndot=addr\nshow\n", VRAM_MAP_FONT) <
       0) {
-    printf("error writing to vram win ctl: %s\n", errstr9());
+    printf("error writing to lcd win ctl: %s\n", errstr9());
   }
+  fprintf(stderr, "drawing wrote tag - done\n");
   free(b.data);
 }
 
-static void do_lcd(const Gameboy *g) {
-  AcmeWin *lcd_win = get_lcd_win();
-  lcd = !lcd;
+static void do_lcd(Gameboy *g) {
+  if (acme == NULL || lcd_win != NULL) {
+    return;
+  }
+  lcd_win = acme_get_win(acme, "lcd");
   if (lcd_win == NULL) {
+    printf("Failed to open Acme win lcd\n");
     return;
   }
-  if (lcd) {
-    draw_lcd(g);
-    return;
-  }
-  // clean and del must be sent separately or else a bug in Acme triggers a
-  // SEGFAULT.
-  win_fmt_ctl(lcd_win, "clean\n");
-  win_fmt_ctl(lcd_win, "del\n");
+  win_fmt_ctl(lcd_win, "cleartag\n");
+  win_fmt_tag(lcd_win,
+              "\n        Up                       A        Start\nLeft     "
+              "    Right            B        Select\n      Down");
+  static thrd_t poll_thrd;
+  thrd_create(&poll_thrd, poll_events, g);
+  draw_lcd(g);
 }
 
 static void do_step(int n) {
@@ -579,11 +626,10 @@ int main(int argc, const char *argv[]) {
     double start_ns = time_ns();
     PpuMode orig_ppu_mode = g.ppu.mode;
     mcycle(&g);
-    if (lcd && g.ppu.mode == VBLANK && orig_ppu_mode != VBLANK) {
+    if (lcd_win != NULL && g.ppu.mode == VBLANK && orig_ppu_mode != VBLANK) {
       draw_lcd(&g);
     }
     long ns = time_ns() - start_ns;
-
     if (go) {
       if (num_mcycle == 0) {
         mcycle_ns_avg = ns;

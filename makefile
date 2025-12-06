@@ -1,7 +1,7 @@
 CC=clang
 AR=llvm-ar
-CFLAGS_POSIX=-O2 -Werror -g
-CFLAGS=-O2 -Werror -std=c23 -g
+CFLAGS_POSIX=-fsanitize=thread -O0 -Werror -g
+CFLAGS=-fsanitize=thread -O0 -Werror -std=c23 -g
 
 BINS=9test debug disasm
 
@@ -23,7 +23,7 @@ DEPS_GB=$(SRCS_GB:.c=.d) $(TESTS_GB:.c=.d)
 $(LIB_GB): $(SRCS_GB:.c=.o)
 
 src/gb/%_test: src/gb/%_test.o $(LIB_GB)
-	$(CC) $(CFLAGS) -fsanitize=address $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@
 
 
 #
@@ -40,7 +40,7 @@ DEPS_9=$(SRCS_9:.c=.d) $(TESTS_9:.c=.d)
 $(LIB_9): $(SRCS_9:.c=.o)
 
 src/9/%_test: src/9/%_test.o $(LIB_9)
-	$(CC) $(CFLAGS) -fsanitize=address $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@
 
 
 #
