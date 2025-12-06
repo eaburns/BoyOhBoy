@@ -1,5 +1,5 @@
 CC=clang
-AR=llvm-ar
+AR=ar
 CFLAGS_POSIX=-fsanitize=thread -O0 -Werror -g
 CFLAGS=-fsanitize=thread -O0 -Werror -std=c23 -g
 

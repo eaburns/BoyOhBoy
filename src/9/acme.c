@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
+#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
@@ -19,7 +19,7 @@ struct acme {
   Fsys9 *fsys;
   File9 *index;
 
-  mtx_t mtx;
+  pthread_mutex_t mtx;
   bool closed;
   AcmeWin *wins[MAX_WINS];
 };
@@ -27,7 +27,7 @@ struct acme {
 struct win {
   Acme *acme;
   char *id;
-  mtx_t mtx;
+  pthread_mutex_t mtx;
   File9 *ctl;
   File9 *addr;
   File9 *data;
@@ -80,7 +80,7 @@ Acme *acme_connect() {
   if (acme->index == NULL) {
     goto open_err;
   }
-  if (mtx_init(&acme->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&acme->mtx, NULL) != 0) {
     errstr9f("failed to init mtx");
     goto mtx_err;
   }
@@ -101,7 +101,7 @@ static void win_release_with_lock(AcmeWin *win) {
   close9(win->body);
   close9(win->tag);
   free(win->id);
-  mtx_destroy(&win->mtx);
+  pthread_mutex_destroy(&win->mtx);
   free(win);
 }
 
@@ -116,7 +116,7 @@ void acme_close(Acme *acme) {
   must_unlock(&acme->mtx);
   close9(acme->index);
   unmount9(acme->fsys);
-  mtx_destroy(&acme->mtx);
+  pthread_mutex_destroy(&acme->mtx);
   free(acme);
 }
 
@@ -265,7 +265,7 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   if (win->body == NULL) {
     goto tag_err;
   }
-  if (mtx_init(&win->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&win->mtx, NULL) != 0) {
     errstr9f("failed to init mtx");
     goto mtx_err;
   }

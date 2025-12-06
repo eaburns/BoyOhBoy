@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
+#include <pthread.h>
 #include <time.h>
 
 static sig_atomic_t go = false;
@@ -261,7 +261,7 @@ static AcmeWin *get_vram_win() {
   return vram_win;
 }
 
-static int poll_events(void *arg) {
+static void* poll_events(void *arg) {
   Gameboy *g = arg;
   win_start_events(lcd_win);
   for (;;) {
@@ -498,8 +498,8 @@ static void do_lcd(Gameboy *g) {
   win_fmt_tag(lcd_win,
               "\n        Up                       A        Start\nLeft     "
               "    Right            B        Select\n      Down");
-  static thrd_t poll_thrd;
-  thrd_create(&poll_thrd, poll_events, g);
+  static pthread_t poll_thrd;
+  pthread_create(&poll_thrd, NULL, poll_events, g);
   draw_lcd(g);
 }
 

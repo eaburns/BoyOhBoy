@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <threads.h>
+#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 #define DEBUG(...)
@@ -28,10 +28,10 @@ static Reply9p NO_REPLY;
 typedef struct {
   FILE *socket;
   Client9p *client;
-  thrd_t thrd;
+  pthread_t thrd;
 
-  mtx_t mtx;
-  cnd_t cnd;
+  pthread_mutex_t mtx;
+  pthread_cond_t cnd;
   Reply9p *reply;
   Tag9p tag;
   bool done;
@@ -548,7 +548,7 @@ static void run_read_response_too_big_test() {
   close_test_server(&server);
 }
 
-static int server_thread(void *arg) {
+static void* server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("TEST SERVER: started\n");
   for (;;) {
@@ -603,7 +603,7 @@ static int server_thread(void *arg) {
       free(reply);
     }
   }
-  mtx_destroy(&server->mtx);
+  pthread_mutex_destroy(&server->mtx);
   fclose(server->socket);
   return 0;
 }
@@ -626,13 +626,13 @@ static Client9p *connect_test_server(TestServer *server) {
   if (server->socket == NULL) {
     FAIL("fdopen on server socket failed\n");
   }
-  if (mtx_init(&server->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&server->mtx, NULL) != 0) {
     FAIL("failed to init mtx\n");
   }
-  if (cnd_init(&server->cnd) != thrd_success) {
+  if (pthread_cond_init(&server->cnd, NULL) != 0) {
     FAIL("failed to init cnd\n");
   }
-  if (thrd_create(&server->thrd, server_thread, server) != thrd_success) {
+  if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
     FAIL("failed to create thread\n");
   }
   server->client = connect_file9p(client);
@@ -667,7 +667,7 @@ static void close_test_server(TestServer *server) {
   must_broadcast(&server->cnd);
   must_unlock(&server->mtx);
   close9p(server->client);
-  if (thrd_join(server->thrd, NULL) != thrd_success) {
+  if (pthread_join(server->thrd, NULL) != 0) {
     abort();
   }
 }

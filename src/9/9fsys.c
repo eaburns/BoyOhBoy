@@ -6,20 +6,20 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
+#include <pthread.h>
 
 struct file9 {
   Fsys9 *fsys;
   Fid9p fid;
-  mtx_t mtx;
+  pthread_mutex_t mtx;
   uint64_t offs;
   int iounit;
 };
 
 struct fsys9 {
   Client9p *client;
-  mtx_t mtx;
-  cnd_t cnd;
+  pthread_mutex_t mtx;
+  pthread_cond_t cnd;
   Fid9p root;
   bool closed;
   File9 files[MAX_OPEN_FILES];
@@ -44,17 +44,17 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   Fsys9 *fsys = calloc(1, sizeof(*fsys));
   fsys->client = c;
   fsys->root = root_fid;
-  if (mtx_init(&fsys->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&fsys->mtx, NULL) != 0) {
     errstr9f("failed to initialize mtx");
     goto err_mtx;
   }
-  if (cnd_init(&fsys->cnd) != thrd_success) {
+  if (pthread_cond_init(&fsys->cnd, NULL) != 0) {
     errstr9f("failed to initialize cnd");
     goto err_cnd;
   }
   return fsys;
 err_cnd:
-  mtx_destroy(&fsys->mtx);
+  pthread_mutex_destroy(&fsys->mtx);
 err_mtx:
   free(fsys);
 err_attach:
@@ -87,8 +87,8 @@ void unmount9(Fsys9 *fsys) {
   while (has_open_files(fsys)) {
     must_wait(&fsys->cnd, &fsys->mtx);
   }
-  mtx_destroy(&fsys->mtx);
-  cnd_destroy(&fsys->cnd);
+  pthread_mutex_destroy(&fsys->mtx);
+  pthread_cond_destroy(&fsys->cnd);
   close9p(fsys->client);
   free(fsys);
 }
@@ -169,7 +169,7 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   }
   file->iounit = r->open.iounit;
   free(r);
-  if (mtx_init(&file->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&file->mtx, NULL) != 0) {
     errstr9f("failed to initialize mtx");
     goto mtx_err;
   }
@@ -194,7 +194,7 @@ void close9(File9 *file) {
   // Wait for any active read/write to finish.
   must_lock(&file->mtx);
   must_unlock(&file->mtx);
-  mtx_destroy(&file->mtx);
+  pthread_mutex_destroy(&file->mtx);
 
   file->fsys = NULL;
   file->fid = -1;

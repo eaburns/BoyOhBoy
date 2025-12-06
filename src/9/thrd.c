@@ -1,26 +1,26 @@
 #include <stdlib.h>
-#include <threads.h>
+#include <pthread.h>
 
-void must_lock(mtx_t *mtx) {
-  if (mtx_lock(mtx) != thrd_success) {
+void must_lock(pthread_mutex_t *mtx) {
+  if (pthread_mutex_lock(mtx) != 0) {
     abort();
   }
 }
 
-void must_unlock(mtx_t *mtx) {
-  if (mtx_unlock(mtx) != thrd_success) {
+void must_unlock(pthread_mutex_t *mtx) {
+  if (pthread_mutex_unlock(mtx) != 0) {
     abort();
   }
 }
 
-void must_wait(cnd_t *cnd, mtx_t *mtx) {
-  if (cnd_wait(cnd, mtx) != thrd_success) {
+void must_wait(pthread_cond_t *cnd, pthread_mutex_t *mtx) {
+  if (pthread_cond_wait(cnd, mtx) != 0) {
     abort();
   }
 }
 
-void must_broadcast(cnd_t *cnd) {
-  if (cnd_broadcast(cnd) != thrd_success) {
+void must_broadcast(pthread_cond_t *cnd) {
+  if (pthread_cond_broadcast(cnd) != 0) {
     abort();
   }
 }

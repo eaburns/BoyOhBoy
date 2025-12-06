@@ -11,7 +11,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <threads.h>
+#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
@@ -44,10 +44,10 @@ struct Client9p {
   uint32_t max_send_size;
   uint32_t max_recv_size;
 
-  thrd_t recv_thrd;
+  pthread_t recv_thrd;
 
-  mtx_t mtx;
-  cnd_t cnd;
+  pthread_mutex_t mtx;
+  pthread_cond_t cnd;
   FILE *f;
   bool closed;
   bool recv_thread_done;
@@ -55,7 +55,7 @@ struct Client9p {
 };
 
 static FILE *dial_unix_socket(const char *path);
-static int recv_thread(void *c);
+static void* recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
 static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf);
@@ -92,20 +92,20 @@ Client9p *connect_file9p(FILE *f) {
   Client9p *c = calloc(1, sizeof(*c));
   c->f = f;
   c->max_send_size = INIT_MAX_SEND_SIZE;
-  if (mtx_init(&c->mtx, mtx_plain) != thrd_success) {
+  if (pthread_mutex_init(&c->mtx, NULL) != 0) {
     goto err;
   }
-  if (cnd_init(&c->cnd) != thrd_success) {
+  if (pthread_cond_init(&c->cnd, NULL) != 0) {
     goto err_cnd;
   }
-  if (thrd_create(&c->recv_thrd, recv_thread, c) != thrd_success) {
+  if (pthread_create(&c->recv_thrd, NULL, recv_thread, c) != 0) {
     goto err_thrd;
   }
   return c;
 err_thrd:
-  cnd_destroy(&c->cnd);
+  pthread_cond_destroy(&c->cnd);
 err_cnd:
-  mtx_destroy(&c->mtx);
+  pthread_mutex_destroy(&c->mtx);
 err:
   fclose(f);
   free(c);
@@ -126,12 +126,12 @@ void close9p(Client9p *c) {
 
   DEBUG("close9p: cleaning up\n");
   fclose(c->f);
-  mtx_destroy(&c->mtx);
-  cnd_destroy(&c->cnd);
+  pthread_mutex_destroy(&c->mtx);
+  pthread_cond_destroy(&c->cnd);
   free(c);
 }
 
-int recv_thread(void *arg) {
+void* recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
     DEBUG("recv_thread: waiting for queue\n");

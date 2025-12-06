@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <threads.h>
+#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 #define DEBUG(...)
@@ -20,8 +20,8 @@
     abort();                                                                   \
   } while (0)
 
-static void must_join(thrd_t thrd) {
-  if (thrd_join(thrd, NULL) != thrd_success) {
+static void must_join(pthread_t thrd) {
+  if (pthread_join(thrd, NULL) != 0) {
     abort();
   }
 }
@@ -33,7 +33,7 @@ typedef struct {
   // These fields are set by connect_test_server.
   FILE *socket;
   Client9p *client;
-  thrd_t thrd;
+  pthread_t thrd;
 } TestServer;
 
 static Client9p *connect_test_server(TestServer *server);
@@ -822,7 +822,7 @@ static void run_write_error_test() {
   must_join(server.thrd);
 }
 
-static int server_thread(void *arg) {
+static void* server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("%s SERVER: started\n", server->test_name);
   for (int i = 0; i < sizeof(server->script) / sizeof(server->script[0]) &&
@@ -887,7 +887,7 @@ static Client9p *connect_test_server(TestServer *server) {
   if (server->socket == NULL) {
     FAIL("fdopen on server socket failed\n");
   }
-  if (thrd_create(&server->thrd, server_thread, server) != thrd_success) {
+  if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
     FAIL("failed to create thread\n");
   }
   server->client = connect_file9p(client);
