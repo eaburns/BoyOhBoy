@@ -128,6 +128,7 @@ void close9p(Client9p *c) {
   DEBUG("close9p: cleaning up\n");
   pthread_join(c->recv_thrd, NULL);
   fclose(c->f);
+  must_unlock(&c->mtx);
   pthread_mutex_destroy(&c->mtx);
   pthread_cond_destroy(&c->cnd);
   free(c);

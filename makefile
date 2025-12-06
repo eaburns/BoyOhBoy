@@ -1,7 +1,7 @@
 CC=clang
 AR=ar
-CFLAGS_POSIX=-O2 -Werror -g -fsanitize=address
-CFLAGS=-O2 -Werror -std=c23 -g -fsanitize=address
+CFLAGS_POSIX=-O2 -Werror -g -fsanitize=thread
+CFLAGS=-O2 -Werror -std=c23 -g -fsanitize=thread
 
 BINS=9test debug disasm
 
