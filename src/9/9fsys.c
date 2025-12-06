@@ -115,7 +115,7 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   file->fid = fid;
   must_unlock(&fsys->mtx);
 
-  int max_elms = 0;
+  int max_elms = 1;
   for (const char *p = path; *p != '\0'; p++) {
     if (*p == '/') {
       max_elms++;
