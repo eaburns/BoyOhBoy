@@ -722,28 +722,28 @@ static char *get1(char *p, uint8_t *x) {
 }
 
 static char *get_le2(char *p, uint16_t *x) {
-  *x = (uint16_t)*p++ << 0;
-  *x |= (uint16_t)*p++ << 8;
+  *x = (uint16_t)(uint8_t)*p++ << 0;
+  *x |= (uint16_t)(uint8_t)*p++ << 8;
   return p;
 }
 
 static char *get_le4(char *p, uint32_t *x) {
-  *x = (uint32_t)*p++ << 0;
-  *x |= (uint32_t)*p++ << 8;
-  *x |= (uint32_t)*p++ << 16;
-  *x |= (uint32_t)*p++ << 24;
+  *x = (uint32_t)(uint8_t)*p++ << 0;
+  *x |= (uint32_t)(uint8_t)*p++ << 8;
+  *x |= (uint32_t)(uint8_t)*p++ << 16;
+  *x |= (uint32_t)(uint8_t)*p++ << 24;
   return p;
 }
 
 static char *get_le8(char *p, uint64_t *x) {
-  *x = (uint64_t)*p++ << 0;
-  *x |= (uint64_t)*p++ << 8;
-  *x |= (uint64_t)*p++ << 16;
-  *x |= (uint64_t)*p++ << 24;
-  *x |= (uint64_t)*p++ << 32;
-  *x |= (uint64_t)*p++ << 40;
-  *x |= (uint64_t)*p++ << 48;
-  *x |= (uint64_t)*p++ << 56;
+  *x = (uint64_t)(uint8_t)*p++ << 0;
+  *x |= (uint64_t)(uint8_t)*p++ << 8;
+  *x |= (uint64_t)(uint8_t)*p++ << 16;
+  *x |= (uint64_t)(uint8_t)*p++ << 24;
+  *x |= (uint64_t)(uint8_t)*p++ << 32;
+  *x |= (uint64_t)(uint8_t)*p++ << 40;
+  *x |= (uint64_t)(uint8_t)*p++ << 48;
+  *x |= (uint64_t)(uint8_t)*p++ << 56;
   return p;
 }
 
