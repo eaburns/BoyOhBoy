@@ -259,8 +259,10 @@ char *read9_all(File9 *file) {
   char *buf = calloc(1, size + 1);
   for (;;) {
     if (size - offs < 128) {
+      int size0 = size;
       size *= 2;
       buf = realloc(buf, size + 1);
+      memset(buf + size0, '\0', size+1 - size0);
     }
     int n = read9(file, size - offs, buf + offs);
     if (n == 0) {
