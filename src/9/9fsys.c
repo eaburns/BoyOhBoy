@@ -90,6 +90,7 @@ void unmount9(Fsys9 *fsys) {
   while (has_open_files(fsys)) {
     must_wait(&fsys->cnd, &fsys->mtx);
   }
+  must_unlock(&fsys->mtx);
   pthread_mutex_destroy(&fsys->mtx);
   pthread_cond_destroy(&fsys->cnd);
   close9p(fsys->client);
