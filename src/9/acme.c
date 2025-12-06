@@ -62,7 +62,7 @@ static Fsys9 *mount_acme() {
     return NULL;
   }
   const char *acme = "/acme";
-  char *root_path = calloc(1, strlen(ns) + strlen(acme));
+  char *root_path = calloc(1, strlen(ns) + strlen(acme) + 1);
   strcpy(root_path, ns);
   strcpy(root_path + strlen(ns), acme);
   Fsys9 *fsys = mount9(root_path, user);
