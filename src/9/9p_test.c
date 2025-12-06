@@ -490,9 +490,9 @@ static void run_receive_version_with_0byte() {
   if (strcmp(r->error.message, "connection closed") != 0) {
     FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
   }
-  free(bad_reply);
   free(r);
   close_test_server(&server);
+  free(bad_reply);
 }
 
 static void run_receive_error_with_0byte() {
@@ -517,9 +517,9 @@ static void run_receive_error_with_0byte() {
   if (strcmp(r->error.message, "connection closed") != 0) {
     FAIL("expected \"connection closed\", got \"%s\"\n", r->error.message);
   }
-  free(bad_reply);
   free(r);
   close_test_server(&server);
+  free(bad_reply);
 }
 
 static void run_read_response_too_big_test() {
@@ -608,7 +608,6 @@ static void *server_thread(void *arg) {
       free(reply);
     }
   }
-  pthread_mutex_destroy(&server->mtx);
   fclose(server->socket);
   return 0;
 }
