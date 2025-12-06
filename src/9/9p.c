@@ -123,8 +123,8 @@ void close9p(Client9p *c) {
   while (!queue_empty(c) || !c->recv_thread_done) {
     must_wait(&c->cnd, &c->mtx);
   }
-
   DEBUG("close9p: cleaning up\n");
+  pthread_join(c->recv_thrd, NULL);
   fclose(c->f);
   pthread_mutex_destroy(&c->mtx);
   pthread_cond_destroy(&c->cnd);
