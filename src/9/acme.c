@@ -34,6 +34,9 @@ struct win {
   File9 *body;
   File9 *tag;
 
+  // Events are handled by a separate mutex so that a separate thread can poll
+  // events from the thread using the win.
+  pthread_mutex_t event_mtx;
   File9 *event;
   Read9Tag *event_read_tag;
   // Number of bytes currently in buf.
@@ -102,6 +105,7 @@ static void win_release_with_lock(AcmeWin *win) {
   close9(win->tag);
   free(win->id);
   pthread_mutex_destroy(&win->mtx);
+  pthread_mutex_destroy(&win->event_mtx);
   free(win);
 }
 
@@ -269,10 +273,16 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
     errstr9f("failed to init mtx");
     goto mtx_err;
   }
+  if (pthread_mutex_init(&win->event_mtx, NULL) != 0) {
+    errstr9f("failed to init event_mtx");
+    goto event_mtx_err;
+  }
   win->acme = acme;
   acme->wins[i] = win;
   must_unlock(&acme->mtx);
   return win;
+event_mtx_err:
+  pthread_mutex_destroy(&win->mtx);
 mtx_err:
   close9(win->tag);
 tag_err:
@@ -412,9 +422,9 @@ static bool start_event_read(AcmeWin *win) {
 }
 
 bool win_start_events(AcmeWin *win) {
-  must_lock(&win->mtx);
+  must_lock(&win->event_mtx);
   if (win->event != NULL) {
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     errstr9f("events already started");
     return false;
   }
@@ -422,7 +432,7 @@ bool win_start_events(AcmeWin *win) {
   win->event = open_win_file(win->acme, win->id, "event");
   if (win->event == NULL) {
     DEBUG("open win file failed\n");
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return false;
   }
   win->n = 0;
@@ -431,16 +441,16 @@ bool win_start_events(AcmeWin *win) {
     close9(win->event);
     win->event = NULL;
     win->event_read_tag = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return false;
   }
-  must_unlock(&win->mtx);
+  must_unlock(&win->event_mtx);
   return true;
 }
 
 void win_stop_events(AcmeWin *win) {
   DEBUG("stopping events\n");
-  must_lock(&win->mtx);
+  must_lock(&win->event_mtx);
   if (win->event != NULL) {
     read9_wait(win->event_read_tag);
     win->event_read_tag = NULL;
@@ -448,7 +458,7 @@ void win_stop_events(AcmeWin *win) {
     win->event = NULL;
     win->n = 0;
   }
-  must_unlock(&win->mtx);
+  must_unlock(&win->event_mtx);
 }
 
 static const int MALFORMED = -1;
@@ -556,9 +566,9 @@ error:
 }
 
 AcmeEvent *win_poll_event(AcmeWin *win) {
-  must_lock(&win->mtx);
+  must_lock(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return NULL;
   }
 
@@ -568,7 +578,7 @@ retry:
   if (win->n > 0 && win->event_read_tag == NULL) {
     AcmeEvent *event = deserialize_event(win);
     if (event != NULL) {
-      must_unlock(&win->mtx);
+      must_unlock(&win->event_mtx);
       return event;
     }
     DEBUG("failed to deserialize\n");
@@ -579,13 +589,13 @@ retry:
   if (win->event_read_tag == NULL) {
     DEBUG("fetch more (n=%d)\n", win->n);
     if (start_event_read(win)) {
-      must_unlock(&win->mtx);
+      must_unlock(&win->event_mtx);
       return NULL;
     }
     DEBUG("start_event_read failed\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event(errstr9());
   }
 
@@ -593,7 +603,7 @@ retry:
   // Check whether it's done.
   Read9PollResult poll_result = read9_poll(win->event_read_tag);
   if (!poll_result.done) {
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return NULL;
   }
   win->event_read_tag = NULL;
@@ -601,14 +611,14 @@ retry:
     DEBUG("read9_poll unexpected eof\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event("unexpected-end-of-file");
   }
   if (poll_result.n < 0) {
     DEBUG("read9_poll error: %s\n", errstr9());
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event(errstr9());
   }
 
@@ -620,9 +630,9 @@ retry:
 }
 
 AcmeEvent *win_wait_event(AcmeWin *win) {
-  must_lock(&win->mtx);
+  must_lock(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event("events not started");
   }
 
@@ -630,7 +640,7 @@ retry:
   if (win->n > 0 && win->event_read_tag == NULL) {
     AcmeEvent *event = deserialize_event(win);
     if (event != NULL) {
-      must_unlock(&win->mtx);
+      must_unlock(&win->event_mtx);
       return event;
     }
   }
@@ -640,7 +650,7 @@ retry:
       DEBUG("start_event_read failed\n");
       close9(win->event);
       win->event = NULL;
-      must_unlock(&win->mtx);
+      must_unlock(&win->event_mtx);
       return error_event(errstr9());
     }
   }
@@ -650,14 +660,14 @@ retry:
     DEBUG("read9_wait unexpected eof\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event("unexpected-end-of-file");
   }
   if (n < 0) {
     DEBUG("read9_wait error: %s\n", errstr9());
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     return error_event(errstr9());
   }
   win->n += n;
@@ -666,14 +676,14 @@ retry:
 }
 
 bool win_write_event(AcmeWin *win, AcmeEvent *event) {
-  must_lock(&win->mtx);
+  must_lock(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->mtx);
+    must_unlock(&win->event_mtx);
     errstr9f("events not started");
     return false;
   }
   int n = fprint_file9(win->event, "%c%c%d %d \n", event->origin, event->type,
                        event->addr[0], event->addr[1]);
-  must_unlock(&win->mtx);
+  must_unlock(&win->event_mtx);
   return n >= 0;
 }
