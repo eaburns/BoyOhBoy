@@ -131,7 +131,7 @@ void close9p(Client9p *c) {
   free(c);
 }
 
-static int recv_thread(void *arg) {
+int recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
     DEBUG("recv_thread: waiting for queue\n");
@@ -186,7 +186,8 @@ static int recv_thread(void *arg) {
     must_lock(&c->mtx);
 
     if (n != body_size) {
-      DEBUG("recv_thread: failed to read data\n");
+      DEBUG("recv_thread: failed to read data n=%d, body_size=%d\n", n,
+            body_size);
       break;
     }
     if (!deserialize_reply(r, type, q->read_buf)) {
@@ -309,7 +310,9 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
     break;
   case R_READ_9P:
     p = put_le4(p, r->read.count);
-    memcpy(p, r->read.data, r->read.count);
+    if (r->read.data != NULL) {
+      memcpy(p, r->read.data, r->read.count);
+    }
     p += r->read.count;
     break;
   case R_WRITE_9P:
