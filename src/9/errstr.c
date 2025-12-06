@@ -1,10 +1,10 @@
 #include "errstr.h"
 
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 
 static pthread_key_t err_msg;
 static pthread_once_t once = PTHREAD_ONCE_INIT;

@@ -2,6 +2,7 @@
 
 #include "thrd.h"
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -9,7 +10,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 #define DEBUG(...)
@@ -551,7 +551,7 @@ static void run_read_response_too_big_test() {
   close_test_server(&server);
 }
 
-static void* server_thread(void *arg) {
+static void *server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("TEST SERVER: started\n");
   for (;;) {

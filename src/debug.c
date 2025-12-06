@@ -3,6 +3,7 @@
 #include "gb/gameboy.h"
 #include <ctype.h>
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -10,7 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <time.h>
 
 static sig_atomic_t go = false;
@@ -261,7 +261,7 @@ static AcmeWin *get_vram_win() {
   return vram_win;
 }
 
-static void* poll_events(void *arg) {
+static void *poll_events(void *arg) {
   Gameboy *g = arg;
   win_start_events(lcd_win);
   for (;;) {

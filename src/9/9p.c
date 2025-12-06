@@ -2,6 +2,7 @@
 
 #include "thrd.h"
 #include <errno.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,7 +12,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
@@ -55,12 +55,14 @@ struct Client9p {
 };
 
 static FILE *dial_unix_socket(const char *path);
-static void* recv_thread(void *c);
+static void *recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
-static bool deserialize_reply(Reply9p *r, uint8_t type, const uint8_t *read_buf);
+static bool deserialize_reply(Reply9p *r, uint8_t type,
+                              const uint8_t *read_buf);
 static Tag9p send_msg(Client9p *c, uint8_t *msg);
-static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size, uint8_t *buf);
+static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
+                              uint8_t *buf);
 static Reply9p *error_reply(const char *fmt, ...);
 static bool queue_waiting(Client9p *c);
 static bool queue_empty(Client9p *c);
@@ -131,7 +133,7 @@ void close9p(Client9p *c) {
   free(c);
 }
 
-void* recv_thread(void *arg) {
+void *recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
     DEBUG("recv_thread: waiting for queue\n");
@@ -331,7 +333,8 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   return s;
 }
 
-static bool deserialize_reply(Reply9p *r, uint8_t type, const uint8_t *read_buf) {
+static bool deserialize_reply(Reply9p *r, uint8_t type,
+                              const uint8_t *read_buf) {
   r->type = type;
   uint8_t *start = r->internal_data;
   uint8_t *p = start;
@@ -369,7 +372,7 @@ static bool deserialize_reply(Reply9p *r, uint8_t type, const uint8_t *read_buf)
     break;
   case R_READ_9P:
     p = get_le4(p, &r->read.count);
-    r->read.data = (char*) read_buf;
+    r->read.data = (char *)read_buf;
     break;
   case R_WRITE_9P:
     p = get_le4(p, &r->write.count);
@@ -486,7 +489,7 @@ Tag9p read9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count, void *buf) {
   p = put_le4(p, fid);
   p = put_le8(p, offs);
   p = put_le4(p, count);
-  return send_with_buffer(c, msg, count, (uint8_t*) buf);
+  return send_with_buffer(c, msg, count, (uint8_t *)buf);
 }
 
 Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
@@ -501,7 +504,7 @@ Tag9p write9p(Client9p *c, Fid9p fid, uint64_t offs, uint32_t count,
   p = put_le4(p, count);
   // Casting out of const char*, is OK because send_with_buffer will never write
   // to this in the case of type==T_WRITE_9P.
-  return send_with_buffer(c, msg, count, (uint8_t*)data);
+  return send_with_buffer(c, msg, count, (uint8_t *)data);
 }
 
 Tag9p clunk9p(Client9p *c, Fid9p fid) {
@@ -518,7 +521,8 @@ static Tag9p send_msg(Client9p *c, uint8_t *msg) {
   return send_with_buffer(c, msg, 0, NULL);
 }
 
-static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size, uint8_t *buf) {
+static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
+                              uint8_t *buf) {
   must_lock(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
@@ -634,12 +638,12 @@ static Reply9p *error_reply(const char *fmt, ...) {
   Reply9p *r = calloc(1, sizeof(Reply9p) + n + 1);
   r->type = R_ERROR_9P;
   va_start(args, fmt);
-  int m = vsnprintf((char*) r->internal_data, n + 1, fmt, args);
+  int m = vsnprintf((char *)r->internal_data, n + 1, fmt, args);
   va_end(args);
   if (m != n) {
     abort(); // impossible
   }
-  r->error.message = (char*) r->internal_data;
+  r->error.message = (char *)r->internal_data;
   return r;
 }
 
@@ -757,7 +761,7 @@ static uint8_t *get_qid(uint8_t *p, Qid9p qid) {
 
 static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s) {
   p = get_le2(p, size);
-  *s = (char*) p;
+  *s = (char *)p;
   return p + *size;
 }
 
@@ -770,7 +774,7 @@ static uint8_t *get_string_or_null(uint8_t *p, const char **s) {
   p--;
   memmove(p, p + 1, size);
   p[size] = '\0';
-  *s = (char*) p;
+  *s = (char *)p;
   return p + size + 1;
 }
 

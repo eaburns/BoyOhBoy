@@ -3,12 +3,12 @@
 #include "9p.h"
 #include "errstr.h"
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <pthread.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__);
 #define DEBUG(...)
@@ -825,7 +825,7 @@ static void run_write_error_test() {
   must_join(server.thrd);
 }
 
-static void* server_thread(void *arg) {
+static void *server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("%s SERVER: started\n", server->test_name);
   for (int i = 0; i < sizeof(server->script) / sizeof(server->script[0]) &&

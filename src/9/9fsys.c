@@ -3,10 +3,10 @@
 #include "9p.h"
 #include "errstr.h"
 #include "thrd.h"
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 
 struct file9 {
   Fsys9 *fsys;
@@ -265,7 +265,7 @@ char *read9_all(File9 *file) {
       int size0 = size;
       size *= 2;
       buf = realloc(buf, size + 1);
-      memset(buf + size0, '\0', size+1 - size0);
+      memset(buf + size0, '\0', size + 1 - size0);
     }
     int n = read9(file, size - offs, buf + offs);
     if (n == 0) {

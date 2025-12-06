@@ -1,5 +1,5 @@
-#include <stdlib.h>
 #include <pthread.h>
+#include <stdlib.h>
 
 void must_lock(pthread_mutex_t *mtx) {
   if (pthread_mutex_lock(mtx) != 0) {
