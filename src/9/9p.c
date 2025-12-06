@@ -182,7 +182,7 @@ void* recv_thread(void *arg) {
     r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
     must_unlock(&c->mtx);
-    int n = fread((char *)r + sizeof(Reply9p), 1, body_size, c->f);
+    int n = fread(r->internal_data, 1, body_size, c->f);
     must_lock(&c->mtx);
 
     if (n != body_size) {
@@ -279,7 +279,7 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
   Reply9p *s = calloc(1, sizeof(Reply9p) + size);
   memcpy(s, r, sizeof(*r));
   s->internal_data_size = size;
-  char *p = (char *)s + sizeof(Reply9p);
+  char *p = s->internal_data;
   p = put_le4(p, size);
   p = put1(p, r->type);
   p = put_le2(p, tag);
@@ -330,7 +330,7 @@ Reply9p *serialize_reply9p(Reply9p *r, Tag9p tag) {
 
 static bool deserialize_reply(Reply9p *r, uint8_t type, const char *read_buf) {
   r->type = type;
-  char *start = (char *)r + sizeof(Reply9p);
+  char *start = r->internal_data;
   char *p = start;
   switch (r->type) {
   case R_VERSION_9P:
@@ -631,12 +631,12 @@ static Reply9p *error_reply(const char *fmt, ...) {
   Reply9p *r = calloc(1, sizeof(Reply9p) + n + 1);
   r->type = R_ERROR_9P;
   va_start(args, fmt);
-  int m = vsnprintf((char *)r + sizeof(Reply9p), n + 1, fmt, args);
+  int m = vsnprintf(r->internal_data, n + 1, fmt, args);
   va_end(args);
   if (m != n) {
     abort(); // impossible
   }
-  r->error.message = (char *)r + sizeof(Reply9p);
+  r->error.message = r->internal_data;
   return r;
 }
 

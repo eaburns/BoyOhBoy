@@ -58,6 +58,9 @@ static void run_version9p_test() {
   server_will_reply(&server, &reply, tag);
 
   Reply9p *r = wait9p(c, tag);
+  if (r->type == R_ERROR_9P) {
+    FAIL("got error reply: %s\n", r->error.message);
+  }
   if (r->type != R_VERSION_9P) {
     FAIL("bad reply type: got %d, expected %d\n", r->type, R_VERSION_9P);
   }
@@ -213,7 +216,7 @@ static void run_open9p_test() {
     FAIL("\nexpected qid: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13\n");
   }
   if (r->open.iounit != 1234) {
-    FAIL("got iounit %d, expected 1234\n", (int)r->open.iounit);
+    FAIL("got iounit %lu, expected 1234\n", (unsigned long)r->open.iounit);
   }
   free(r);
   close_test_server(&server);
@@ -472,7 +475,7 @@ static void run_receive_version_with_0byte() {
 
   Reply9p reply = {.type = R_VERSION_9P, .version = {.version = "XYZ"}};
   Reply9p *bad_reply = serialize_reply9p(&reply, tag);
-  char *p = (char *)bad_reply + sizeof(Reply9p);
+  char *p = bad_reply->internal_data;
   p += HEADER_SIZE;
   p += sizeof(bad_reply->version.msize);
   p += sizeof(uint16_t); // string size field
@@ -500,7 +503,7 @@ static void run_receive_error_with_0byte() {
 
   Reply9p reply = {.type = R_ERROR_9P, .error = {.message = "XYZ"}};
   Reply9p *bad_reply = serialize_reply9p(&reply, tag);
-  char *p = (char *)bad_reply + sizeof(Reply9p);
+  char *p = bad_reply->internal_data;
   p += HEADER_SIZE;
   p += sizeof(uint16_t); // string size field
   p[1] = 0;              // Add a null within the version string.
@@ -594,7 +597,7 @@ static void* server_thread(void *arg) {
       reply = server->reply;
     }
     server->reply = NULL;
-    if (fwrite((char *)reply + sizeof(Reply9p), 1, reply->internal_data_size,
+    if (fwrite(reply->internal_data, 1, reply->internal_data_size,
                server->socket) != reply->internal_data_size) {
       FAIL("server: failed to write reply\n");
     }

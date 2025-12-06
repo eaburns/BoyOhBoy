@@ -82,6 +82,9 @@ static bool has_open_files(const Fsys9 *fsys) {
 }
 
 void unmount9(Fsys9 *fsys) {
+  if (fsys == NULL) {
+    return;
+  }
   must_lock(&fsys->mtx);
   fsys->closed = true;
   while (has_open_files(fsys)) {

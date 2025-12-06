@@ -123,6 +123,9 @@ static void run_open_close_test() {
           },
   };
   Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
+  if (fsys == NULL) {
+    FAIL("mount failed: %s\n", errstr9());
+  }
   File9 *file = open9(fsys, "/foo/bar", OREAD_9);
   if (file == NULL) {
     FAIL("open9 returned NULL: %s\n", errstr9());
@@ -856,7 +859,7 @@ static void* server_thread(void *arg) {
     if (reply->internal_data_size == 0) {
       reply = serialize_reply9p(reply, tag);
     }
-    if (fwrite((char *)reply + sizeof(Reply9p), 1, reply->internal_data_size,
+    if (fwrite(reply->internal_data, 1, reply->internal_data_size,
                server->socket) != reply->internal_data_size) {
       FAIL("%s server: failed to write reply\n", server->test_name);
     }
