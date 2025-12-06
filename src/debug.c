@@ -19,6 +19,9 @@ static AcmeWin *vram_win = NULL;
 static AcmeWin *lcd_win = NULL;
 static bool lcd = false;
 static int step = 0;
+enum { MAX_BREAKS = 10 };
+static int nbreaks = 0;
+static int breaks[MAX_BREAKS];
 
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
@@ -414,9 +417,38 @@ static void do_lcd(const Gameboy *g) {
 static void do_step(int n) {
   if (n < 0) {
     printf("step argument must be positive\n");
+    return;
   }
   step = n;
   go = true;
+}
+
+static void do_break_n(int n) {
+  if (n < 0 || n > 0xFFFF) {
+    printf("break argument must be in the range 0-$FFFF\n");
+    return;
+  }
+  if (nbreaks == MAX_BREAKS) {
+    printf("max breaks (%d) already reached\n", MAX_BREAKS);
+    return;
+  }
+  for (int i = 0; i < nbreaks; i++) {
+    if (breaks[i] == n) {
+      memmove(breaks+i, breaks+i+1, nbreaks - i - 1);
+      nbreaks--;
+      printf("Removed break point $%04X\n", n);
+      return;
+    }
+  }
+  breaks[nbreaks++] = n;
+  printf("Set break point $%04X\n", n);
+}
+
+static void do_break() {
+  printf("Break points:\n");
+  for (int i = 0; i < nbreaks; i++) {
+    printf("\t$%04X\n", breaks[i]);
+  }
 }
 
 // Returns whether to step the next instruction.
@@ -453,6 +485,10 @@ static bool handle_input_line(Gameboy *g) {
     do_dump(g);
   } else if (sscanf(line, "step %d", &arg_d) == 1) {
     do_step(arg_d);
+  } else if (sscanf(line, "break $%x", &arg_d) == 1) {
+    do_break_n(arg_d);
+  } else if (strcmp(line, "break") == 0) {
+    do_break();
   } else if (strcmp(line, "go") == 0) {
     go = true;
   } else if (strcmp(line, "quit") == 0) {
@@ -513,6 +549,11 @@ int main(int argc, const char *argv[]) {
       if (step > 0) {
         step--;
         if (step == 0) {
+          go = false;
+        }
+      }
+      for (int i = 0; i < nbreaks; i++) {
+        if (breaks[i] == g.cpu.pc - 1) {
           go = false;
         }
       }
