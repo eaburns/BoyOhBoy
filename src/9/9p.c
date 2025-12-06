@@ -188,10 +188,12 @@ void* recv_thread(void *arg) {
     if (n != body_size) {
       DEBUG("recv_thread: failed to read data n=%d, body_size=%d\n", n,
             body_size);
+      free(r);
       break;
     }
     if (!deserialize_reply(r, type, q->read_buf)) {
       DEBUG("recv_thread: failed deserialize reply\n");
+      free(r);
       break;
     }
 
@@ -199,6 +201,7 @@ void* recv_thread(void *arg) {
       if (r->read.count > q->read_buf_size) {
         DEBUG("recv_thread: read reply count is too big %d > %d\n",
               r->read.count, q->read_buf_size);
+        free(r);
         break;
       }
       DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
