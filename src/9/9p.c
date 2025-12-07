@@ -560,15 +560,15 @@ static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
   DEBUG("send: sending %d bytes of msg\n", size);
   if (fwrite(msg, 1, size, c->f) != size) {
     DEBUG("send: failed to send msg\n");
-    tag = -1;
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
+    tag = -1;
   }
   if (type == T_WRITE_9P) {
     DEBUG("send: sending %d bytes of write data\n", buf_size);
     if (fwrite(buf, 1, buf_size, c->f) != buf_size) {
       DEBUG("send: failed to send write buffer\n");
-      tag = -1;
       memset(&c->queue[tag], 0, sizeof(QueueEntry));
+      tag = -1;
     }
   }
 
