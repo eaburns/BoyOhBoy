@@ -296,9 +296,9 @@ enum {
   BUTTON_LEFT = 1 << 1,
   BUTTON_B = 1 << 1,
   BUTTON_DOWN = 1 << 2,
-  BUTTON_START = 1 << 2,
+  BUTTON_SELECT = 1 << 2,
   BUTTON_UP = 1 << 3,
-  BUTTON_SELECT = 1 << 3,
+  BUTTON_START = 1 << 3,
   SELECT_BUTTONS = 1 << 5,
   SELECT_DPAD = 1 << 4,
 };
