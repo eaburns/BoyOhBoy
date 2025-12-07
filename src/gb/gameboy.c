@@ -63,6 +63,13 @@ Gameboy init_gameboy(const Rom *rom) {
   g.cpu.sp = 0xFFFE;
   g.cpu.flags = FLAG_Z;
   g.mem[MEM_P1_JOYPAD] = 0xCF;
+  g.mem[MEM_DIV] = 0xAB;
+  g.mem[MEM_TAC] = 0xF8;
+  g.mem[MEM_IF] = 0xE1;
+  g.mem[MEM_LCDC] = 0x91;
+  g.mem[MEM_STAT] = 0x85;
+  g.mem[MEM_DMA] = 0xFF;
+  g.mem[MEM_BGP] = 0xFC;
   return g;
 }
 
