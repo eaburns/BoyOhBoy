@@ -466,7 +466,6 @@ static void draw_lcd(Gameboy *g) {
   fprintf(stderr, "drawing lcd\n");
   if (win_fmt_addr(lcd_win, ",") < 0) {
     printf("error writing to lcd win addr: %s\n", errstr9());
-    lcd_win = NULL;
     free(b.data);
     return;
   }
