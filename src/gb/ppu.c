@@ -17,6 +17,10 @@ static uint8_t fetch(const Gameboy *g, uint16_t addr) {
   return g->mem[addr];
 }
 
+static int obj_height(const Gameboy *g) {
+  return fetch(g, MEM_LCDC) & LCDC_OBJ_SIZE ? 16 : 8;
+}
+
 static void do_oam_scan(Gameboy *g) {
   Ppu *ppu = &g->ppu;
   // OAM scan is 80 ticks total (0-79).
@@ -24,7 +28,7 @@ static void do_oam_scan(Gameboy *g) {
   if (ppu->ticks != 79) {
     return;
   }
-  int h = (fetch(g, MEM_LCDC) & LCDC_OBJ_SIZE) ? 16 : 8;
+  int h = obj_height(g);
   int LY = fetch(g, MEM_LY);
   uint16_t addr = MEM_OAM_START;
   ppu->nobjs = 0;
@@ -34,8 +38,8 @@ static void do_oam_scan(Gameboy *g) {
     o.x = fetch(g, addr++);
     o.tile = fetch(g, addr++);
     o.flags = fetch(g, addr++);
-    if (o.x != 0 && o.y >= LY + 16 && o.y + h < LY + 16 &&
-        ppu->nobjs < MAX_SCANLINE_OBJS) {
+    // The PPU only checks the Y coordinate of the object.
+    if (o.y - 16 <= LY && o.y - 16 + h > LY && ppu->nobjs < MAX_SCANLINE_OBJS) {
       ppu->objs[ppu->nobjs++] = o;
     }
   }
@@ -48,7 +52,7 @@ static int tile_from_map(const Gameboy *g, uint16_t map_base, int x, int y) {
   return fetch(g, map_base + (map_y * TILE_MAP_WIDTH) + map_x);
 }
 
-static uint16_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
+static uint8_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
   int tile_x = x % TILE_WIDTH;
   int tile_y = y % TILE_HEIGHT;
   uint8_t low = fetch(g, tile_addr + tile_y * 2);
@@ -61,6 +65,36 @@ static uint16_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
 static uint8_t tile_map_px(const Gameboy *g, uint16_t map_base, int x, int y) {
   int i = tile_from_map(g, map_base, x, y);
   return tile_px(g, MEM_TILE_BLOCK0_START + i * 16, x, y);
+}
+
+static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
+  const Object *obj = NULL;
+  for (int i = 0; i < g->ppu.nobjs; i++) {
+    const Object *o = &g->ppu.objs[i];
+    if (o->x - 8 > x || o->x - 8 + TILE_WIDTH <= x) {
+      continue;
+    }
+    if (obj == NULL || obj->x > o->x) {
+      obj = o;
+    }
+  }
+  if (obj == NULL) {
+    return 0;
+  }
+  int h = obj_height(g);
+  int obj_px_x = x - (obj->x - 8);
+  if (obj_px_x < 0 || obj_px_x >= 8) {
+    fail("obj_px_x=%d\n", obj_px_x);
+  }
+  int obj_px_y = y - (obj->y - 16);
+  if (obj_px_y < 0 || obj_px_y >= h) {
+    fail("obj_px_y=%d\n", obj_px_y, h);
+  }
+  int tile = obj->tile;
+  if (obj_px_y >= TILE_HEIGHT) {
+    tile++;
+  }
+  return tile_px(g, MEM_TILE_BLOCK0_START + tile * 16, obj_px_x, obj_px_y);
 }
 
 static void do_drawing(Gameboy *g) {
@@ -77,7 +111,12 @@ static void do_drawing(Gameboy *g) {
   int bgy = y + fetch(g, MEM_SCY);
   for (int x = 0; x < SCREEN_WIDTH; x++) {
     int bgx = x + fetch(g, MEM_SCX);
-    g->lcd[y][x] = tile_map_px(g, bg_tile_map_base, bgx, bgy);
+    uint8_t obj_px = get_obj_px(g, x, y);
+    if (obj_px > 0) {
+      g->lcd[y][x] = obj_px;
+    } else {
+      g->lcd[y][x] = tile_map_px(g, bg_tile_map_base, bgx, bgy);
+    }
   }
   ppu->ticks = 0;
   ppu->mode = HBLANK;
