@@ -471,26 +471,21 @@ static void draw_lcd(Gameboy *g) {
     free(b.data);
     return;
   }
-  fprintf(stderr, "drawing lcd\n");
   if (win_fmt_addr(lcd_win, ",") < 0) {
     printf("error writing to lcd win addr: %s\n", errstr9());
     free(b.data);
     return;
   }
-  fprintf(stderr, "drawing wrote addr\n");
   if (win_write_data(lcd_win, b.size, b.data) < 0) {
     printf("error writing to lcd win data: %s\n", errstr9());
   }
-  fprintf(stderr, "drawing wrote data\n");
   if (win_fmt_addr(lcd_win, "#0") < 0) {
     printf("error writing to lcd win addr: %s\n", errstr9());
   }
-  fprintf(stderr, "drawing wrote addr #0\n");
   if (win_fmt_ctl(lcd_win, "font %s\nclean\ndot=addr\nshow\n", VRAM_MAP_FONT) <
       0) {
     printf("error writing to lcd win ctl: %s\n", errstr9());
   }
-  fprintf(stderr, "drawing wrote tag - done\n");
   free(b.data);
 }
 
