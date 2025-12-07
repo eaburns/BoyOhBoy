@@ -2,7 +2,6 @@
 #define _9P_H_
 
 #include <stdint.h>
-#include <stdio.h>
 
 #define VERSION_9P "9P2000"
 
@@ -101,7 +100,7 @@ typedef struct {
 } Reply9p;
 
 Client9p *connect9p(const char *path);
-Client9p *connect_file9p(FILE *f);
+Client9p *connect_fd9p(int fd);
 void close9p(Client9p *c);
 Tag9p version9p(Client9p *c, uint32_t msize, const char *version);
 Tag9p auth9p(Client9p *c, Fid9p afid, const char *uname, const char *aname);

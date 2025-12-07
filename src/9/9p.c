@@ -1,5 +1,7 @@
 #include "9p.h"
+#include "errstr.h"
 
+#include "io.h"
 #include "thrd.h"
 #include <errno.h>
 #include <pthread.h>
@@ -10,8 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 
 // #define DEBUG(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG(...)
@@ -48,13 +48,12 @@ struct Client9p {
 
   pthread_mutex_t mtx;
   pthread_cond_t cnd;
-  FILE *f;
+  int fd;
   bool closed;
   bool recv_thread_done;
   QueueEntry queue[QUEUE_SIZE];
 };
 
-static FILE *dial_unix_socket(const char *path);
 static void *recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
@@ -83,16 +82,16 @@ static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s);
 static uint8_t *get_string_or_null(uint8_t *p, const char **s);
 
 Client9p *connect9p(const char *path) {
-  FILE *f = dial_unix_socket(path);
-  if (f == NULL) {
+  int fd = dial_unix_socket(path);
+  if (fd < 0) {
     return NULL;
   }
-  return connect_file9p(f);
+  return connect_fd9p(fd);
 }
 
-Client9p *connect_file9p(FILE *f) {
+Client9p *connect_fd9p(int fd) {
   Client9p *c = calloc(1, sizeof(*c));
-  c->f = f;
+  c->fd = fd;
   c->max_send_size = INIT_MAX_SEND_SIZE;
   if (pthread_mutex_init(&c->mtx, NULL) != 0) {
     goto err;
@@ -109,7 +108,7 @@ err_thrd:
 err_cnd:
   pthread_mutex_destroy(&c->mtx);
 err:
-  fclose(f);
+  close_fd(fd);
   free(c);
   return NULL;
 }
@@ -124,10 +123,11 @@ void close9p(Client9p *c) {
   // Wait for the waiters to go away and clean up.
   while (!queue_empty(c) || !c->recv_thread_done) {
     must_wait(&c->cnd, &c->mtx);
+    DEBUG("close9: checking condition\n");
   }
   DEBUG("close9p: cleaning up\n");
   pthread_join(c->recv_thrd, NULL);
-  fclose(c->f);
+  close_fd(c->fd);
   must_unlock(&c->mtx);
   pthread_mutex_destroy(&c->mtx);
   pthread_cond_destroy(&c->cnd);
@@ -137,10 +137,12 @@ void close9p(Client9p *c) {
 void *recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
-    DEBUG("recv_thread: waiting for queue\n");
     must_lock(&c->mtx);
+    DEBUG("recv_thread: waiting for queue\n");
     while (!c->closed && queue_waiting(c)) {
       must_wait(&c->cnd, &c->mtx);
+      DEBUG("recv_thread: checking condition: closed=%d, waiting=%d\n",
+            c->closed, queue_waiting(c));
     }
     if (c->closed) {
       DEBUG("recv_thread: got close\n");
@@ -185,12 +187,12 @@ void *recv_thread(void *arg) {
     r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
     must_unlock(&c->mtx);
-    int n = fread(r->internal_data, 1, body_size, c->f);
+    int n = read_full(c->fd, r->internal_data, body_size);
     must_lock(&c->mtx);
 
     if (n != body_size) {
-      DEBUG("recv_thread: failed to read data n=%d, body_size=%d\n", n,
-            body_size);
+      DEBUG("recv_thread: failed to read data n=%d, body_size=%d; %s\n", n,
+            body_size, errstr9());
       free(r);
       break;
     }
@@ -210,8 +212,14 @@ void *recv_thread(void *arg) {
       DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
       // Read the read reply data into the buffer passed to read9p().
       must_unlock(&c->mtx);
-      int n = fread(q->read_buf, 1, r->read.count, c->f);
+      int n = read_full(c->fd, q->read_buf, r->read.count);
       must_lock(&c->mtx);
+      if (n != r->read.count) {
+        DEBUG("recv_thread: failed to read data n=%d, count=%d; %s\n", n,
+              r->read.count, errstr9());
+        free(r);
+        break;
+      }
     }
 
     if (type == R_VERSION_9P) {
@@ -235,7 +243,7 @@ void *recv_thread(void *arg) {
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag) {
   uint8_t buf[HEADER_SIZE];
-  int n = fread(buf, 1, sizeof(buf), c->f);
+  int n = read_full(c->fd, buf, sizeof(buf));
   if (n != sizeof(buf)) {
     DEBUG("recv_header: only got %d bytes\n", n);
     return false;
@@ -558,14 +566,14 @@ static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
     size -= buf_size;
   }
   DEBUG("send: sending %d bytes of msg\n", size);
-  if (fwrite(msg, 1, size, c->f) != size) {
-    DEBUG("send: failed to send msg\n");
+  if (write_full(c->fd, msg, size) != size) {
+    DEBUG("send: failed to send msg tag=%d\n", tag);
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
     tag = -1;
   }
   if (type == T_WRITE_9P) {
     DEBUG("send: sending %d bytes of write data\n", buf_size);
-    if (fwrite(buf, 1, buf_size, c->f) != buf_size) {
+    if (write_full(c->fd, buf, buf_size) != buf_size) {
       DEBUG("send: failed to send write buffer\n");
       memset(&c->queue[tag], 0, sizeof(QueueEntry));
       tag = -1;
@@ -661,7 +669,7 @@ static bool queue_waiting(Client9p *c) {
 static bool queue_empty(Client9p *c) {
   for (int i = 0; i < QUEUE_SIZE; i++) {
     if (c->queue[i].in_use) {
-      DEBUG("recv_thread: queue slot %d in use\n", i);
+      DEBUG("close9p: queue slot %d in use\n", i);
       return false;
     }
   }
@@ -777,27 +785,4 @@ static uint8_t *get_string_or_null(uint8_t *p, const char **s) {
   p[size] = '\0';
   *s = (char *)p;
   return p + size + 1;
-}
-
-static FILE *dial_unix_socket(const char *path) {
-  // POSIX puts this in stdio.h, but it is not there with std=c23,
-  // we let's just declare it ourselves.
-  extern FILE *fdopen(int fd, const char *mode);
-
-  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-  struct sockaddr_un addr = {.sun_family = AF_UNIX};
-  strncpy(addr.sun_path, path, sizeof(addr.sun_path));
-  if (strlen(addr.sun_path) != strlen(path)) {
-    fprintf(stderr, "path too long (max %zu)\n", strlen(addr.sun_path));
-    errno = EINVAL;
-    return NULL;
-  }
-
-  if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-    fprintf(stderr, "connect failed: %s\n", strerror(errno));
-    return NULL;
-  }
-
-  return fdopen(fd, "r+");
 }

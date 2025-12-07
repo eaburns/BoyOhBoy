@@ -1,5 +1,6 @@
 #include "9p.h"
-
+#include "errstr.h"
+#include "io.h"
 #include "thrd.h"
 #include <errno.h>
 #include <pthread.h>
@@ -26,7 +27,7 @@ enum { HEADER_SIZE = sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint16_t) };
 static Reply9p NO_REPLY;
 
 typedef struct {
-  FILE *socket;
+  int socket;
   Client9p *client;
   pthread_t thrd;
 
@@ -556,18 +557,22 @@ static void *server_thread(void *arg) {
   DEBUG("TEST SERVER: started\n");
   for (;;) {
     char s[4];
-    if (fread(s, 1, sizeof(s), server->socket) != sizeof(s)) {
-      if (feof(server->socket)) {
-        break;
-      }
-      FAIL("test server: failed to read size");
+    int n = read_full(server->socket, s, sizeof(s));
+    if (n == 0) {
+      break;
+    }
+    if (n != sizeof(s)) {
+      // This may be an intentional error, so do not fail.
+      // Just exit gracefully.
+      DEBUG("TEST SERVER: failed to read size: %s", errstr9());
+      break;
     }
     int size = s[0] | (int)s[1] << 8 | (int)s[2] << 16 | (int)s[3] << 24;
     size -= sizeof(s);
     char *buf = calloc(1, size);
     DEBUG("TEST SERVER: reading %d bytes\n", size);
-    if (fread(buf, 1, size, server->socket) != size) {
-      FAIL("test server: failed to read message");
+    if (read_full(server->socket, buf, size) != size) {
+      FAIL("test server: failed to read message: %s", errstr9());
     }
     int type = buf[0];
     int tag = buf[1] | (int)buf[2] << 8;
@@ -599,16 +604,16 @@ static void *server_thread(void *arg) {
     must_lock(&server->mtx);
     server->reply = NULL;
     must_unlock(&server->mtx);
-    if (fwrite(reply->internal_data, 1, reply->internal_data_size,
-               server->socket) != reply->internal_data_size) {
-      FAIL("server: failed to write reply\n");
+    if (write_full(server->socket, reply->internal_data,
+                   reply->internal_data_size) != reply->internal_data_size) {
+      FAIL("server: failed to write reply: %s\n", errstr9());
     }
     DEBUG("TEST SERVER: sent message type %d\n", reply->type);
     if (free_reply) {
       free(reply);
     }
   }
-  fclose(server->socket);
+  close_fd(server->socket);
   return 0;
 }
 
@@ -622,14 +627,7 @@ static Client9p *connect_test_server(TestServer *server) {
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
     FAIL("failed to create socket pair: %s\n", strerror(errno));
   }
-  FILE *client = fdopen(sv[0], "r+");
-  if (client == NULL) {
-    FAIL("fdopen on client socket failed\n");
-  }
-  server->socket = fdopen(sv[1], "r+");
-  if (server->socket == NULL) {
-    FAIL("fdopen on server socket failed\n");
-  }
+  server->socket = sv[1];
   if (pthread_mutex_init(&server->mtx, NULL) != 0) {
     FAIL("failed to init mtx\n");
   }
@@ -639,7 +637,7 @@ static Client9p *connect_test_server(TestServer *server) {
   if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
     FAIL("failed to create thread\n");
   }
-  server->client = connect_file9p(client);
+  server->client = connect_fd9p(sv[0]);
   return server->client;
 }
 

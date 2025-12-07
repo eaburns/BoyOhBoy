@@ -1,7 +1,7 @@
 #include "9fsys.h"
-
 #include "9p.h"
 #include "errstr.h"
+#include "io.h"
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
@@ -31,7 +31,7 @@ typedef struct {
   Reply9p script[10];
 
   // These fields are set by connect_test_server.
-  FILE *socket;
+  int socket;
   Client9p *client;
   pthread_t thrd;
 } TestServer;
@@ -39,6 +39,7 @@ typedef struct {
 static Client9p *connect_test_server(TestServer *server);
 
 static void run_mount_unmount_test() {
+  DEBUG("Running test %s\n", __func__);
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -59,6 +60,7 @@ static void run_mount_unmount_test() {
 }
 
 static void run_mount_version_error_test() {
+  DEBUG("Running test %s\n", __func__);
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -78,6 +80,7 @@ static void run_mount_version_error_test() {
 }
 
 static void run_mount_attach_error_test() {
+  DEBUG("Running test %s\n", __func__);
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -101,6 +104,7 @@ static void run_mount_attach_error_test() {
 }
 
 static void run_open_close_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -122,20 +126,27 @@ static void run_open_close_test() {
               {.type = R_OPEN_9P},
           },
   };
+  DEBUG("%s mounting\n", __func__);
   Fsys9 *fsys = mount9_client(connect_test_server(&server), "test_user");
   if (fsys == NULL) {
     FAIL("mount failed: %s\n", errstr9());
   }
+  DEBUG("%s open9\n", __func__);
   File9 *file = open9(fsys, "/foo/bar", OREAD_9);
   if (file == NULL) {
     FAIL("open9 returned NULL: %s\n", errstr9());
   }
+  DEBUG("%s close9\n", __func__);
   close9(file);
+  DEBUG("%s unmount9\n", __func__);
   unmount9(fsys);
+  DEBUG("%s must_join\n", __func__);
   must_join(server.thrd);
+  DEBUG("%s returning\n", __func__);
 }
 
 static void run_open_walk_error_test() {
+  DEBUG("Running test %s\n", __func__);
   TestServer server = {
       .test_name = __func__,
       .script =
@@ -161,6 +172,7 @@ static void run_open_walk_error_test() {
 }
 
 static void run_open_walk_short_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[1] = {};
   TestServer server = {
       .test_name = __func__,
@@ -194,6 +206,7 @@ static void run_open_walk_short_test() {
 }
 
 static void run_open_open_error_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -228,6 +241,7 @@ static void run_open_open_error_test() {
 }
 
 static void run_read_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -275,6 +289,7 @@ static void run_read_test() {
 }
 
 static void run_short_read_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -322,6 +337,7 @@ static void run_short_read_test() {
 }
 
 static void run_read_error_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -366,6 +382,7 @@ static void run_read_error_test() {
 }
 
 static void run_read_full_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -425,6 +442,7 @@ static void run_read_full_test() {
 }
 
 static void run_read_full_eof_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -469,6 +487,7 @@ static void run_read_full_eof_test() {
 }
 
 static void run_read_full_unexpected_eof_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -517,6 +536,7 @@ static void run_read_full_unexpected_eof_test() {
 }
 
 static void run_read_full_error_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -565,6 +585,7 @@ static void run_read_full_error_test() {
 }
 
 static void run_read9_wait_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -616,6 +637,7 @@ static void run_read9_wait_test() {
 }
 
 static void run_read9_poll_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -670,6 +692,7 @@ static void run_read9_poll_test() {
 }
 
 static void run_write_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -722,6 +745,7 @@ static void run_write_test() {
 }
 
 static void run_write_short_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -774,6 +798,7 @@ static void run_write_short_test() {
 }
 
 static void run_write_error_test() {
+  DEBUG("Running test %s\n", __func__);
   Qid9p qids[2] = {};
   TestServer server = {
       .test_name = __func__,
@@ -832,18 +857,21 @@ static void *server_thread(void *arg) {
                   server->script[i].type > 0;
        i++) {
     char s[4];
-    if (fread(s, 1, sizeof(s), server->socket) != sizeof(s)) {
-      if (feof(server->socket)) {
-        break;
-      }
-      FAIL("%s server: failed to read size", server->test_name);
+    int n = read_full(server->socket, s, sizeof(s));
+    if (n == 0) {
+      break;
+    }
+    if (n != sizeof(s)) {
+      FAIL("%s server: failed to read size: %s\n", server->test_name,
+           errstr9());
     }
     int size = s[0] | (int)s[1] << 8 | (int)s[2] << 16 | (int)s[3] << 24;
     size -= sizeof(s);
     char *buf = calloc(1, size);
     DEBUG("%s SERVER: reading %d bytes\n", server->test_name, size);
-    if (fread(buf, 1, size, server->socket) != size) {
-      FAIL("%s server: failed to read message", server->test_name);
+    if (read_full(server->socket, buf, size) != size) {
+      FAIL("%s server: failed to read message: %s", server->test_name,
+           errstr9());
     }
     int type = buf[0];
     int tag = buf[1] | (int)buf[2] << 8;
@@ -859,9 +887,10 @@ static void *server_thread(void *arg) {
     if (reply->internal_data_size == 0) {
       reply = serialize_reply9p(reply, tag);
     }
-    if (fwrite(reply->internal_data, 1, reply->internal_data_size,
-               server->socket) != reply->internal_data_size) {
-      FAIL("%s server: failed to write reply\n", server->test_name);
+    if (write_full(server->socket, reply->internal_data,
+                   reply->internal_data_size) != reply->internal_data_size) {
+      FAIL("%s server: failed to write reply: %s\n", server->test_name,
+           errstr9());
     }
     DEBUG("%s SERVER: sent message type %d\n", server->test_name, reply->type);
     if (reply != &server->script[i]) {
@@ -869,31 +898,20 @@ static void *server_thread(void *arg) {
     }
   }
   DEBUG("%s SERVER: done\n", server->test_name);
-  fclose(server->socket);
+  close_fd(server->socket);
   return 0;
 }
 
 static Client9p *connect_test_server(TestServer *server) {
-  // POSIX puts this in stdio.h, but it is not there with std=c23,
-  // we let's just declare it ourselves.
-  extern FILE *fdopen(int fd, const char *mode);
-
   int sv[2];
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
     FAIL("failed to create socket pair: %s\n", strerror(errno));
   }
-  FILE *client = fdopen(sv[0], "r+");
-  if (client == NULL) {
-    FAIL("fdopen on client socket failed\n");
-  }
-  server->socket = fdopen(sv[1], "r+");
-  if (server->socket == NULL) {
-    FAIL("fdopen on server socket failed\n");
-  }
+  server->socket = sv[1];
   if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
     FAIL("failed to create thread\n");
   }
-  server->client = connect_file9p(client);
+  server->client = connect_fd9p(sv[0]);
   return server->client;
 }
 

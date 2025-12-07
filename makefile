@@ -1,7 +1,7 @@
 CC=clang
 AR=ar
-CFLAGS_POSIX=-O2 -Werror -g -fsanitize=memory
-CFLAGS=-O2 -Werror -std=c23 -g -fsanitize=memory
+CFLAGS_POSIX=-O2 -Werror -g -fsanitize=address
+CFLAGS=-O2 -Werror -std=c23 -g -fsanitize=address
 
 BINS=9test debug disasm
 
@@ -31,7 +31,7 @@ src/gb/%_test: src/gb/%_test.o $(LIB_GB)
 #
 
 LIB_9=src/9/lib9.a
-SRCS_9=src/9/9p.c src/9/9fsys.c src/9/acme.c src/9/thrd.c src/9/errstr.c
+SRCS_9=src/9/9p.c src/9/9fsys.c src/9/acme.c src/9/thrd.c src/9/errstr.c src/9/io.c
 TESTS_9=src/9/9p_test.c src/9/9fsys_test.c
 
 DEPS_9=$(SRCS_9:.c=.d) $(TESTS_9:.c=.d)
