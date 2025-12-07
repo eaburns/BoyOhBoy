@@ -263,9 +263,11 @@ static AcmeWin *get_vram_win() {
 
 static void *poll_events(void *arg) {
   Gameboy *g = arg;
-  win_start_events(lcd_win);
+  if (!win_start_events(lcd_win)) {
+    fprintf(stderr, "failed to start events: %s\n", errstr9());
+  }
   for (;;) {
-    fprintf(stderr, "waiting for an event\n");
+    fprintf(stderr, "waiting for an event %p\n", lcd_win);
     AcmeEvent *event = win_wait_event(lcd_win);
     if (event->type == 0) {
       fprintf(stderr, "event error: %s\n", event->data);
