@@ -1,26 +1,25 @@
 #include "errstr.h"
-
-#include <pthread.h>
+#include "thread.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-static pthread_key_t err_msg;
-static pthread_once_t once = PTHREAD_ONCE_INIT;
+static ThreadLocal9 err_msg;
+static Once9 once = ONCE9_INIT;
 
 static void init_tss() {
-  pthread_key_create(&err_msg, free);
-  pthread_setspecific(err_msg, strdup(""));
+  thread_local_init9(&err_msg, free);
+  thread_local_set9(&err_msg, strdup(""));
 }
 
 const char *errstr9() {
-  pthread_once(&once, init_tss);
-  return pthread_getspecific(err_msg);
+  do_once9(&once, init_tss);
+  return thread_local_get9(&err_msg);
 }
 
 void errstr9f(const char *fmt, ...) {
-  pthread_once(&once, init_tss);
+  do_once9(&once, init_tss);
 
   va_list args;
   va_start(args, fmt);
@@ -35,6 +34,6 @@ void errstr9f(const char *fmt, ...) {
   if (m != n) {
     abort();
   }
-  free(pthread_getspecific(err_msg));
-  pthread_setspecific(err_msg, msg);
+  free(thread_local_get9(&err_msg));
+  thread_local_set9(&err_msg, msg);
 }

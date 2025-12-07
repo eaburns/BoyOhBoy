@@ -1,9 +1,8 @@
 #include "9p.h"
 #include "errstr.h"
 #include "io.h"
-#include "thrd.h"
+#include "thread.h"
 #include <errno.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -29,10 +28,10 @@ static Reply9p NO_REPLY;
 typedef struct {
   int socket;
   Client9p *client;
-  pthread_t thrd;
+  Thread9 thrd;
 
-  pthread_mutex_t mtx;
-  pthread_cond_t cnd;
+  Mutex9 mtx;
+  Cond9 cnd;
   Reply9p *reply;
   Tag9p tag;
   bool done;
@@ -552,7 +551,7 @@ static void run_read_response_too_big_test() {
   close_test_server(&server);
 }
 
-static void *server_thread(void *arg) {
+static void server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("TEST SERVER: started\n");
   for (;;) {
@@ -579,19 +578,19 @@ static void *server_thread(void *arg) {
     DEBUG("TEST SERVER: read message type %d tag %d\n", type, tag);
     free(buf);
 
-    must_lock(&server->mtx);
+    mutex_lock9(&server->mtx);
     while (!server->done && server->reply == NULL) {
-      must_wait(&server->cnd, &server->mtx);
+      cond_wait9(&server->cnd, &server->mtx);
     }
     if (server->done) {
-      must_unlock(&server->mtx);
+      mutex_unlock9(&server->mtx);
       break;
     }
     if (server->reply == &NO_REPLY) {
-      must_unlock(&server->mtx);
+      mutex_unlock9(&server->mtx);
       continue;
     }
-    must_unlock(&server->mtx);
+    mutex_unlock9(&server->mtx);
 
     Reply9p *reply = NULL;
     bool free_reply = false;
@@ -601,9 +600,9 @@ static void *server_thread(void *arg) {
     } else {
       reply = server->reply;
     }
-    must_lock(&server->mtx);
+    mutex_lock9(&server->mtx);
     server->reply = NULL;
-    must_unlock(&server->mtx);
+    mutex_unlock9(&server->mtx);
     if (write_full(server->socket, reply->internal_data,
                    reply->internal_data_size) != reply->internal_data_size) {
       FAIL("server: failed to write reply: %s\n", errstr9());
@@ -614,7 +613,6 @@ static void *server_thread(void *arg) {
     }
   }
   close_fd(server->socket);
-  return 0;
 }
 
 static Client9p *connect_test_server(TestServer *server) {
@@ -628,25 +626,19 @@ static Client9p *connect_test_server(TestServer *server) {
     FAIL("failed to create socket pair: %s\n", strerror(errno));
   }
   server->socket = sv[1];
-  if (pthread_mutex_init(&server->mtx, NULL) != 0) {
-    FAIL("failed to init mtx\n");
-  }
-  if (pthread_cond_init(&server->cnd, NULL) != 0) {
-    FAIL("failed to init cnd\n");
-  }
-  if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
-    FAIL("failed to create thread\n");
-  }
+  mutex_init9(&server->mtx);
+  cond_init9(&server->cnd);
+  thread_create9(&server->thrd, server_thread, server);
   server->client = connect_fd9p(sv[0]);
   return server->client;
 }
 
 static void server_will_reply(TestServer *server, Reply9p *r, Tag9p tag) {
-  must_lock(&server->mtx);
+  mutex_lock9(&server->mtx);
   server->reply = r;
   server->tag = tag;
-  must_broadcast(&server->cnd);
-  must_unlock(&server->mtx);
+  cond_broadcast9(&server->cnd);
+  mutex_unlock9(&server->mtx);
 }
 
 static void exchange_version(Client9p *c, TestServer *server) {
@@ -664,14 +656,12 @@ static void exchange_version(Client9p *c, TestServer *server) {
 }
 
 static void close_test_server(TestServer *server) {
-  must_lock(&server->mtx);
+  mutex_lock9(&server->mtx);
   server->done = true;
-  must_broadcast(&server->cnd);
-  must_unlock(&server->mtx);
+  cond_broadcast9(&server->cnd);
+  mutex_unlock9(&server->mtx);
   close9p(server->client);
-  if (pthread_join(server->thrd, NULL) != 0) {
-    abort();
-  }
+  thread_join9(&server->thrd);
 }
 
 static void fprint_qid(FILE *f, Qid9p qid) {

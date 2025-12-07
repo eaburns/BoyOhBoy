@@ -2,9 +2,8 @@
 
 #include "9fsys.h"
 #include "errstr.h"
-#include "thrd.h"
+#include "thread.h"
 #include <ctype.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +18,7 @@ struct acme {
   Fsys9 *fsys;
   File9 *index;
 
-  pthread_mutex_t mtx;
+  Mutex9 mtx;
   bool closed;
   AcmeWin *wins[MAX_WINS];
 };
@@ -27,7 +26,7 @@ struct acme {
 struct win {
   Acme *acme;
   char *id;
-  pthread_mutex_t mtx;
+  Mutex9 mtx;
   File9 *ctl;
   File9 *addr;
   File9 *data;
@@ -36,7 +35,7 @@ struct win {
 
   // Events are handled by a separate mutex so that a separate thread can poll
   // events from the thread using the win.
-  pthread_mutex_t event_mtx;
+  Mutex9 event_mtx;
   File9 *event;
   Read9Tag *event_read_tag;
   // Number of bytes currently in buf.
@@ -83,13 +82,8 @@ Acme *acme_connect() {
   if (acme->index == NULL) {
     goto open_err;
   }
-  if (pthread_mutex_init(&acme->mtx, NULL) != 0) {
-    errstr9f("failed to init mtx");
-    goto mtx_err;
-  }
+  mutex_init9(&acme->mtx);
   return acme;
-mtx_err:
-  close9(acme->index);
 open_err:
   unmount9(acme->fsys);
 mount_err:
@@ -104,23 +98,23 @@ static void win_release_with_lock(AcmeWin *win) {
   close9(win->body);
   close9(win->tag);
   free(win->id);
-  pthread_mutex_destroy(&win->mtx);
-  pthread_mutex_destroy(&win->event_mtx);
+  mutex_destroy9(&win->mtx);
+  mutex_destroy9(&win->event_mtx);
   free(win);
 }
 
 void acme_close(Acme *acme) {
-  must_lock(&acme->mtx);
+  mutex_lock9(&acme->mtx);
   acme->closed = true;
   for (int i = 0; i < MAX_WINS; i++) {
     if (acme->wins[i] != NULL) {
       win_release_with_lock(acme->wins[i]);
     }
   }
-  must_unlock(&acme->mtx);
+  mutex_unlock9(&acme->mtx);
   close9(acme->index);
   unmount9(acme->fsys);
-  pthread_mutex_destroy(&acme->mtx);
+  mutex_destroy9(&acme->mtx);
   free(acme);
 }
 
@@ -229,7 +223,7 @@ static File9 *open_win_file(Acme *acme, const char *id, const char *file) {
 }
 
 AcmeWin *acme_get_win(Acme *acme, const char *name) {
-  must_lock(&acme->mtx);
+  mutex_lock9(&acme->mtx);
   if (acme->closed) {
     errstr9f("acme was closed");
     goto err;
@@ -269,22 +263,12 @@ AcmeWin *acme_get_win(Acme *acme, const char *name) {
   if (win->body == NULL) {
     goto tag_err;
   }
-  if (pthread_mutex_init(&win->mtx, NULL) != 0) {
-    errstr9f("failed to init mtx");
-    goto mtx_err;
-  }
-  if (pthread_mutex_init(&win->event_mtx, NULL) != 0) {
-    errstr9f("failed to init event_mtx");
-    goto event_mtx_err;
-  }
+  mutex_init9(&win->mtx);
+  mutex_init9(&win->event_mtx);
   win->acme = acme;
   acme->wins[i] = win;
-  must_unlock(&acme->mtx);
+  mutex_unlock9(&acme->mtx);
   return win;
-event_mtx_err:
-  pthread_mutex_destroy(&win->mtx);
-mtx_err:
-  close9(win->tag);
 tag_err:
   close9(win->body);
 body_err:
@@ -297,13 +281,13 @@ ctl_err:
   free(win->id);
   free(win);
 err:
-  must_unlock(&acme->mtx);
+  mutex_unlock9(&acme->mtx);
   return NULL;
 }
 
 void win_release(AcmeWin *win) {
   Acme *acme = win->acme;
-  must_lock(&acme->mtx);
+  mutex_lock9(&acme->mtx);
   for (int i = 0; i < MAX_WINS; i++) {
     if (acme->wins[i] == win) {
       acme->wins[i] = NULL;
@@ -311,15 +295,15 @@ void win_release(AcmeWin *win) {
     }
   }
   win_release_with_lock(win);
-  must_unlock(&acme->mtx);
+  mutex_unlock9(&acme->mtx);
 }
 
 int win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   int n = vfprint_file9(win->ctl, fmt, args);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   va_end(args);
   return n;
 }
@@ -327,68 +311,68 @@ int win_fmt_ctl(AcmeWin *win, const char *fmt, ...) {
 int win_fmt_addr(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   int n = vfprint_file9(win->addr, fmt, args);
   va_end(args);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return n;
 }
 
 int win_fmt_tag(AcmeWin *win, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   int n = vfprint_file9(win->tag, fmt, args);
   va_end(args);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return n;
 }
 
 int win_write_data(AcmeWin *win, int size, const char *data) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->data);
   int n = write9(win->data, size, data);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return n;
 }
 
 int win_write_body(AcmeWin *win, int size, const char *data) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->body);
   int n = write9(win->body, size, data);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return n;
 }
 
 char *win_read_addr(AcmeWin *win) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->addr);
   char *s = read9_all(win->addr);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return s;
 }
 
 char *win_read_data(AcmeWin *win) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->data);
   char *s = read9_all(win->data);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return s;
 }
 
 char *win_read_body(AcmeWin *win) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->body);
   char *s = read9_all(win->body);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return s;
 }
 
 char *win_read_tag(AcmeWin *win) {
-  must_lock(&win->mtx);
+  mutex_lock9(&win->mtx);
   rewind9(win->tag);
   char *s = read9_all(win->tag);
-  must_unlock(&win->mtx);
+  mutex_unlock9(&win->mtx);
   return s;
 }
 
@@ -422,9 +406,9 @@ static bool start_event_read(AcmeWin *win) {
 }
 
 bool win_start_events(AcmeWin *win) {
-  must_lock(&win->event_mtx);
+  mutex_lock9(&win->event_mtx);
   if (win->event != NULL) {
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     errstr9f("events already started");
     return false;
   }
@@ -432,7 +416,7 @@ bool win_start_events(AcmeWin *win) {
   win->event = open_win_file(win->acme, win->id, "event");
   if (win->event == NULL) {
     DEBUG("open win file failed\n");
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return false;
   }
   win->n = 0;
@@ -441,16 +425,16 @@ bool win_start_events(AcmeWin *win) {
     close9(win->event);
     win->event = NULL;
     win->event_read_tag = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return false;
   }
-  must_unlock(&win->event_mtx);
+  mutex_unlock9(&win->event_mtx);
   return true;
 }
 
 void win_stop_events(AcmeWin *win) {
   DEBUG("stopping events\n");
-  must_lock(&win->event_mtx);
+  mutex_lock9(&win->event_mtx);
   if (win->event != NULL) {
     read9_wait(win->event_read_tag);
     win->event_read_tag = NULL;
@@ -458,7 +442,7 @@ void win_stop_events(AcmeWin *win) {
     win->event = NULL;
     win->n = 0;
   }
-  must_unlock(&win->event_mtx);
+  mutex_unlock9(&win->event_mtx);
 }
 
 static const int MALFORMED = -1;
@@ -566,9 +550,9 @@ error:
 }
 
 AcmeEvent *win_poll_event(AcmeWin *win) {
-  must_lock(&win->event_mtx);
+  mutex_lock9(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return NULL;
   }
 
@@ -578,7 +562,7 @@ retry:
   if (win->n > 0 && win->event_read_tag == NULL) {
     AcmeEvent *event = deserialize_event(win);
     if (event != NULL) {
-      must_unlock(&win->event_mtx);
+      mutex_unlock9(&win->event_mtx);
       return event;
     }
     DEBUG("failed to deserialize\n");
@@ -589,13 +573,13 @@ retry:
   if (win->event_read_tag == NULL) {
     DEBUG("fetch more (n=%d)\n", win->n);
     if (start_event_read(win)) {
-      must_unlock(&win->event_mtx);
+      mutex_unlock9(&win->event_mtx);
       return NULL;
     }
     DEBUG("start_event_read failed\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event(errstr9());
   }
 
@@ -603,7 +587,7 @@ retry:
   // Check whether it's done.
   Read9PollResult poll_result = read9_poll(win->event_read_tag);
   if (!poll_result.done) {
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return NULL;
   }
   win->event_read_tag = NULL;
@@ -611,14 +595,14 @@ retry:
     DEBUG("read9_poll unexpected eof\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event("unexpected-end-of-file");
   }
   if (poll_result.n < 0) {
     DEBUG("read9_poll error: %s\n", errstr9());
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event(errstr9());
   }
 
@@ -630,9 +614,9 @@ retry:
 }
 
 AcmeEvent *win_wait_event(AcmeWin *win) {
-  must_lock(&win->event_mtx);
+  mutex_lock9(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event("events not started");
   }
 
@@ -640,7 +624,7 @@ retry:
   if (win->n > 0 && win->event_read_tag == NULL) {
     AcmeEvent *event = deserialize_event(win);
     if (event != NULL) {
-      must_unlock(&win->event_mtx);
+      mutex_unlock9(&win->event_mtx);
       return event;
     }
   }
@@ -650,7 +634,7 @@ retry:
       DEBUG("start_event_read failed\n");
       close9(win->event);
       win->event = NULL;
-      must_unlock(&win->event_mtx);
+      mutex_unlock9(&win->event_mtx);
       return error_event(errstr9());
     }
   }
@@ -660,14 +644,14 @@ retry:
     DEBUG("read9_wait unexpected eof\n");
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event("unexpected-end-of-file");
   }
   if (n < 0) {
     DEBUG("read9_wait error: %s\n", errstr9());
     close9(win->event);
     win->event = NULL;
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     return error_event(errstr9());
   }
   win->n += n;
@@ -676,14 +660,14 @@ retry:
 }
 
 bool win_write_event(AcmeWin *win, AcmeEvent *event) {
-  must_lock(&win->event_mtx);
+  mutex_lock9(&win->event_mtx);
   if (win->event == NULL) {
-    must_unlock(&win->event_mtx);
+    mutex_unlock9(&win->event_mtx);
     errstr9f("events not started");
     return false;
   }
   int n = fprint_file9(win->event, "%c%c%d %d \n", event->origin, event->type,
                        event->addr[0], event->addr[1]);
-  must_unlock(&win->event_mtx);
+  mutex_unlock9(&win->event_mtx);
   return n >= 0;
 }

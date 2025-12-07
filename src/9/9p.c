@@ -2,9 +2,8 @@
 #include "errstr.h"
 
 #include "io.h"
-#include "thrd.h"
+#include "thread.h"
 #include <errno.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -44,17 +43,17 @@ struct Client9p {
   uint32_t max_send_size;
   uint32_t max_recv_size;
 
-  pthread_t recv_thrd;
+  Thread9 recv_thrd;
 
-  pthread_mutex_t mtx;
-  pthread_cond_t cnd;
+  Mutex9 mtx;
+  Cond9 cnd;
   int fd;
   bool closed;
   bool recv_thread_done;
   QueueEntry queue[QUEUE_SIZE];
 };
 
-static void *recv_thread(void *c);
+static void recv_thread(void *c);
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
                         uint16_t *tag);
 static bool deserialize_reply(Reply9p *r, uint8_t type,
@@ -93,20 +92,10 @@ Client9p *connect_fd9p(int fd) {
   Client9p *c = calloc(1, sizeof(*c));
   c->fd = fd;
   c->max_send_size = INIT_MAX_SEND_SIZE;
-  if (pthread_mutex_init(&c->mtx, NULL) != 0) {
-    goto err;
-  }
-  if (pthread_cond_init(&c->cnd, NULL) != 0) {
-    goto err_cnd;
-  }
-  if (pthread_create(&c->recv_thrd, NULL, recv_thread, c) != 0) {
-    goto err_thrd;
-  }
+  mutex_init9(&c->mtx);
+  cond_init9(&c->cnd);
+  thread_create9(&c->recv_thrd, recv_thread, c);
   return c;
-err_thrd:
-  pthread_cond_destroy(&c->cnd);
-err_cnd:
-  pthread_mutex_destroy(&c->mtx);
 err:
   close_fd(fd);
   free(c);
@@ -115,32 +104,32 @@ err:
 
 void close9p(Client9p *c) {
   DEBUG("close9p called\n");
-  must_lock(&c->mtx);
+  mutex_lock9(&c->mtx);
   c->closed = true;
-  must_broadcast(&c->cnd);
+  cond_broadcast9(&c->cnd);
   DEBUG("close9p: waiting for everyone to close\n");
   // We only exit the loop with the lock held.
   // Wait for the waiters to go away and clean up.
   while (!queue_empty(c) || !c->recv_thread_done) {
-    must_wait(&c->cnd, &c->mtx);
+    cond_wait9(&c->cnd, &c->mtx);
     DEBUG("close9: checking condition\n");
   }
   DEBUG("close9p: cleaning up\n");
-  pthread_join(c->recv_thrd, NULL);
+  thread_join9(&c->recv_thrd);
   close_fd(c->fd);
-  must_unlock(&c->mtx);
-  pthread_mutex_destroy(&c->mtx);
-  pthread_cond_destroy(&c->cnd);
+  mutex_unlock9(&c->mtx);
+  mutex_destroy9(&c->mtx);
+  cond_destroy9(&c->cnd);
   free(c);
 }
 
-void *recv_thread(void *arg) {
+void recv_thread(void *arg) {
   Client9p *c = arg;
   for (;;) {
-    must_lock(&c->mtx);
+    mutex_lock9(&c->mtx);
     DEBUG("recv_thread: waiting for queue\n");
     while (!c->closed && queue_waiting(c)) {
-      must_wait(&c->cnd, &c->mtx);
+      cond_wait9(&c->cnd, &c->mtx);
       DEBUG("recv_thread: checking condition: closed=%d, waiting=%d\n",
             c->closed, queue_waiting(c));
     }
@@ -150,12 +139,12 @@ void *recv_thread(void *arg) {
     }
 
     DEBUG("recv_thread: receiving header\n");
-    must_unlock(&c->mtx);
+    mutex_unlock9(&c->mtx);
     uint32_t size;
     uint8_t type;
     uint16_t tag;
     bool ok = recv_header(c, &size, &type, &tag);
-    must_lock(&c->mtx);
+    mutex_lock9(&c->mtx);
 
     if (!ok) {
       DEBUG("recv_thread: failed to receive the header\n");
@@ -186,9 +175,9 @@ void *recv_thread(void *arg) {
     Reply9p *r = calloc(1, sizeof(Reply9p) + body_size);
     r->internal_data_size = body_size;
     DEBUG("recv_thread: receiving body %d bytes\n", body_size);
-    must_unlock(&c->mtx);
+    mutex_unlock9(&c->mtx);
     int n = read_full(c->fd, r->internal_data, body_size);
-    must_lock(&c->mtx);
+    mutex_lock9(&c->mtx);
 
     if (n != body_size) {
       DEBUG("recv_thread: failed to read data n=%d, body_size=%d; %s\n", n,
@@ -211,9 +200,9 @@ void *recv_thread(void *arg) {
       }
       DEBUG("recv_thread: reading %d bytes into read buffer\n", r->read.count);
       // Read the read reply data into the buffer passed to read9p().
-      must_unlock(&c->mtx);
+      mutex_unlock9(&c->mtx);
       int n = read_full(c->fd, q->read_buf, r->read.count);
-      must_lock(&c->mtx);
+      mutex_lock9(&c->mtx);
       if (n != r->read.count) {
         DEBUG("recv_thread: failed to read data n=%d, count=%d; %s\n", n,
               r->read.count, errstr9());
@@ -227,17 +216,16 @@ void *recv_thread(void *arg) {
     }
     DEBUG("recv_thread: finished reply for tag %d - broadcasting\n", tag);
     q->reply = r;
-    must_broadcast(&c->cnd);
-    must_unlock(&c->mtx);
+    cond_broadcast9(&c->cnd);
+    mutex_unlock9(&c->mtx);
     continue;
   }
 
   DEBUG("recv_thread: done\n");
   c->closed = true;
   c->recv_thread_done = true;
-  must_broadcast(&c->cnd);
-  must_unlock(&c->mtx);
-  return 0;
+  cond_broadcast9(&c->cnd);
+  mutex_unlock9(&c->mtx);
 }
 
 static bool recv_header(Client9p *c, uint32_t *size, uint8_t *type,
@@ -532,15 +520,15 @@ static Tag9p send_msg(Client9p *c, uint8_t *msg) {
 
 static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
                               uint8_t *buf) {
-  must_lock(&c->mtx);
+  mutex_lock9(&c->mtx);
   Tag9p tag = free_queue_slot(c);
   while (!c->closed && tag < 0) {
-    must_wait(&c->cnd, &c->mtx);
+    cond_wait9(&c->cnd, &c->mtx);
     tag = free_queue_slot(c);
   }
   if (c->closed) {
     DEBUG("send: closed before getting a tag\n");
-    must_unlock(&c->mtx);
+    mutex_unlock9(&c->mtx);
     free(msg);
     return -1;
   }
@@ -581,22 +569,22 @@ static Tag9p send_with_buffer(Client9p *c, uint8_t *msg, int buf_size,
   }
 
 done:
-  must_broadcast(&c->cnd);
-  must_unlock(&c->mtx);
+  cond_broadcast9(&c->cnd);
+  mutex_unlock9(&c->mtx);
   free(msg);
   return tag;
 }
 
 Reply9p *wait9p(Client9p *c, Tag9p tag) {
   DEBUG("wait9p: waiting for reply for %d\n", tag);
-  must_lock(&c->mtx);
+  mutex_lock9(&c->mtx);
   if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
     DEBUG("wait9p: bad tag %d\n", tag);
-    must_unlock(&c->mtx);
+    mutex_unlock9(&c->mtx);
     return error_reply("bad tag");
   }
   while (!c->closed && c->queue[tag].reply == NULL) {
-    must_wait(&c->cnd, &c->mtx);
+    cond_wait9(&c->cnd, &c->mtx);
   }
   Reply9p *r = c->queue[tag].reply;
   memset(&c->queue[tag], 0, sizeof(QueueEntry));
@@ -607,22 +595,22 @@ Reply9p *wait9p(Client9p *c, Tag9p tag) {
   } else {
     DEBUG("wait9p: got reply for %d\n", tag);
   }
-  must_broadcast(&c->cnd);
-  must_unlock(&c->mtx);
+  cond_broadcast9(&c->cnd);
+  mutex_unlock9(&c->mtx);
   return r;
 }
 
 Reply9p *poll9p(Client9p *c, Tag9p tag) {
   DEBUG("poll9p: checking for a reply for %d\n", tag);
-  must_lock(&c->mtx);
+  mutex_lock9(&c->mtx);
   if (tag < 0 || tag >= QUEUE_SIZE || !c->queue[tag].in_use) {
-    must_unlock(&c->mtx);
+    mutex_unlock9(&c->mtx);
     return error_reply("bad tag");
   }
   Reply9p *r = c->queue[tag].reply;
   if (c->closed || r != NULL) {
     memset(&c->queue[tag], 0, sizeof(QueueEntry));
-    must_broadcast(&c->cnd);
+    cond_broadcast9(&c->cnd);
   }
   if (r != NULL) {
     DEBUG("poll9p: got reply for %d\n", tag);
@@ -634,7 +622,7 @@ Reply9p *poll9p(Client9p *c, Tag9p tag) {
   if (r == NULL) {
     DEBUG("poll9p: no reply yet for %d\n", tag);
   }
-  must_unlock(&c->mtx);
+  mutex_unlock9(&c->mtx);
   return r;
 }
 

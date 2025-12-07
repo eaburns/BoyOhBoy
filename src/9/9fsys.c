@@ -2,8 +2,7 @@
 
 #include "9p.h"
 #include "errstr.h"
-#include "thrd.h"
-#include <pthread.h>
+#include "thread.h"
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,15 +10,15 @@
 struct file9 {
   Fsys9 *fsys;
   Fid9p fid;
-  pthread_mutex_t mtx;
+  Mutex9 mtx;
   uint64_t offs;
   int iounit;
 };
 
 struct fsys9 {
   Client9p *client;
-  pthread_mutex_t mtx;
-  pthread_cond_t cnd;
+  Mutex9 mtx;
+  Cond9 cnd;
   Fid9p root;
   bool closed;
   File9 files[MAX_OPEN_FILES];
@@ -44,19 +43,9 @@ Fsys9 *mount9_client(Client9p *c, const char *user) {
   Fsys9 *fsys = calloc(1, sizeof(*fsys));
   fsys->client = c;
   fsys->root = root_fid;
-  if (pthread_mutex_init(&fsys->mtx, NULL) != 0) {
-    errstr9f("failed to initialize mtx");
-    goto err_mtx;
-  }
-  if (pthread_cond_init(&fsys->cnd, NULL) != 0) {
-    errstr9f("failed to initialize cnd");
-    goto err_cnd;
-  }
+  mutex_init9(&fsys->mtx);
+  cond_init9(&fsys->cnd);
   return fsys;
-err_cnd:
-  pthread_mutex_destroy(&fsys->mtx);
-err_mtx:
-  free(fsys);
 err_attach:
 err_version:
   close9p(c);
@@ -85,14 +74,14 @@ void unmount9(Fsys9 *fsys) {
   if (fsys == NULL) {
     return;
   }
-  must_lock(&fsys->mtx);
+  mutex_lock9(&fsys->mtx);
   fsys->closed = true;
   while (has_open_files(fsys)) {
-    must_wait(&fsys->cnd, &fsys->mtx);
+    cond_wait9(&fsys->cnd, &fsys->mtx);
   }
-  must_unlock(&fsys->mtx);
-  pthread_mutex_destroy(&fsys->mtx);
-  pthread_cond_destroy(&fsys->cnd);
+  mutex_unlock9(&fsys->mtx);
+  mutex_destroy9(&fsys->mtx);
+  cond_destroy9(&fsys->cnd);
   close9p(fsys->client);
   free(fsys);
 }
@@ -107,17 +96,17 @@ static int free_file(const Fsys9 *fsys) {
 }
 
 File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
-  must_lock(&fsys->mtx);
+  mutex_lock9(&fsys->mtx);
   int fid = free_file(fsys);
   while (fid < 0) {
-    must_wait(&fsys->cnd, &fsys->mtx);
+    cond_wait9(&fsys->cnd, &fsys->mtx);
     fid = free_file(fsys);
   }
   File9 *file = &fsys->files[fid];
   memset(file, 0, sizeof(*file));
   file->fsys = fsys;
   file->fid = fid;
-  must_unlock(&fsys->mtx);
+  mutex_unlock9(&fsys->mtx);
 
   int max_elms = 1;
   for (const char *p = path; *p != '\0'; p++) {
@@ -173,47 +162,43 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
   }
   file->iounit = r->open.iounit;
   free(r);
-  if (pthread_mutex_init(&file->mtx, NULL) != 0) {
-    errstr9f("failed to initialize mtx");
-    goto mtx_err;
-  }
+  mutex_init9(&file->mtx);
   return file;
-mtx_err:
 open_err:
   free(wait9p(fsys->client, clunk9p(fsys->client, file->fid)));
 walk_err:
   free(r);
-  must_lock(&fsys->mtx);
+  mutex_lock9(&fsys->mtx);
   file->fsys = NULL;
-  must_broadcast(&fsys->cnd);
-  must_unlock(&fsys->mtx);
+  cond_broadcast9(&fsys->cnd);
+  mutex_unlock9(&fsys->mtx);
   return NULL;
 }
 
 void close9(File9 *file) {
   Fsys9 *fsys = file->fsys;
   free(wait9p(fsys->client, clunk9p(file->fsys->client, file->fid)));
-  must_lock(&fsys->mtx);
+  mutex_lock9(&fsys->mtx);
 
   // Wait for any active read/write to finish.
-  must_lock(&file->mtx);
-  must_unlock(&file->mtx);
-  pthread_mutex_destroy(&file->mtx);
+  mutex_lock9(&file->mtx);
+  mutex_unlock9(&file->mtx);
+  mutex_destroy9(&file->mtx);
 
   file->fsys = NULL;
   file->fid = -1;
-  must_broadcast(&fsys->cnd);
-  must_unlock(&fsys->mtx);
+  cond_broadcast9(&fsys->cnd);
+  mutex_unlock9(&fsys->mtx);
 }
 
 void rewind9(File9 *file) {
-  must_lock(&file->mtx);
+  mutex_lock9(&file->mtx);
   file->offs = 0;
-  must_unlock(&file->mtx);
+  mutex_unlock9(&file->mtx);
 }
 
 int read9(File9 *file, int count, char *buf) {
-  must_lock(&file->mtx);
+  mutex_lock9(&file->mtx);
   if (count > file->iounit) {
     count = file->iounit;
   }
@@ -222,19 +207,19 @@ int read9(File9 *file, int count, char *buf) {
   if (r->type == R_ERROR_9P) {
     errstr9f("read9p failed: %s", r->error.message);
     free(r);
-    must_unlock(&file->mtx);
+    mutex_unlock9(&file->mtx);
     return -1;
   }
   if (r->type != R_READ_9P) {
     errstr9f("read9p bad reply type: %d", r->type);
     free(r);
-    must_unlock(&file->mtx);
+    mutex_unlock9(&file->mtx);
     return -1;
   }
   file->offs += r->read.count;
   int total = r->read.count;
   free(r);
-  must_unlock(&file->mtx);
+  mutex_unlock9(&file->mtx);
   return total;
 }
 
@@ -287,13 +272,13 @@ struct read9_tag {
 };
 
 Read9Tag *read9_async(File9 *file, unsigned long offs, int count, char *buf) {
-  must_lock(&file->mtx);
+  mutex_lock9(&file->mtx);
   if (count > file->iounit) {
     count = file->iounit;
   }
   Client9p *c = file->fsys->client;
   Tag9p tag9p = read9p(c, file->fid, offs, count, buf);
-  must_unlock(&file->mtx);
+  mutex_unlock9(&file->mtx);
   if (tag9p < 0) {
     errstr9f("failed to initiate read");
     return NULL;
@@ -357,7 +342,7 @@ Read9PollResult read9_poll(Read9Tag *tag) {
 }
 
 int write9(File9 *file, int count, const char *buf) {
-  must_lock(&file->mtx);
+  mutex_lock9(&file->mtx);
   int total = 0;
   while (count > 0) {
     int n = count;
@@ -387,6 +372,6 @@ int write9(File9 *file, int count, const char *buf) {
     count -= r->write.count;
     free(r);
   }
-  must_unlock(&file->mtx);
+  mutex_unlock9(&file->mtx);
   return total;
 }

@@ -2,8 +2,8 @@
 #include "9p.h"
 #include "errstr.h"
 #include "io.h"
+#include "thread.h"
 #include <errno.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,12 +20,6 @@
     abort();                                                                   \
   } while (0)
 
-static void must_join(pthread_t thrd) {
-  if (pthread_join(thrd, NULL) != 0) {
-    abort();
-  }
-}
-
 typedef struct {
   const char *test_name;
   Reply9p script[10];
@@ -33,7 +27,7 @@ typedef struct {
   // These fields are set by connect_test_server.
   int socket;
   Client9p *client;
-  pthread_t thrd;
+  Thread9 thrd;
 } TestServer;
 
 static Client9p *connect_test_server(TestServer *server);
@@ -56,7 +50,7 @@ static void run_mount_unmount_test() {
   };
   Client9p *c = connect_test_server(&server);
   unmount9(mount9_client(c, "test_user"));
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_mount_version_error_test() {
@@ -76,7 +70,7 @@ static void run_mount_version_error_test() {
   if (fsys != NULL) {
     FAIL("mount9_client returned non-NULL, expected NULL\n");
   }
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_mount_attach_error_test() {
@@ -100,7 +94,7 @@ static void run_mount_attach_error_test() {
   if (fsys != NULL) {
     FAIL("mount9_client returned non-NULL, expected NULL\n");
   }
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_open_close_test() {
@@ -140,8 +134,8 @@ static void run_open_close_test() {
   close9(file);
   DEBUG("%s unmount9\n", __func__);
   unmount9(fsys);
-  DEBUG("%s must_join\n", __func__);
-  must_join(server.thrd);
+  DEBUG("%s thread_join9\n", __func__);
+  thread_join9(&server.thrd);
   DEBUG("%s returning\n", __func__);
 }
 
@@ -168,7 +162,7 @@ static void run_open_walk_error_test() {
     FAIL("open9 returned non-NULL, expected NULL\n");
   }
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_open_walk_short_test() {
@@ -202,7 +196,7 @@ static void run_open_walk_short_test() {
     FAIL("open9 expected \"/foo/bar not found\", got \"%s\"\n", errstr9());
   }
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_open_open_error_test() {
@@ -237,7 +231,7 @@ static void run_open_open_error_test() {
     FAIL("open9 returned non-NULL, expected NULL\n");
   }
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_test() {
@@ -285,7 +279,7 @@ static void run_read_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_short_read_test() {
@@ -333,7 +327,7 @@ static void run_short_read_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_error_test() {
@@ -378,7 +372,7 @@ static void run_read_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_full_test() {
@@ -438,7 +432,7 @@ static void run_read_full_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_full_eof_test() {
@@ -483,7 +477,7 @@ static void run_read_full_eof_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_full_unexpected_eof_test() {
@@ -532,7 +526,7 @@ static void run_read_full_unexpected_eof_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read_full_error_test() {
@@ -581,7 +575,7 @@ static void run_read_full_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read9_wait_test() {
@@ -633,7 +627,7 @@ static void run_read9_wait_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_read9_poll_test() {
@@ -688,7 +682,7 @@ static void run_read9_poll_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_write_test() {
@@ -741,7 +735,7 @@ static void run_write_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_write_short_test() {
@@ -794,7 +788,7 @@ static void run_write_short_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
 static void run_write_error_test() {
@@ -847,10 +841,10 @@ static void run_write_error_test() {
   }
   close9(file);
   unmount9(fsys);
-  must_join(server.thrd);
+  thread_join9(&server.thrd);
 }
 
-static void *server_thread(void *arg) {
+static void server_thread(void *arg) {
   TestServer *server = arg;
   DEBUG("%s SERVER: started\n", server->test_name);
   for (int i = 0; i < sizeof(server->script) / sizeof(server->script[0]) &&
@@ -899,7 +893,6 @@ static void *server_thread(void *arg) {
   }
   DEBUG("%s SERVER: done\n", server->test_name);
   close_fd(server->socket);
-  return 0;
 }
 
 static Client9p *connect_test_server(TestServer *server) {
@@ -908,9 +901,7 @@ static Client9p *connect_test_server(TestServer *server) {
     FAIL("failed to create socket pair: %s\n", strerror(errno));
   }
   server->socket = sv[1];
-  if (pthread_create(&server->thrd, NULL, server_thread, server) != 0) {
-    FAIL("failed to create thread\n");
-  }
+  thread_create9(&server->thrd, server_thread, server);
   server->client = connect_fd9p(sv[0]);
   return server->client;
 }
