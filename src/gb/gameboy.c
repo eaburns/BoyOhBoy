@@ -151,5 +151,9 @@ void mcycle(Gameboy *g) {
     ppu_tcycle(g);
     ppu_tcycle(g);
     ppu_tcycle(g);
+    g->div++;
+    if (g->div == 0) {
+      g->mem[MEM_DIV] ++;
+    }
   } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
 }

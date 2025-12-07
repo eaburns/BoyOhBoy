@@ -117,6 +117,11 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
     g->mem[addr] = (x & 0xF0) | (state & 0xF);
     return;
 
+  case MEM_DIV:
+    // Writing anything to div resets it to zero.
+    g->mem[addr] = 0;
+    return;
+
   case MEM_LY:
     return; // read only
   case MEM_DMA:

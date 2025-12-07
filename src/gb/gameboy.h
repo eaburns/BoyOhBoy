@@ -321,6 +321,11 @@ typedef struct {
   // A 1 bit means the button is pressed.
   uint8_t dpad;
 
+  // MEM_DIV is incremented every 256 mcycles.
+  // This field is incremented every mcycle, and we increment MEM_DIV when it
+  // overflows.
+  uint8_t div;
+
   // For debugging; can set this to true to cause the debugger to break.
   bool break_point;
 } Gameboy;
