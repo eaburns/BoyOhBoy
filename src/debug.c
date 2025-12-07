@@ -711,5 +711,6 @@ int main(int argc, const char *argv[]) {
     win_fmt_ctl(lcd_win, "clean\n");
     win_fmt_ctl(lcd_win, "del\n");
   }
+  free_rom(&rom);
   return 0;
 }
