@@ -64,7 +64,14 @@ static uint8_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
 
 static uint8_t tile_map_px(const Gameboy *g, uint16_t map_base, int x, int y) {
   int i = tile_from_map(g, map_base, x, y);
-  return tile_px(g, MEM_TILE_BLOCK0_START + i * 16, x, y);
+  uint16_t addr = 0;
+  if ((fetch(g, MEM_LCDC) >> 4) & 1) {
+    addr = MEM_TILE_BLOCK0_START + i * 16;
+  } else {
+    i = (int8_t)(uint8_t)i; // sign-extend the lower 8 bits of i.
+    addr = MEM_TILE_BLOCK2_START + i * 16;
+  }
+  return tile_px(g, addr, x, y);
 }
 
 static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
