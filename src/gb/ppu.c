@@ -42,21 +42,25 @@ static void do_oam_scan(Gameboy *g) {
   ppu->mode = DRAWING;
 }
 
-static uint8_t px_from_tile_map(const Gameboy *g, uint16_t tile_map_base, int x,
-                                int y) {
-  int tile_map_y = y / TILE_HEIGHT;
-  int tile_map_x = x / TILE_WIDTH;
-  int tile_index =
-      fetch(g, tile_map_base + (tile_map_y * TILE_MAP_WIDTH) + tile_map_x);
-  // TODO: support non-map0-based indexing.
-  uint16_t tile_base = MEM_TILE_BLOCK0_START + tile_index * 16;
+static int tile_from_map(const Gameboy *g, uint16_t map_base, int x, int y) {
+  int map_x = x / TILE_WIDTH;
+  int map_y = y / TILE_HEIGHT;
+  return fetch(g, map_base + (map_y * TILE_MAP_WIDTH) + map_x);
+}
+
+static uint16_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
   int tile_x = x % TILE_WIDTH;
   int tile_y = y % TILE_HEIGHT;
-  uint8_t tile_low = fetch(g, tile_base + tile_y * 2);
-  uint8_t tile_high = fetch(g, tile_base + tile_y * 2 + 1);
-  uint8_t px_low = tile_low >> (7 - tile_x) & 1;
-  uint8_t px_high = tile_high >> (7 - tile_x) & 1;
+  uint8_t low = fetch(g, tile_addr + tile_y * 2);
+  uint8_t high = fetch(g, tile_addr + tile_y * 2 + 1);
+  uint8_t px_low = low >> (7 - tile_x) & 1;
+  uint8_t px_high = high >> (7 - tile_x) & 1;
   return px_high << 1 | px_low;
+}
+
+static uint8_t tile_map_px(const Gameboy *g, uint16_t map_base, int x, int y) {
+  int i = tile_from_map(g, map_base, x, y);
+  return tile_px(g, MEM_TILE_BLOCK0_START + i * 16, x, y);
 }
 
 static void do_drawing(Gameboy *g) {
@@ -73,7 +77,7 @@ static void do_drawing(Gameboy *g) {
   int bgy = y + fetch(g, MEM_SCY);
   for (int x = 0; x < SCREEN_WIDTH; x++) {
     int bgx = x + fetch(g, MEM_SCX);
-    g->lcd[y][x] = px_from_tile_map(g, bg_tile_map_base, bgx, bgy);
+    g->lcd[y][x] = tile_map_px(g, bg_tile_map_base, bgx, bgy);
   }
   ppu->ticks = 0;
   ppu->mode = HBLANK;
