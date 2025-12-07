@@ -24,7 +24,7 @@ enum { MAX_BREAKS = 10 };
 static int nbreaks = 0;
 static int breaks[MAX_BREAKS];
 
-enum { BUTTON_TIME = 500 };
+enum { BUTTON_TIME = 10000 };
 static int button_count;
 
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
@@ -270,46 +270,35 @@ static void *poll_events(void *arg) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
   for (;;) {
-    fprintf(stderr, "waiting for an event %p\n", lcd_win);
     AcmeEvent *event = win_wait_event(lcd_win);
     if (event->type == 0) {
       fprintf(stderr, "event error: %s\n", event->data);
       free(event);
       break;
     }
-    fprintf(stderr, "got event [%c] (%d) flags=%x\n", event->type, event->type,
-            event->flags);
     if (event->type == 'x') {
       if (strcmp(event->data, "Up") == 0) {
-        fprintf(stderr, "button up\n");
         g->dpad |= BUTTON_UP;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Down") == 0) {
-        fprintf(stderr, "button down\n");
         g->dpad |= BUTTON_DOWN;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Left") == 0) {
-        fprintf(stderr, "button left\n");
         g->dpad |= BUTTON_LEFT;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Right") == 0) {
-        fprintf(stderr, "button right\n");
         g->dpad |= BUTTON_RIGHT;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "AButton") == 0) {
-        fprintf(stderr, "button a\n");
         g->buttons |= BUTTON_A;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "BButton") == 0) {
-        fprintf(stderr, "button b\n");
         g->buttons |= BUTTON_B;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Start") == 0) {
-        fprintf(stderr, "button start\n");
         g->buttons |= BUTTON_START;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Select") == 0) {
-        fprintf(stderr, "button select\n");
         g->buttons |= BUTTON_SELECT;
         button_count = BUTTON_TIME;
       } else {
@@ -515,10 +504,9 @@ static void do_lcd(Gameboy *g) {
     return;
   }
   win_fmt_ctl(lcd_win, "cleartag\n");
-  win_fmt_tag(
-      lcd_win,
-      "\n        Up                       AButton        Start\nLeft     "
-      "    Right            BButton        Select\n      Down");
+  win_fmt_tag(lcd_win, "\n        Up"
+                       "\nLeft         Right            AButton        Select"
+                       "\n      Down                    BButton        Start");
   static pthread_t poll_thrd;
   pthread_create(&poll_thrd, NULL, poll_events, g);
   draw_lcd(g);

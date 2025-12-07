@@ -110,8 +110,8 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
     if ((x & (SELECT_BUTTONS | SELECT_DPAD)) == 0) {
       state = 0xF;
     } else {
-      uint8_t buttons = x & SELECT_BUTTONS ? g->buttons : 0;
-      uint8_t dpad = x & SELECT_DPAD ? g->dpad : 0;
+      uint8_t buttons = x & SELECT_BUTTONS ? 0 : g->buttons;
+      uint8_t dpad = x & SELECT_DPAD ? 0 : g->dpad;
       state = ~(buttons | dpad);
     }
     g->mem[addr] = (x & 0xF0) | (state & 0xF);
