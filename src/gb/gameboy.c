@@ -158,10 +158,7 @@ void mcycle(Gameboy *g) {
     ppu_tcycle(g);
     ppu_tcycle(g);
     ppu_tcycle(g);
-    uint8_t div = g->div;
-    g->div += 4;
-    if (div > g->div) {
-      g->mem[MEM_DIV]++;
-    }
+    g->counter += 4;
+    g->mem[MEM_DIV] = g->counter >> 8;
   } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
 }

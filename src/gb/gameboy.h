@@ -327,10 +327,9 @@ typedef struct {
   // A 1 bit means the button is pressed.
   uint8_t dpad;
 
-  // MEM_DIV is incremented every 256 mcycles.
-  // This field is incremented every mcycle, and we increment MEM_DIV when it
-  // overflows.
-  uint8_t div;
+  // The system counter is incremented ever T-cycle.
+  // The DIV register is the upper 8 bits of the counter.
+  uint16_t counter;
 
   // For debugging; can set this to true to cause the debugger to break.
   bool break_point;
