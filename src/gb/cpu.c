@@ -72,6 +72,9 @@ static uint8_t do_fetch(const Gameboy *g, uint16_t addr) {
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (g->ppu.mode == DRAWING) {
+    fprintf(stderr, "ignore vram store %d ($%02X) to $%04X due to drawing\n", x,
+            x, addr);
+    g->break_point = true;
     return;
   }
   g->mem[addr] = x;

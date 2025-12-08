@@ -79,6 +79,8 @@ enum : uint16_t {
   MEM_TAC = 0xFF07,
   // 0xFF08-0xFF0E??
   MEM_IF = 0xFF0F,
+  MEM_IF_VBLANK = 1 << 0,
+  MEM_IF_LCD = 1 << 1,
   MEM_AUDIO_START = 0xFF10,
   MEM_AUDIO_END = 0xFF26,
   // 0xFF27-0xFF2F ??
@@ -87,9 +89,14 @@ enum : uint16_t {
   // …
   MEM_LCDC = 0xFF40,
   MEM_STAT = 0xFF41,
+  // Bits 0 and 1 are the PPU state.
+  MEM_STAT_PPU_STATE = 0x3,
+  MEM_STAT_LC_EQ_LYC = 1 << 2,
+  MEM_STAT_LYC_IRQ = 1 << 6,
   MEM_SCX = 0xFF42,
   MEM_SCY = 0xFF43,
   MEM_LY = 0xFF44,
+  MEM_LYC = 0xFF45,
   MEM_DMA = 0xFF46,
   MEM_BGP = 0xFF47,
   MEM_OBP0 = 0xFF48,
@@ -265,11 +272,10 @@ enum {
 };
 
 typedef enum {
-  STOPPED,
-  OAM_SCAN,
-  DRAWING,
-  HBLANK,
-  VBLANK,
+  HBLANK = 0,
+  VBLANK = 1,
+  OAM_SCAN = 2,
+  DRAWING = 3,
 } PpuMode;
 
 const char *ppu_mode_name(PpuMode mode);

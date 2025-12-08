@@ -138,6 +138,7 @@ static const struct {
     {"SCX", MEM_SCX},
     {"SCY", MEM_SCY},
     {"LY", MEM_LY},
+    {"LYC", MEM_LYC},
     {"DMA", MEM_DMA},
     {"BGP", MEM_BGP},
     {"OBP0", MEM_OBP0},

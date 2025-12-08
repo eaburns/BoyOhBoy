@@ -6,7 +6,20 @@ static void store(Gameboy *g, uint16_t addr, uint8_t x) {
     // During DMA OAM is inaccessible.
     return;
   }
+
   g->mem[addr] = x;
+
+  if (addr == MEM_LY) {
+    // STAT bit 2 indicates whether LY == LYC.
+    if (g->mem[MEM_LY] == g->mem[MEM_LYC]) {
+      if (g->mem[MEM_STAT] & MEM_STAT_LYC_IRQ) {
+        g->mem[MEM_IF] |= MEM_IF_LCD;
+      }
+      g->mem[MEM_STAT] |= MEM_STAT_LC_EQ_LYC;
+    } else {
+      g->mem[MEM_STAT] &= ~(MEM_STAT_LC_EQ_LYC);
+    }
+  }
 }
 static uint8_t fetch(const Gameboy *g, uint16_t addr) {
   if (g->dma_ticks_remaining > 0 && addr >= MEM_OAM_START &&
@@ -139,7 +152,7 @@ static void do_hblank(Gameboy *g) {
   ppu->mode = y < 143 ? OAM_SCAN : VBLANK;
   store(g, MEM_LY, (y + 1) % YMAX);
   if (ppu->mode == VBLANK) {
-    store(g, MEM_IF, fetch(g, MEM_IF) | 1 << 0);
+    store(g, MEM_IF, fetch(g, MEM_IF) | MEM_IF_VBLANK);
   }
 }
 
@@ -158,21 +171,23 @@ static void do_vblank(Gameboy *g) {
   store(g, MEM_LY, 0);
 }
 
+static void stat_set_ppu_mode(Gameboy *g, PpuMode mode) {
+  store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
+}
+
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;
   if ((g->mem[MEM_LCDC] & LCDC_ENABLED) == 0) {
-    ppu->mode = STOPPED;
+    stat_set_ppu_mode(g, 0);
+    // Get ready for when the PPU enables.
+    // It will start in OAM_SCAN mode.
+    ppu->mode = OAM_SCAN;
+    ppu->ticks = 0;
+    store(g, MEM_LY, 0);
     return;
   }
   ppu->ticks++;
   switch (ppu->mode) {
-  case STOPPED:
-    // We were stopped, but LCDC_ENABLED was 1,
-    // so we are starting up in OAM_SCAN mode.
-    ppu->mode = OAM_SCAN;
-    ppu->ticks = 0;
-    store(g, MEM_LY, 0);
-    // FALLTHROUGH
   case OAM_SCAN:
     do_oam_scan(g);
     break;
@@ -186,12 +201,11 @@ void ppu_tcycle(Gameboy *g) {
     do_vblank(g);
     break;
   }
+  stat_set_ppu_mode(g, ppu->mode);
 }
 
 const char *ppu_mode_name(PpuMode mode) {
   switch (mode) {
-  case STOPPED:
-    return "STOPPED";
   case OAM_SCAN:
     return "OAM SCAN";
   case DRAWING:
