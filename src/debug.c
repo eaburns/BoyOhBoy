@@ -434,47 +434,68 @@ static void do_bgmap(const Gameboy *g, int map_index) {
   free(b.data);
 }
 
-static bool lcd_changed(const Buffer *b) {
-  static int cur_lcd_size = 0;
-  static char *cur_lcd = NULL;
-  if (cur_lcd == NULL) {
-    goto changed;
+static int first_line_diff(uint8_t a[SCREEN_HEIGHT][SCREEN_WIDTH],
+                           uint8_t b[SCREEN_HEIGHT][SCREEN_WIDTH]) {
+  for (int y = 0; y < SCREEN_HEIGHT; y++) {
+    if (memcmp(a[y], b[y], SCREEN_WIDTH) != 0) {
+      return y;
+    }
   }
-  if (cur_lcd_size != b->size) {
-    goto changed;
+  return SCREEN_HEIGHT;
+}
+
+static int last_line_diff(uint8_t a[SCREEN_HEIGHT][SCREEN_WIDTH],
+                          uint8_t b[SCREEN_HEIGHT][SCREEN_WIDTH]) {
+  for (int y = SCREEN_HEIGHT - 1; y >= 0; y--) {
+    if (memcmp(a[y], b[y], SCREEN_WIDTH) != 0) {
+      return y;
+    }
   }
-  if (memcmp(cur_lcd, b->data, cur_lcd_size) == 0) {
-    return false;
-  }
-changed:
-  if (cur_lcd_size != b->size) {
-    cur_lcd = realloc(cur_lcd, b->size);
-    cur_lcd_size = b->size;
-  }
-  memcpy(cur_lcd, b->data, cur_lcd_size);
-  return true;
+  return -1;
 }
 
 static void draw_lcd(Gameboy *g) {
   if (lcd_win == NULL) {
     return;
   }
-  Buffer b = {};
-  for (int y = 0; y < SCREEN_HEIGHT; y++) {
+
+  static Buffer b;
+  static bool first = true;
+  static uint8_t cur[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
+
+  int start_y;
+  int end_y;
+  if (first) {
+    start_y = 0;
+    end_y = SCREEN_HEIGHT - 1;
+  } else {
+    start_y = first_line_diff(cur, g->lcd);
+    if (start_y >= SCREEN_HEIGHT) {
+      return;
+    }
+    end_y = last_line_diff(cur, g->lcd);
+  }
+  for (int y = start_y; y <= end_y; y++) {
+    memcpy(cur[y], g->lcd[y], SCREEN_WIDTH);
+  }
+
+  b.size = 0;
+  for (int y = start_y; y <= end_y; y++) {
     for (int x = 0; x < SCREEN_WIDTH; x++) {
       bprintf(&b, "%s", px_str(g->lcd[y][x]));
     }
     bprintf(&b, "\n");
   }
-  // TODO: instead of refreshing the entire thing if any of it has changed,
-  // check which lines have changed and just redraw those.
-  if (!lcd_changed(&b)) {
-    free(b.data);
-    return;
+
+  int n = 0;
+  if (start_y == 0 && end_y == SCREEN_HEIGHT - 1) {
+    n = win_fmt_addr(lcd_win, ",");
+    first = false;
+  } else {
+    n = win_fmt_addr(lcd_win, "%d,%d", start_y + 1, end_y + 1);
   }
-  if (win_fmt_addr(lcd_win, ",") < 0) {
+  if (n < 0) {
     printf("error writing to lcd win addr: %s\n", errstr9());
-    free(b.data);
     return;
   }
   if (win_write_data(lcd_win, b.size, b.data) < 0) {
@@ -487,7 +508,6 @@ static void draw_lcd(Gameboy *g) {
       0) {
     printf("error writing to lcd win ctl: %s\n", errstr9());
   }
-  free(b.data);
 }
 
 static void do_lcd(Gameboy *g) {
