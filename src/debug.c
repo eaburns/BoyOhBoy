@@ -41,6 +41,201 @@ void sigint_handler(int s) {
   }
 }
 
+typedef struct {
+  char *data;
+  int size, cap;
+} Buffer;
+
+static void bprintf(Buffer *b, const char *fmt, ...) {
+  char one[1];
+  va_list args;
+  va_start(args, fmt);
+  int n = vsnprintf(one, 1, fmt, args);
+  va_end(args);
+
+  if (b->size + n + 1 >= b->cap) {
+    if (b->cap == 0) {
+      b->cap = 32;
+    }
+    while (b->size + n + 1 >= b->cap) {
+      b->cap *= 2;
+    }
+    b->data = realloc(b->data, b->cap);
+  }
+
+  va_start(args, fmt);
+  vsnprintf(b->data + b->size, n + 1, fmt, args);
+  va_end(args);
+  b->size += n;
+}
+
+typedef struct {
+  uint16_t addr;
+  Disasm instr;
+  bool dirty;
+} DisasmLine;
+
+enum { MAX_DISASM_LINES = MEM_SIZE };
+
+// A disassembly window.
+typedef struct {
+  int cur;
+  int nlines;
+  DisasmLine lines[MAX_DISASM_LINES];
+  int data_size;
+  const uint8_t *data;
+  Mem mem;
+  AcmeWin *win;
+} DisasmWin;
+
+static void update_from_line(DisasmWin *win, int i, uint16_t align_start_addr) {
+  int addr = win->lines[i].addr;
+  int orig_nlines = win->nlines;
+  win->nlines = i;
+  while (addr < win->data_size - 1) {
+    if (win->nlines >= MAX_DISASM_LINES) {
+      fail("too many instructions (%d >= %d) (addr=%d, data_size=%d\n",
+           win->nlines, MAX_DISASM_LINES, addr, win->data_size);
+    }
+    DisasmLine *line = &win->lines[win->nlines++];
+    if (addr >= align_start_addr && win->nlines < orig_nlines &&
+        line->addr == addr) {
+      // Stop early if we are beyond align_start_addr and we find a line with a
+      // matching address. If this occurs it means that we have aligned with a
+      // suffix of the original DisasmWin lines that align and will match the
+      // rest of the way to orign_nlines.
+      win->nlines = orig_nlines;
+      break;
+    }
+    line->dirty = true;
+    line->addr = addr;
+    line->instr = disassemble(win->data, addr);
+    if (addr + line->instr.size > win->data_size) {
+      fail("instruction at $%04X + %d went off the end of the data", addr,
+           line->instr.size);
+    }
+    addr += line->instr.size;
+  }
+}
+
+static int find_addr_line(DisasmWin *win, uint16_t addr) {
+  if (addr >= win->data_size) {
+    fail("bad addr");
+  }
+  // TODO: binary search.
+  int i = 0;
+  while (i < win->nlines &&
+         win->lines[i].addr + win->lines[i].instr.size <= addr) {
+    i++;
+  }
+  if (i == win->nlines) {
+    fail("impossible line");
+  }
+  return i;
+}
+
+static int mem_diff_start(Mem prev, const Gameboy *g) {
+  int a = 0;
+  for (; a < MEM_SIZE; a++) {
+    if (prev[a] != g->mem[a]) {
+      break;
+    }
+  }
+  return a;
+}
+
+static int mem_diff_end(Mem prev, const Gameboy *g) {
+  int a = MEM_SIZE - 1;
+  for (; a >= 0; a--) {
+    if (prev[a] != g->mem[a]) {
+      break;
+    }
+  }
+  return a;
+}
+
+static void update_disasm_win(DisasmWin *win, uint16_t start_addr,
+                              uint16_t end_excl_addr) {
+  if (start_addr > end_excl_addr) {
+    fail("bad start addr before end addr");
+  }
+  if (end_excl_addr > win->data_size) {
+    fail("bad changed addr");
+  }
+  int i = find_addr_line(win, start_addr);
+  update_from_line(win, i, end_excl_addr);
+}
+
+static void jump_disasm_win(DisasmWin *win, uint16_t addr) {
+  int i = find_addr_line(win, addr);
+  if (win->lines[i].addr == addr) {
+    win->cur = i;
+    return;
+  }
+
+  // Jumped into the middle of an instruction.
+  // Split it into single-byte UNKNOWN instructions.
+  int shift = win->lines[i].instr.size;
+  for (int j = win->nlines - 1; j > i; j--) {
+    win->lines[j + shift] = win->lines[j];
+  }
+  win->nlines += shift;
+  for (int j = 0; j < shift; j++) {
+    DisasmLine *line = &win->lines[i + j];
+    line->addr = win->lines[i].addr + j;
+    if (line->addr == addr) {
+      win->cur = i + j;
+    }
+    // TODO: if disassemble had a byte limit, we could disasm
+    // size 1 to get an UNKNOWN. Instead we fake one here.
+    strcpy(line->instr.instr, "UNKNOWN");
+    snprintf(line->instr.full, sizeof(line->instr.full),
+             "%04x: %02x      		UNKNOWN", line->addr,
+             win->data[line->addr]);
+    line->instr.size = 1;
+  }
+
+  // Start disassembling from the address we jumped to that was previously in
+  // the middle of an instruction and now should be one of the UNKNOWN
+  // instruction bytes.
+  update_from_line(win, win->cur, 0);
+}
+
+static void redraw_disasm_win(DisasmWin *win) {
+  int start = 0;
+  for (; start < win->nlines && !win->lines[start].dirty; start++)
+    ;
+  int end = win->nlines - 1;
+  for (; end > start && !win->lines[end].dirty; end--)
+    ;
+
+  Buffer b = {};
+  for (int i = start; i <= end; i++) {
+    DisasmLine *line = &win->lines[i];
+    line->dirty = false;
+    bprintf(&b, "%s\n", line->instr.full);
+  }
+  win_fmt_addr(win->win, "%d,%d", start + 1, end + 1);
+  win_write_data(win->win, b.size, b.data);
+  win_fmt_addr(win->win, "%d", win->cur + 1);
+  win_fmt_ctl(win->win, "dot=addr\nshow\n");
+  free(b.data);
+}
+
+static void update_code_win(DisasmWin *win, const Gameboy *g) {
+  if (win->win == NULL) {
+    return;
+  }
+  int diff_start = mem_diff_start(win->mem, g);
+  if (diff_start < MEM_SIZE - 1) {
+    int diff_end = mem_diff_end(win->mem, g);
+    update_disasm_win(win, diff_start, diff_end);
+    memcpy(win->mem + diff_start, g->mem + diff_start, diff_end - diff_start);
+  }
+  jump_disasm_win(win, g->cpu.pc - 1);
+  redraw_disasm_win(win);
+}
+
 static void print_current_instruction(const Gameboy *g) {
   static const uint16_t HALT = 0x76;
   // IR has already been fetched into PC, so we go back one,
@@ -186,34 +381,6 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
     }
   }
   printf("$%04X: %d ($%02X)\n", addr, x, x);
-}
-
-typedef struct {
-  char *data;
-  int size, cap;
-} Buffer;
-
-static void bprintf(Buffer *b, const char *fmt, ...) {
-  char one[1];
-  va_list args;
-  va_start(args, fmt);
-  int n = vsnprintf(one, 1, fmt, args);
-  va_end(args);
-
-  if (b->size + n + 1 >= b->cap) {
-    if (b->cap == 0) {
-      b->cap = 32;
-    }
-    while (b->size + n + 1 >= b->cap) {
-      b->cap *= 2;
-    }
-    b->data = realloc(b->data, b->cap);
-  }
-
-  va_start(args, fmt);
-  vsnprintf(b->data + b->size, n + 1, fmt, args);
-  va_end(args);
-  b->size += n;
 }
 
 static const char *px_str(int px) {
@@ -645,9 +812,19 @@ int main(int argc, const char *argv[]) {
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
 
+  DisasmWin code_win = {
+      .data_size = MEM_SIZE,
+      .data = g.mem,
+      .win = acme != NULL ? acme_get_win(acme, "code") : NULL,
+  };
+  if (code_win.win != NULL) {
+    update_from_line(&code_win, 0, code_win.data_size);
+  }
+
   while (!done) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction(&g);
+      update_code_win(&code_win, &g);
       while (!go && !done && handle_input_line(&g)) {
       }
     }
@@ -715,17 +892,19 @@ int main(int argc, const char *argv[]) {
     g.break_point = false;
   }
 
+  // clean and del must be sent separately or else a bug in Acme triggers a
+  // SEGFAULT.
   if (vram_win != NULL) {
-    // clean and del must be sent separately or else a bug in Acme triggers a
-    // SEGFAULT.
     win_fmt_ctl(vram_win, "clean\n");
     win_fmt_ctl(vram_win, "del\n");
   }
   if (lcd_win != NULL) {
-    // clean and del must be sent separately or else a bug in Acme triggers a
-    // SEGFAULT.
     win_fmt_ctl(lcd_win, "clean\n");
     win_fmt_ctl(lcd_win, "del\n");
+  }
+  if (code_win.win != NULL) {
+    win_fmt_ctl(code_win.win, "clean\n");
+    win_fmt_ctl(code_win.win, "del\n");
   }
   free_rom(&rom);
   return 0;
