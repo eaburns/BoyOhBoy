@@ -624,6 +624,8 @@ static double time_ns() {
   return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
 }
 
+enum { NS_PER_MS = 1000000 };
+
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("Expected 1 argument, got %d", argc);
@@ -653,6 +655,14 @@ int main(int argc, const char *argv[]) {
     mcycle(&g);
     if (lcd_win != NULL && g.ppu.mode == VBLANK && orig_ppu_mode != VBLANK) {
       draw_lcd(&g);
+      static double last_frame = 0;
+      if (start_ns - last_frame < 17 * NS_PER_MS) {
+        struct timespec ts = {
+            .tv_nsec = 17 * NS_PER_MS - (start_ns - last_frame),
+        };
+        nanosleep(&ts, NULL);
+      }
+      last_frame = start_ns;
     }
     long ns = time_ns() - start_ns;
 
