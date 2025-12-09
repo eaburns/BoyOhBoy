@@ -302,6 +302,8 @@ static void *poll_events(void *arg) {
       } else if (strcmp(event->data, "Select") == 0) {
         g->buttons |= BUTTON_SELECT;
         button_count = BUTTON_TIME;
+      } else if (strcmp(event->data, "Break") == 0) {
+        go = false;
       } else {
         win_write_event(lcd_win, event);
       }
