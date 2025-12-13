@@ -31,6 +31,10 @@ static int breaks[MAX_BREAKS];
 static sig_atomic_t go = false;
 static sig_atomic_t done = false;
 
+// Guarded by g_mtx.
+static bool poll_thread_exited = false;
+
+// Guarded by g_mtx;
 enum { BUTTON_TIME = 10000 };
 static int button_count;
 
@@ -430,6 +434,16 @@ static void poll_events(void *arg) {
     }
     free(event);
   }
+  mutex_lock9(&g_mtx);
+  poll_thread_exited = true;
+  mutex_unlock9(&g_mtx);
+}
+
+static bool lcd_deleted() {
+  mutex_lock9(&g_mtx);
+  bool d = poll_thread_exited;
+  mutex_unlock9(&g_mtx);
+  return d;
 }
 
 static void check_button_count() {
@@ -796,6 +810,7 @@ int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("Expected 1 argument, got %d", argc);
   }
+
   signal(SIGINT, sigint_handler);
 
   mutex_init9(&g_mtx);
@@ -829,7 +844,7 @@ int main(int argc, const char *argv[]) {
 
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
-  while (!done) {
+  while (!done && !lcd_deleted()) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction();
       update_code_win(&code_win);
