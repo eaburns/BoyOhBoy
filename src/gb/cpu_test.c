@@ -7324,6 +7324,30 @@ static struct exec_test store_fetch_tests[] = {
         .cycles = 4,
     },
     {
+        .name = "Store STAT (lower 3 bits are read-only)",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xFF}},
+                .mem =
+                    {
+                        MEM_STAT & 0xFF,
+                        MEM_STAT >> 8,
+                        [MEM_STAT] = 0,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
+                .mem =
+                    {
+                        MEM_STAT & 0xFF,
+                        MEM_STAT >> 8,
+                        [MEM_STAT] = 0xF8,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
         .name = "Store LY (read only)",
         .init =
             {

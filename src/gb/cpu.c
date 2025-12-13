@@ -149,6 +149,11 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
     }
     break;
 
+  case MEM_STAT:
+    // The lower 3 bits of STAT are read-only.
+    x &= 0xF8;
+    break;
+
   case MEM_LY:
     return; // read only
 
