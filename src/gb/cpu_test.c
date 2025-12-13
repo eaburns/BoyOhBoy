@@ -7454,6 +7454,11 @@ void run_store_fetch_tests() {
 }
 
 int main() {
+  // Turn off fprintf statements for testing storing/fetching VRAM/OAM when it's
+  // inaccessible.
+  extern bool shhhh;
+  shhhh = true;
+
   run_snprint_tests();
   run_cb_snprint_tests();
   run_reg8_get_set_tests();

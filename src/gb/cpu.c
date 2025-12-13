@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+bool shhhh;
+
 typedef enum {
   NONE = 0,
 
@@ -70,7 +72,9 @@ static uint8_t do_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
-    fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
+    if (!shhhh) {
+      fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
+    }
     g->break_point = true;
     return;
   }
@@ -79,7 +83,9 @@ static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
 
 static uint8_t do_vram_fetch(Gameboy *g, uint16_t addr) {
   if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
-    fprintf(stderr, "Ignoring VRAM fetch at $%04X\n", addr);
+    if (!shhhh) {
+      fprintf(stderr, "Ignoring VRAM fetch at $%04X\n", addr);
+    }
     g->break_point = true;
     return 0xFF;
   }
@@ -98,7 +104,10 @@ static uint8_t do_echo_ram_fetch(Gameboy *g, uint16_t addr) {
 
 static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
-    fprintf(stderr, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
+
+    if (!shhhh) {
+      fprintf(stderr, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
+    }
     g->break_point = true;
     return;
   }
@@ -107,7 +116,9 @@ static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
 
 static uint8_t do_oam_fetch(Gameboy *g, uint16_t addr) {
   if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
-    fprintf(stderr, "Ignoring OAM fetch at $%04X\n", addr);
+    if (!shhhh) {
+      fprintf(stderr, "Ignoring OAM fetch at $%04X\n", addr);
+    }
     g->break_point = true;
     return 0xFF;
   }
