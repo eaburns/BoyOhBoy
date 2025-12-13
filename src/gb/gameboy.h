@@ -340,6 +340,8 @@ typedef struct {
 // so rom must outlive the use of the returned Gameboy.
 Gameboy init_gameboy(const Rom *rom);
 
+bool ppu_enabled(const Gameboy *g);
+
 // Executes a single "M cycle" of the entire Gameboy.
 // The Gameboy clock ticks at 2²² Hz.
 // Each clock tick is referred to as a T cycle.

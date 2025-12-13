@@ -74,6 +74,7 @@ Gameboy init_gameboy(const Rom *rom) {
 }
 
 bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
+  // TODO: check PPU state for equality.
   return memcmp(a->cpu.registers, b->cpu.registers, sizeof(a->cpu.registers)) ==
              0 &&
          a->cpu.flags == b->cpu.flags && a->cpu.sp == b->cpu.sp &&
@@ -84,30 +85,35 @@ bool gameboy_eq(const Gameboy *a, const Gameboy *b) {
           a->cpu.bank == NULL && b->cpu.bank == instructions ||
           a->cpu.bank == instructions && b->cpu.bank == NULL) &&
          a->cpu.cycle == b->cpu.cycle && a->cpu.w == b->cpu.w &&
-         a->cpu.z == b->cpu.z && memcmp(a->mem, b->mem, sizeof(a->mem)) == 0;
+         a->cpu.z == b->cpu.z &&
+         a->dma_ticks_remaining == b->dma_ticks_remaining &&
+         a->buttons == b->buttons && a->dpad == b->dpad &&
+         a->counter == b->counter &&
+         memcmp(a->lcd, b->lcd, sizeof(a->lcd)) == 0 &&
+         memcmp(a->mem, b->mem, sizeof(a->mem)) == 0;
 }
 
 void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
   for (int i = 0; i < sizeof(a->cpu.registers); i++) {
     if (a->cpu.registers[i] != b->cpu.registers[i]) {
-      fprintf(f, "registers[%s]: %d ($%02x) != %d ($%02x) \n", reg8_name(i),
+      fprintf(f, "registers[%s]: %d ($%02X) != %d ($%02X) \n", reg8_name(i),
               a->cpu.registers[i], a->cpu.registers[i], b->cpu.registers[i],
               b->cpu.registers[i]);
     }
   }
   if (a->cpu.flags != b->cpu.flags) {
-    fprintf(f, "flags: $%02x != $%02x\n", a->cpu.flags, b->cpu.flags);
+    fprintf(f, "flags: $%02X != $%02X\n", a->cpu.flags, b->cpu.flags);
   }
   if (a->cpu.sp != b->cpu.sp) {
-    fprintf(f, "sp: %d ($%02x) != %d ($%02x)\n", a->cpu.sp, a->cpu.sp,
+    fprintf(f, "sp: %d ($%02X) != %d ($%02X)\n", a->cpu.sp, a->cpu.sp,
             b->cpu.sp, b->cpu.sp);
   }
   if (a->cpu.pc != b->cpu.pc) {
-    fprintf(f, "pc: %d ($%02x) != %d ($%02x)\n", a->cpu.pc, a->cpu.pc,
+    fprintf(f, "pc: %d ($%02X) != %d ($%02X)\n", a->cpu.pc, a->cpu.pc,
             b->cpu.pc, b->cpu.pc);
   }
   if (a->cpu.ir != b->cpu.ir) {
-    fprintf(f, "ir: %d ($%02x) != %d ($%02x)\n", a->cpu.ir, a->cpu.ir,
+    fprintf(f, "ir: %d ($%02X) != %d ($%02X)\n", a->cpu.ir, a->cpu.ir,
             b->cpu.ir, b->cpu.ir);
   }
   if (a->cpu.ime != b->cpu.ime) {
@@ -129,16 +135,37 @@ void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b) {
     fprintf(f, "cycle: %d != %d\n", a->cpu.cycle, b->cpu.cycle);
   }
   if (a->cpu.w != b->cpu.w) {
-    fprintf(f, "w: %d ($%02x) != %d ($%02x)\n", a->cpu.w, a->cpu.w, b->cpu.w,
+    fprintf(f, "w: %d ($%02X) != %d ($%02X)\n", a->cpu.w, a->cpu.w, b->cpu.w,
             b->cpu.w);
   }
   if (a->cpu.z != b->cpu.z) {
-    fprintf(f, "z: %d ($%02x) != %d ($%02x)\n", a->cpu.z, a->cpu.z, b->cpu.z,
+    fprintf(f, "z: %d ($%02X) != %d ($%02X)\n", a->cpu.z, a->cpu.z, b->cpu.z,
             b->cpu.z);
+  }
+  if (a->dma_ticks_remaining != b->dma_ticks_remaining) {
+    fprintf(f, "dma_ticks_remaining: %d != %d\n", a->dma_ticks_remaining,
+            b->dma_ticks_remaining);
+  }
+  if (a->buttons != b->buttons) {
+    fprintf(f, "buttons: %02X != %02X\n", a->buttons, b->buttons);
+  }
+  if (a->dpad != b->dpad) {
+    fprintf(f, "dpad: %02X != %02X\n", a->dpad, b->dpad);
+  }
+  if (a->counter != b->counter) {
+    fprintf(f, "counter: %d != %d\n", a->counter, b->counter);
+  }
+  for (int y = 0; y < SCREEN_HEIGHT; y++) {
+    for (int x = 0; x < SCREEN_WIDTH; x++) {
+      if (a->lcd[y][x] != b->lcd[y][x]) {
+        fprintf(f, "lcd[y=%d][x=%d]: %d != %d\n", y, x, a->lcd[y][x],
+                b->lcd[y][x]);
+      }
+    }
   }
   for (int i = 0; i < sizeof(a->mem); i++) {
     if (a->mem[i] != b->mem[i]) {
-      fprintf(f, "mem[$%04x]: %d ($%02x) != %d ($%02x)\n", i, a->mem[i],
+      fprintf(f, "mem[$%04X]: %d ($%02X) != %d ($%02X)\n", i, a->mem[i],
               a->mem[i], b->mem[i], b->mem[i]);
     }
   }

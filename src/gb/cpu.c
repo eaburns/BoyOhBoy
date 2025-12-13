@@ -62,26 +62,25 @@ struct instruction {
 
 static void ignore_store(Gameboy *, uint16_t, uint8_t x) {}
 
-static uint8_t ignore_fetch(const Gameboy *, uint16_t) { return 0xFF; }
+static uint8_t ignore_fetch(Gameboy *, uint16_t) { return 0xFF; }
 
 static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
 
-static uint8_t do_fetch(const Gameboy *g, uint16_t addr) {
-  return g->mem[addr];
-}
+static uint8_t do_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  if (g->ppu.mode == DRAWING) {
-    fprintf(stderr, "ignore vram store %d ($%02X) to $%04X due to drawing\n", x,
-            x, addr);
+  if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
+    fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
     g->break_point = true;
     return;
   }
   g->mem[addr] = x;
 }
 
-static uint8_t do_vram_fetch(const Gameboy *g, uint16_t addr) {
-  if (g->ppu.mode == DRAWING) {
+static uint8_t do_vram_fetch(Gameboy *g, uint16_t addr) {
+  if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
+    fprintf(stderr, "Ignoring VRAM fetch at $%04X\n", addr);
+    g->break_point = true;
     return 0xFF;
   }
   return g->mem[addr];
@@ -92,57 +91,66 @@ static void do_echo_ram_store(Gameboy *g, uint16_t addr, uint8_t x) {
   g->mem[addr - MEM_ECHO_RAM_START + 0xC000] = x;
 }
 
-static uint8_t do_echo_ram_fetch(const Gameboy *g, uint16_t addr) {
+// Echo ram is mapped to 0xC000-0xDDFF.
+static uint8_t do_echo_ram_fetch(Gameboy *g, uint16_t addr) {
   return g->mem[addr - MEM_ECHO_RAM_START + 0xC000];
 }
 
 static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  if (g->ppu.mode != OAM_SCAN) {
-    g->mem[addr] = x;
-  }
-}
-
-static uint8_t do_oam_fetch(const Gameboy *g, uint16_t addr) {
-  return g->ppu.mode == OAM_SCAN ? 0xFF : g->mem[addr];
-}
-
-static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  switch (addr) {
-  case MEM_P1_JOYPAD:
-    uint8_t state = 0;
-    if ((x & (SELECT_BUTTONS | SELECT_DPAD)) == 0) {
-      state = 0xF;
-    } else {
-      uint8_t buttons = x & SELECT_BUTTONS ? 0 : g->buttons;
-      uint8_t dpad = x & SELECT_DPAD ? 0 : g->dpad;
-      state = ~(buttons | dpad);
-    }
-    g->mem[addr] = (x & 0xF0) | (state & 0xF);
+  if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
+    fprintf(stderr, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
+    g->break_point = true;
     return;
-
-  case MEM_DIV:
-    // Writing anything to div resets it to zero.
-    g->mem[addr] = 0;
-    return;
-
-  case MEM_LY:
-    return; // read only
-  case MEM_DMA:
-    g->dma_ticks_remaining = DMA_MCYCLES;
   }
   g->mem[addr] = x;
 }
 
-static uint8_t do_io_fetch(const Gameboy *g, uint16_t addr) {
+static uint8_t do_oam_fetch(Gameboy *g, uint16_t addr) {
+  if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
+    fprintf(stderr, "Ignoring OAM fetch at $%04X\n", addr);
+    g->break_point = true;
+    return 0xFF;
+  }
   return g->mem[addr];
 }
+
+static bool select_buttons(uint8_t x) { return (x & SELECT_BUTTONS) == 0; }
+
+static bool select_dpad(uint8_t x) { return (x & SELECT_DPAD) == 0; }
+
+static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
+  switch (addr) {
+  case MEM_P1_JOYPAD:
+    uint8_t buttons = select_buttons(x) ? g->buttons : 0;
+    uint8_t dpad = select_dpad(x) ? g->dpad : 0;
+    g->mem[addr] = x & 0xF0 | ~(buttons | dpad) & 0xF;
+    return;
+
+  case MEM_DIV:
+    // Writing anything to div resets the entire counter to 0.
+    g->mem[addr] = 0;
+    g->counter = 0;
+    return;
+
+  case MEM_LY:
+    return; // read only
+
+  case MEM_DMA:
+    g->dma_ticks_remaining = DMA_MCYCLES;
+    g->mem[MEM_DMA] = x;
+    return;
+  }
+  g->mem[addr] = x;
+}
+
+static uint8_t do_io_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
 
 typedef struct {
   const char *name;
   uint16_t start;
   uint16_t end;
   void (*do_store)(Gameboy *, uint16_t, uint8_t);
-  uint8_t (*do_fetch)(const Gameboy *, uint16_t);
+  uint8_t (*do_fetch)(Gameboy *, uint16_t);
 } MemRegion;
 
 static const MemRegion mem_regions[] = {
@@ -247,7 +255,7 @@ static const MemRegion *find_mem_region(uint16_t addr) {
 // that call into fetch instead of accessing memory directly. This is because
 // fetch takes care of situations were certain memory is not actually readable
 // by the CPU.
-static uint8_t fetch(const Gameboy *g, Addr addr) {
+static uint8_t fetch(Gameboy *g, Addr addr) {
   if (g->dma_ticks_remaining > 0 &&
       (addr < MEM_HIGH_RAM_START || addr > MEM_HIGH_RAM_END)) {
     // During DMA, only high RAM is accessible.

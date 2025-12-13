@@ -30,6 +30,8 @@ enum {
   RETI = 0xD9,
   DI = 0xF3,
   EI = 0xFB,
+  LD_A_IMM16_MEM = 0xFA,
+  LD_IMM16_MEM_A = 0xEA,
 };
 
 static int step(Gameboy *g) {
@@ -6408,6 +6410,1049 @@ void run_halt_ime_true_pending_true_test() {
   }
 }
 
+static struct exec_test store_fetch_tests[] = {
+    {
+        .name = "Fetch ROM",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .mem = {0, 5, [0x0500] = 0xAA},
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .mem = {0, 5, [0x0500] = 0xAA},
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store ROM ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .mem = {0, 5},
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .mem = {0, 5},
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch VRAM in mode 0 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store VRAM in mode 0 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch VRAM in mode 1 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store VRAM in mode 1 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch VRAM in mode 2 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store VRAM in mode 2 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch VRAM in mode 3 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_VRAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store VRAM in mode 3 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_VRAM_START & 0xFF,
+                        MEM_VRAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch OAM in mode 0 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM in mode 0 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 0},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch OAM in mode 1 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM in mode 1 OK",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 1},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch OAM in mode 2 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM in mode 2 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch OAM in mode 2 OK when PPU is off",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = 0,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = 0,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM in mode 2 OK when PPU is off",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = 0,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 2},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = 0,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch OAM in mode 3 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_OAM_START] = 0xAA,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM in mode 3 ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .ppu = {.mode = 3},
+                .mem =
+                    {
+                        MEM_OAM_START & 0xFF,
+                        MEM_OAM_START >> 8,
+                        [MEM_LCDC] = LCDC_ENABLED,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        // Echo ram is mapped to 0xC000-0xDDFF.
+        .name = "Fetch echo RAM",
+        .init =
+            {
+                .cpu = {.ir = LD_A_IMM16_MEM},
+                .mem =
+                    {
+                        MEM_ECHO_RAM_START & 0xFF,
+                        MEM_ECHO_RAM_START >> 8,
+                        [0xC000] = 0xAA,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .mem =
+                    {
+                        MEM_ECHO_RAM_START & 0xFF,
+                        MEM_ECHO_RAM_START >> 8,
+                        [0xC000] = 0xAA,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        // Echo ram is mapped to 0xC000-0xDDFF.
+        .name = "Store echo RAM",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .mem =
+                    {
+                        MEM_ECHO_RAM_START & 0xFF,
+                        MEM_ECHO_RAM_START >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .mem =
+                    {
+                        MEM_ECHO_RAM_START & 0xFF,
+                        MEM_ECHO_RAM_START >> 8,
+                        [0xC000] = 0xAA,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select nothing",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x30}},
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x30}},
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x3F,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select dpad RIGHT",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_RIGHT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_RIGHT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x20 | (~BUTTON_RIGHT & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select dpad LEFT",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_LEFT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_LEFT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x20 | (~BUTTON_LEFT & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select dpad UP",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_UP,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_UP,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x20 | (~BUTTON_UP & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select dpad DOWN",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_DOWN,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_DOWN,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x20 | (~BUTTON_DOWN & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select dpad UP and LEFT",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_UP | BUTTON_LEFT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x20}},
+                .dpad = BUTTON_UP | BUTTON_LEFT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] =
+                            0x20 | (~(BUTTON_UP | BUTTON_LEFT) & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button A",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_A,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_A,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x10 | (~BUTTON_A & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button B",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_B,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_B,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x10 | (~BUTTON_B & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button SELECT",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_SELECT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_SELECT,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x10 | (~BUTTON_SELECT & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button START",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_START,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_START,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0x10 | (~BUTTON_START & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button A and START",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_A | BUTTON_START,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x10}},
+                .buttons = BUTTON_A | BUTTON_START,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] =
+                            0x10 | (~(BUTTON_A | BUTTON_START) & 0xF),
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD select button and dpad",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0}},
+                .buttons = 1 | 4,
+                .dpad = 2 | 8,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0}},
+                .buttons = 1 | 4,
+                .dpad = 2 | 8,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store P1/JOYPAD bottom nibble is read-only",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0x03}},
+                .buttons = 0xF,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0x03}},
+                .buttons = 0xF,
+                .mem =
+                    {
+                        MEM_P1_JOYPAD & 0xFF,
+                        MEM_P1_JOYPAD >> 8,
+                        [MEM_P1_JOYPAD] = 0,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store DIV",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xA5}},
+                .mem = {MEM_DIV & 0xFF, MEM_DIV >> 8, [MEM_DIV] = 0xF0},
+                .counter = 0xF030,
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xA5}},
+                .mem = {MEM_DIV & 0xFF, MEM_DIV >> 8, [MEM_DIV] = 0},
+                .counter = 0,
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store LY (read only)",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xA5}},
+                .mem = {MEM_LY & 0xFF, MEM_LY >> 8, [MEM_LY] = 10},
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xA5}},
+                .mem = {MEM_LY & 0xFF, MEM_LY >> 8, [MEM_LY] = 10},
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store OAM DMA ",
+        .init =
+            {
+                .cpu =
+                    {
+                        // During OAM DMA the CPU can only access high RAM.
+                        .pc = HIGH_RAM_START,
+                        .ir = LD_IMM16_MEM_A,
+                        .registers = {[REG_A] = 10},
+                    },
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_DMA & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_DMA >> 8,
+                    },
+            },
+        .want =
+            {
+                .cpu =
+                    {
+                        .pc = HIGH_RAM_START + 3,
+                        .registers = {[REG_A] = 10},
+                    },
+                .dma_ticks_remaining = DMA_MCYCLES,
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_DMA & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_DMA >> 8,
+                        [MEM_DMA] = 10,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store ignored during OAM DMA",
+        .init =
+            {
+                .cpu =
+                    {
+                        // During OAM DMA the CPU can only access high RAM.
+                        // This includes reading from PC, so let's just point PC
+                        // at high RAM.
+                        .pc = HIGH_RAM_START,
+                        .ir = LD_IMM16_MEM_A,
+                        .registers = {[REG_A] = 0xFF},
+                    },
+                .dma_ticks_remaining = 5,
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_WRAM_START & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_WRAM_START >> 8,
+                        [MEM_WRAM_START] = 0xAA,
+                    },
+            },
+        .want =
+            {
+                .cpu =
+                    {
+                        .pc = HIGH_RAM_START + 3,
+                        .registers = {[REG_A] = 0xFF},
+                    },
+                .dma_ticks_remaining = 5,
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_WRAM_START & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_WRAM_START >> 8,
+                        [MEM_WRAM_START] = 0xAA,
+                    },
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Fetch ignored during OAM DMA",
+        .init =
+            {
+                .cpu =
+                    {
+                        // During OAM DMA the CPU can only access high RAM.
+                        // This includes reading from PC, so let's just point PC
+                        // at high RAM.
+                        .pc = HIGH_RAM_START,
+                        .ir = LD_A_IMM16_MEM,
+                    },
+                .dma_ticks_remaining = 5,
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_WRAM_START & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_WRAM_START >> 8,
+                        [MEM_WRAM_START] = 0xAA,
+                    },
+            },
+        .want =
+            {
+                .cpu =
+                    {
+                        .pc = HIGH_RAM_START + 3,
+                        .registers = {[REG_A] = 0xFF},
+                    },
+                .dma_ticks_remaining = 5,
+                .mem =
+                    {
+                        [HIGH_RAM_START] = MEM_WRAM_START & 0xFF,
+                        [HIGH_RAM_START + 1] = MEM_WRAM_START >> 8,
+                        [MEM_WRAM_START] = 0xAA,
+                    },
+            },
+        .cycles = 4,
+    },
+};
+
+void run_store_fetch_tests() {
+  _run_exec_tests(store_fetch_tests,
+                  sizeof(store_fetch_tests) / sizeof(store_fetch_tests[0]));
+}
+
 int main() {
   run_snprint_tests();
   run_cb_snprint_tests();
@@ -6417,7 +7462,6 @@ int main() {
   run_ei_delayed_test();
   run_ei_di_test();
   run_call_interrupt_tests();
-
   run_call_interrupt_and_reti_test();
 
   // Test various cases of HALT and interrupts.
@@ -6428,6 +7472,8 @@ int main() {
   run_halt_then_rst_ime_false_pending_true_test();
   run_halt_ime_true_pending_false_test();
   run_halt_ime_true_pending_true_test();
+
+  run_store_fetch_tests();
 
   return 0;
 }

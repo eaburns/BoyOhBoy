@@ -175,9 +175,13 @@ static void stat_set_ppu_mode(Gameboy *g, PpuMode mode) {
   store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
 }
 
+bool ppu_enabled(const Gameboy *g) {
+  return g->mem[MEM_LCDC] & LCDC_ENABLED;
+}
+
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;
-  if ((g->mem[MEM_LCDC] & LCDC_ENABLED) == 0) {
+  if (!ppu_enabled(g)) {
     stat_set_ppu_mode(g, 0);
     // Get ready for when the PPU enables.
     // It will start in OAM_SCAN mode.
