@@ -13,21 +13,26 @@
 #include <string.h>
 #include <time.h>
 
-static sig_atomic_t go = false;
-static sig_atomic_t done = false;
+static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
+static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
+
+static Gameboy g;
 static Acme *acme = NULL;
 static AcmeWin *lcd_win = NULL;
+
 static int step = 0;
+
 static int next_sp = -1;
+
 enum { MAX_BREAKS = 10 };
 static int nbreaks = 0;
 static int breaks[MAX_BREAKS];
 
+static sig_atomic_t go = false;
+static sig_atomic_t done = false;
+
 enum { BUTTON_TIME = 10000 };
 static int button_count;
-
-static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
-static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
 enum { LINE_MAX = 128 };
 
@@ -105,20 +110,20 @@ static int find_addr_line(DisasmWin *win, uint16_t addr) {
   return i;
 }
 
-static int mem_diff_start(Mem prev, const Gameboy *g) {
+static int mem_diff_start(Mem prev) {
   int a = 0;
   for (; a < MEM_SIZE; a++) {
-    if (prev[a] != g->mem[a]) {
+    if (prev[a] != g.mem[a]) {
       break;
     }
   }
   return a;
 }
 
-static int mem_diff_end(Mem prev, const Gameboy *g) {
+static int mem_diff_end(Mem prev) {
   int a = MEM_SIZE - 1;
   for (; a >= 0; a--) {
-    if (prev[a] != g->mem[a]) {
+    if (prev[a] != g.mem[a]) {
       break;
     }
   }
@@ -193,26 +198,26 @@ static void redraw_disasm_win(DisasmWin *win) {
   free(b.data);
 }
 
-static void update_code_win(DisasmWin *win, const Gameboy *g) {
+static void update_code_win(DisasmWin *win) {
   if (win->win == NULL) {
     return;
   }
-  int diff_start = mem_diff_start(win->mem, g);
+  int diff_start = mem_diff_start(win->mem);
   if (diff_start < MEM_SIZE - 1) {
-    int diff_end = mem_diff_end(win->mem, g);
+    int diff_end = mem_diff_end(win->mem);
     update_disasm_win(win, diff_start, diff_end);
-    memcpy(win->mem + diff_start, g->mem + diff_start, diff_end - diff_start);
+    memcpy(win->mem + diff_start, g.mem + diff_start, diff_end - diff_start);
   }
-  jump_disasm_win(win, g->cpu.pc - 1);
+  jump_disasm_win(win, g.cpu.pc - 1);
   redraw_disasm_win(win);
 }
 
-static void print_current_instruction(const Gameboy *g) {
+static void print_current_instruction() {
   static const uint16_t HALT = 0x76;
   // IR has already been fetched into PC, so we go back one,
   // except for HALT, which doesn't increment PC.
-  Addr pc = g->cpu.ir == HALT ? g->cpu.pc : g->cpu.pc - 1;
-  Disasm disasm = disassemble(g->mem, pc);
+  Addr pc = g.cpu.ir == HALT ? g.cpu.pc : g.cpu.pc - 1;
+  Disasm disasm = disassemble(g.mem, pc);
   printf("%s\n", disasm.full);
 }
 
@@ -241,7 +246,7 @@ static const struct {
     {.name = "IR", .size = REG16, .r16 = REG_IR},
 };
 
-static void do_reg(Gameboy *g, const char *arg_in) {
+static void do_reg(const char *arg_in) {
   char arg[LINE_MAX] = {};
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
@@ -251,10 +256,10 @@ static void do_reg(Gameboy *g, const char *arg_in) {
       continue;
     }
     if (regs[i].size == REG8) {
-      uint8_t x = get_reg8(&g->cpu, regs[i].r8);
+      uint8_t x = get_reg8(&g.cpu, regs[i].r8);
       printf("%s:%d ($%02X)\n", arg, x, x);
     } else {
-      uint16_t x = get_reg16(&g->cpu, regs[i].r16);
+      uint16_t x = get_reg16(&g.cpu, regs[i].r16);
       printf("%s: %d ($%04X)\n", arg, x, x);
     }
     return;
@@ -269,15 +274,15 @@ static void do_reg(Gameboy *g, const char *arg_in) {
   printf("\n");
 }
 
-static void do_dump(const Gameboy *g) {
+static void do_dump() {
   static const int NCOL = 3;
   int col = 0;
   for (int i = 0; i < sizeof(regs) / sizeof(regs[0]); i++) {
     if (regs[i].size == REG8) {
-      uint8_t x = get_reg8(&g->cpu, regs[i].r8);
+      uint8_t x = get_reg8(&g.cpu, regs[i].r8);
       printf("%s:  %-5d ($%02X)  ", regs[i].name, x, x);
     } else {
-      uint16_t x = get_reg16(&g->cpu, regs[i].r16);
+      uint16_t x = get_reg16(&g.cpu, regs[i].r16);
       printf("%2s: %-5d ($%04X)", regs[i].name, x, x);
     }
     printf(col == NCOL - 1 ? "\n" : "\t");
@@ -312,14 +317,14 @@ static const struct {
     {"IE", MEM_IE},
 };
 
-static void do_peek(const Gameboy *g, const char *arg_in) {
+static void do_peek(const char *arg_in) {
   char arg[LINE_MAX] = {};
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
   }
   for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
     if (strcmp(arg, mems[i].name) == 0) {
-      uint8_t x = g->mem[mems[i].addr];
+      uint8_t x = g.mem[mems[i].addr];
       printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
       return;
     }
@@ -344,7 +349,7 @@ static void do_peek(const Gameboy *g, const char *arg_in) {
            addr);
     return;
   }
-  uint8_t x = g->mem[addr];
+  uint8_t x = g.mem[addr];
   for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
     if (mems[i].addr == addr) {
       printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
@@ -371,7 +376,6 @@ static const char *px_str(int px) {
 }
 
 static void *poll_events(void *arg) {
-  Gameboy *g = arg;
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
@@ -384,28 +388,28 @@ static void *poll_events(void *arg) {
     }
     if (event->type == 'x') {
       if (strcmp(event->data, "Up") == 0) {
-        g->dpad |= BUTTON_UP;
+        g.dpad |= BUTTON_UP;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Down") == 0) {
-        g->dpad |= BUTTON_DOWN;
+        g.dpad |= BUTTON_DOWN;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Left") == 0) {
-        g->dpad |= BUTTON_LEFT;
+        g.dpad |= BUTTON_LEFT;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Right") == 0) {
-        g->dpad |= BUTTON_RIGHT;
+        g.dpad |= BUTTON_RIGHT;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "AButton") == 0) {
-        g->buttons |= BUTTON_A;
+        g.buttons |= BUTTON_A;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "BButton") == 0) {
-        g->buttons |= BUTTON_B;
+        g.buttons |= BUTTON_B;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Start") == 0) {
-        g->buttons |= BUTTON_START;
+        g.buttons |= BUTTON_START;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Select") == 0) {
-        g->buttons |= BUTTON_SELECT;
+        g.buttons |= BUTTON_SELECT;
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Break") == 0) {
         go = false;
@@ -444,7 +448,7 @@ static void print_vram(Buffer *b, const char *font) {
 
 enum { MAX_TILE_INDEX = 384 };
 
-static void do_tile(const Gameboy *g, int tile_index) {
+static void do_tile(int tile_index) {
   if (tile_index < 0 || tile_index > MAX_TILE_INDEX) {
     printf("tile index must be between 0 and %d\n", MAX_TILE_INDEX);
     return;
@@ -454,14 +458,14 @@ static void do_tile(const Gameboy *g, int tile_index) {
   uint16_t addr = MEM_TILE_BLOCK0_START + tile_index * 16;
   bprintf(&b, "$%04X-$%04X: ", addr, addr + 16 - 1);
   for (int i = 0; i < 16; i++) {
-    bprintf(&b, "%02X ", g->mem[addr + i]);
+    bprintf(&b, "%02X ", g.mem[addr + i]);
   }
   bprintf(&b, "\n");
   bprintf(&b, "+--------+\n");
   for (int y = 0; y < 8; y++) {
     bprintf(&b, "|");
-    uint8_t row_low = g->mem[addr++];
-    uint8_t row_high = g->mem[addr++];
+    uint8_t row_low = g.mem[addr++];
+    uint8_t row_high = g.mem[addr++];
     for (int x = 0; x < 8; x++) {
       uint8_t px_low = row_low >> (7 - x) & 1;
       uint8_t px_high = row_high >> (7 - x) & 1;
@@ -475,7 +479,7 @@ static void do_tile(const Gameboy *g, int tile_index) {
   free(b.data);
 }
 
-static void do_tilemap(const Gameboy *g) {
+static void do_tilemap() {
   int row = 0;
   int row_start = 0;
   static const int COLS = 24;
@@ -494,8 +498,8 @@ static void do_tilemap(const Gameboy *g) {
           continue;
         }
         uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
-        uint8_t row_low = g->mem[addr + y * 2];
-        uint8_t row_high = g->mem[addr + y * 2 + 1];
+        uint8_t row_low = g.mem[addr + y * 2];
+        uint8_t row_high = g.mem[addr + y * 2 + 1];
         for (int x = 0; x < 8; x++) {
           uint8_t px_low = row_low >> (7 - x) & 1;
           uint8_t px_high = row_high >> (7 - x) & 1;
@@ -516,7 +520,7 @@ static void do_tilemap(const Gameboy *g) {
   free(b.data);
 }
 
-static void do_bgmap(const Gameboy *g, int map_index) {
+static void do_bgmap(int map_index) {
   if (map_index != 0 && map_index != 1) {
     printf("bgmap must be 0 or 1\n");
     return;
@@ -527,10 +531,10 @@ static void do_bgmap(const Gameboy *g, int map_index) {
   for (int map_y = 0; map_y < 32; map_y++) {
     for (int y = 0; y < 8; y++) {
       for (int map_x = 0; map_x < 32; map_x++) {
-        int tile = g->mem[map_addr + (32 * map_y) + map_x];
+        int tile = g.mem[map_addr + (32 * map_y) + map_x];
         uint16_t addr = MEM_TILE_BLOCK0_START + tile * 16;
-        uint8_t row_low = g->mem[addr + y * 2];
-        uint8_t row_high = g->mem[addr + y * 2 + 1];
+        uint8_t row_low = g.mem[addr + y * 2];
+        uint8_t row_high = g.mem[addr + y * 2 + 1];
         for (int x = 0; x < 8; x++) {
           uint8_t px_low = row_low >> (7 - x) & 1;
           uint8_t px_high = row_high >> (7 - x) & 1;
@@ -564,7 +568,7 @@ static int last_line_diff(uint8_t a[SCREEN_HEIGHT][SCREEN_WIDTH],
   return -1;
 }
 
-static void draw_lcd(Gameboy *g) {
+static void draw_lcd() {
   if (lcd_win == NULL) {
     return;
   }
@@ -579,20 +583,20 @@ static void draw_lcd(Gameboy *g) {
     start_y = 0;
     end_y = SCREEN_HEIGHT - 1;
   } else {
-    start_y = first_line_diff(cur, g->lcd);
+    start_y = first_line_diff(cur, g.lcd);
     if (start_y >= SCREEN_HEIGHT) {
       return;
     }
-    end_y = last_line_diff(cur, g->lcd);
+    end_y = last_line_diff(cur, g.lcd);
   }
   for (int y = start_y; y <= end_y; y++) {
-    memcpy(cur[y], g->lcd[y], SCREEN_WIDTH);
+    memcpy(cur[y], g.lcd[y], SCREEN_WIDTH);
   }
 
   b.size = 0;
   for (int y = start_y; y <= end_y; y++) {
     for (int x = 0; x < SCREEN_WIDTH; x++) {
-      bprintf(&b, "%s", px_str(g->lcd[y][x]));
+      bprintf(&b, "%s", px_str(g.lcd[y][x]));
     }
     bprintf(&b, "\n");
   }
@@ -620,7 +624,7 @@ static void draw_lcd(Gameboy *g) {
   }
 }
 
-static void do_lcd(Gameboy *g) {
+static void do_lcd() {
   if (acme == NULL || lcd_win != NULL) {
     return;
   }
@@ -634,8 +638,8 @@ static void do_lcd(Gameboy *g) {
                        "\nLeft         Right            AButton        Start"
                        "\n      Down                    BButton        Select");
   static pthread_t poll_thrd;
-  pthread_create(&poll_thrd, NULL, poll_events, g);
-  draw_lcd(g);
+  pthread_create(&poll_thrd, NULL, poll_events, NULL);
+  draw_lcd();
 }
 
 static void do_step(int n) {
@@ -647,8 +651,8 @@ static void do_step(int n) {
   go = true;
 }
 
-static void do_next(const Gameboy *g) {
-  next_sp = g->cpu.sp;
+static void do_next() {
+  next_sp = g.cpu.sp;
   go = true;
 }
 
@@ -681,7 +685,7 @@ static void do_break() {
 }
 
 // Returns whether to step the next instruction.
-static bool handle_input_line(Gameboy *g) {
+static bool handle_input_line() {
   char line[LINE_MAX];
   printf("> ");
   if (fgets(line, sizeof(line), stdin) == NULL) {
@@ -699,23 +703,23 @@ static bool handle_input_line(Gameboy *g) {
   char arg_s[LINE_MAX];
   int arg_d = 0;
   if (sscanf(line, "reg %s", arg_s) == 1) {
-    do_reg(g, arg_s);
+    do_reg(arg_s);
   } else if (sscanf(line, "peek %s", arg_s) == 1) {
-    do_peek(g, arg_s);
+    do_peek(arg_s);
   } else if (sscanf(line, "tile %d", &arg_d) == 1) {
-    do_tile(g, arg_d);
+    do_tile(arg_d);
   } else if (strcmp(line, "tilemap") == 0) {
-    do_tilemap(g);
+    do_tilemap();
   } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
-    do_bgmap(g, arg_d);
+    do_bgmap(arg_d);
   } else if (strcmp(line, "lcd") == 0) {
-    do_lcd(g);
+    do_lcd();
   } else if (strcmp(line, "dump") == 0) {
-    do_dump(g);
+    do_dump();
   } else if (sscanf(line, "step %d", &arg_d) == 1) {
     do_step(arg_d);
   } else if (strcmp(line, "next") == 0) {
-    do_next(g);
+    do_next();
   } else if (sscanf(line, "break $%x", &arg_d) == 1) {
     do_break_n(arg_d);
   } else if (strcmp(line, "break") == 0) {
@@ -748,7 +752,7 @@ int main(int argc, const char *argv[]) {
   signal(SIGINT, sigint_handler);
 
   Rom rom = read_rom(argv[1]);
-  Gameboy g = init_gameboy(&rom);
+  g = init_gameboy(&rom);
 
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
@@ -764,9 +768,9 @@ int main(int argc, const char *argv[]) {
 
   while (!done) {
     if (!go && g.cpu.state == DONE) {
-      print_current_instruction(&g);
-      update_code_win(&code_win, &g);
-      while (!go && !done && handle_input_line(&g)) {
+      print_current_instruction();
+      update_code_win(&code_win);
+      while (!go && !done && handle_input_line()) {
       }
     }
 
@@ -774,7 +778,7 @@ int main(int argc, const char *argv[]) {
     PpuMode prev_ppu_mode = ppu_mode(&g);
     mcycle(&g);
     if (lcd_win != NULL && ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
-      draw_lcd(&g);
+      draw_lcd();
       static double last_frame = 0;
       if (start_ns - last_frame < 17 * NS_PER_MS) {
         struct timespec ts = {
