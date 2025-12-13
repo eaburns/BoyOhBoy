@@ -5341,9 +5341,9 @@ void _run_exec_tests(struct exec_test exec_tests[], int n) {
     if (cycles != test->cycles) {
       FAIL("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
     }
-    if (!gameboy_eq(&g, &test->want)) {
-      gameboy_print_diff(stderr, &g, &test->want);
-      FAIL("%s: Gameboy state does not match expected", test->name);
+    char *diff = gameboy_diff(&g, &test->want);
+    if (diff != NULL) {
+      FAIL("%s: Gameboy state does not match expected\n: %s", test->name, diff);
     }
   }
 }
@@ -5612,9 +5612,9 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_interrupt)) {
-    gameboy_print_diff(stderr, &g, &want_interrupt);
-    FAIL("unexpected interrupt state");
+  char *diff = gameboy_diff(&g, &want_interrupt);
+  if (diff != NULL) {
+    FAIL("Unexpected interrupt state:\n%s", diff);
   }
 
   // Should RETI to the INCA.
@@ -5640,9 +5640,9 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_reti)) {
-    gameboy_print_diff(stderr, &g, &want_after_reti);
-    FAIL("unexpected after reti state");
+  diff = gameboy_diff(&g, &want_after_reti);
+  if (diff != NULL) {
+    FAIL("Unexpected state after reti:\n%s", diff);
   }
 
   // Now the next interrupt.
@@ -5667,9 +5667,9 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_second_interrupt)) {
-    gameboy_print_diff(stderr, &g, &want_second_interrupt);
-    FAIL("unexpected after second interrupt");
+  diff = gameboy_diff(&g, &want_second_interrupt);
+  if (diff != NULL) {
+    FAIL("Unexpected state after second interrupt:\n%s", diff);
   }
 
   // RETI again
@@ -5694,9 +5694,9 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_second_reti)) {
-    gameboy_print_diff(stderr, &g, &want_second_reti);
-    FAIL("unexpected after second reti");
+  diff = gameboy_diff(&g, &want_second_reti);
+  if (diff != NULL) {
+    FAIL("Unexpected state after second reti:\n%s", diff);
   }
 
   // Should INCA.
@@ -5723,9 +5723,9 @@ void run_call_interrupt_and_reti_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_inca)) {
-    gameboy_print_diff(stderr, &g, &want_after_inca);
-    FAIL("unexpected after inca state");
+  diff = gameboy_diff(&g, &want_after_inca);
+  if (diff != NULL) {
+    FAIL("Unexpected state after inca:\n%s", diff);
   }
 }
 
@@ -5769,9 +5769,9 @@ void run_halt_stays_halted_test() {
                 [MEM_IE] = 0xFF,
             },
     };
-    if (!gameboy_eq(&g, &want_halted)) {
-      gameboy_print_diff(stderr, &g, &want_halted);
-      FAIL("unexpected halted state count %d", i);
+    char *diff = gameboy_diff(&g, &want_halted);
+    if (diff != NULL) {
+      FAIL("Unexpected halted state count %d:\n%s", i, diff);
     }
   }
 
@@ -5795,9 +5795,9 @@ void run_halt_stays_halted_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake)) {
-    gameboy_print_diff(stderr, &g, &want_awake);
-    FAIL("unexpected awake state");
+  char *diff = gameboy_diff(&g, &want_awake);
+  if (diff != NULL) {
+    FAIL("Unexpected awake state:\n%s", diff);
   }
 }
 
@@ -5836,9 +5836,9 @@ void run_halt_ime_false_pending_false_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_halted)) {
-    gameboy_print_diff(stderr, &g, &want_halted);
-    FAIL("unexpected halted state");
+  char *diff = gameboy_diff(&g, &want_halted);
+  if (diff != NULL) {
+    FAIL("Unexpected halted state:\n%s", diff);
   }
 
   // Wake up.
@@ -5861,9 +5861,9 @@ void run_halt_ime_false_pending_false_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake)) {
-    gameboy_print_diff(stderr, &g, &want_awake);
-    FAIL("unexpected awake state");
+  diff = gameboy_diff(&g, &want_awake);
+  if (diff != NULL) {
+    FAIL("Unexpected awake state:\n%s", diff);
   }
 }
 
@@ -5907,9 +5907,9 @@ void run_halt_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want)) {
-    gameboy_print_diff(stderr, &g, &want);
-    FAIL("unexpected end state");
+  char *diff = gameboy_diff(&g, &want);
+  if (diff != NULL) {
+    FAIL("Unexpected end state:\n%s", diff);
   }
 
   step(&g);
@@ -5931,9 +5931,9 @@ void run_halt_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_inca_1)) {
-    gameboy_print_diff(stderr, &g, &want_inca_1);
-    FAIL("unexpected end state");
+  diff = gameboy_diff(&g, &want_inca_1);
+  if (diff != NULL) {
+    FAIL("Unexpected end state:\n%s", diff);
   }
 
   step(&g);
@@ -5955,9 +5955,9 @@ void run_halt_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_inca_2)) {
-    gameboy_print_diff(stderr, &g, &want_inca_2);
-    FAIL("unexpected end state");
+  diff = gameboy_diff(&g, &want_inca_2);
+  if (diff != NULL) {
+    FAIL("Unexpected end state:\n%s", diff);
   }
 }
 
@@ -6000,9 +6000,9 @@ void run_halt_after_ei_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_ei)) {
-    gameboy_print_diff(stderr, &g, &want_after_ei);
-    FAIL("unexpected after EI state");
+  char *diff = gameboy_diff(&g, &want_after_ei);
+  if (diff != NULL) {
+    FAIL("Unexpected state after EI:\n%s", diff);
   }
 
   step(&g);
@@ -6024,9 +6024,9 @@ void run_halt_after_ei_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_halt)) {
-    gameboy_print_diff(stderr, &g, &want_after_halt);
-    FAIL("unexpected after HALT state");
+  diff = gameboy_diff(&g, &want_after_halt);
+  if (diff != NULL) {
+    FAIL("Unexpected state after HALT:\n%s", diff);
   }
 
   step(&g);
@@ -6050,9 +6050,9 @@ void run_halt_after_ei_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_interrupt)) {
-    gameboy_print_diff(stderr, &g, &want_after_interrupt);
-    FAIL("unexpected after interrupt state");
+  diff = gameboy_diff(&g, &want_after_interrupt);
+  if (diff != NULL) {
+    FAIL("Unexpected state after interrupt:\n%s", diff);
   }
 
   step(&g);
@@ -6076,9 +6076,9 @@ void run_halt_after_ei_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_reti)) {
-    gameboy_print_diff(stderr, &g, &want_after_reti);
-    FAIL("unexpected after interrupt state");
+  diff = gameboy_diff(&g, &want_after_reti);
+  if (diff != NULL) {
+    FAIL("Unexpected state after reti:\n%s", diff);
   }
 
   step(&g);
@@ -6103,9 +6103,9 @@ void run_halt_after_ei_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_second_halt)) {
-    gameboy_print_diff(stderr, &g, &want_second_halt);
-    FAIL("unexpected after interrupt state");
+  diff = gameboy_diff(&g, &want_second_halt);
+  if (diff != NULL) {
+    FAIL("Unexpected state after second HALT:\n%s", diff);
   }
 }
 
@@ -6147,9 +6147,9 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_halt)) {
-    gameboy_print_diff(stderr, &g, &want_after_halt);
-    FAIL("unexpected halted state");
+  char *diff = gameboy_diff(&g, &want_after_halt);
+  if (diff != NULL) {
+    FAIL("Unexpected state after HALT:\n%s", diff);
   }
 
   step(&g);
@@ -6173,9 +6173,9 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_rst)) {
-    gameboy_print_diff(stderr, &g, &want_after_rst);
-    FAIL("unexpected rst state");
+  diff = gameboy_diff(&g, &want_after_rst);
+  if (diff != NULL) {
+    FAIL("Unexpected state after RST:\n%s", diff);
   }
 
   step(&g);
@@ -6199,9 +6199,9 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_ret)) {
-    gameboy_print_diff(stderr, &g, &want_after_ret);
-    FAIL("unexpected ret state");
+  diff = gameboy_diff(&g, &want_after_ret);
+  if (diff != NULL) {
+    FAIL("Unexpected state after RET:\n%s", diff);
   }
 
   step(&g);
@@ -6225,9 +6225,9 @@ void run_halt_then_rst_ime_false_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_after_rst_again)) {
-    gameboy_print_diff(stderr, &g, &want_after_rst_again);
-    FAIL("unexpected rst state");
+  diff = gameboy_diff(&g, &want_after_rst_again);
+  if (diff != NULL) {
+    FAIL("Unexpected state RST again:\n%s", diff);
   }
 }
 
@@ -6270,9 +6270,9 @@ void run_halt_ime_true_pending_false_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_halted)) {
-    gameboy_print_diff(stderr, &g, &want_halted);
-    FAIL("unexpected halted state");
+  char *diff = gameboy_diff(&g, &want_halted);
+  if (diff != NULL) {
+    FAIL("Unexpected state after HALT:\n%s", diff);
   }
 
   // Wake up.
@@ -6297,9 +6297,9 @@ void run_halt_ime_true_pending_false_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake)) {
-    gameboy_print_diff(stderr, &g, &want_awake);
-    FAIL("unexpected awake state");
+  diff = gameboy_diff(&g, &want_awake);
+  if (diff != NULL) {
+    FAIL("Unexpected state after wake up:\n%s", diff);
   }
 
   // After the NOP, we should call the interrupt.
@@ -6327,9 +6327,9 @@ void run_halt_ime_true_pending_false_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake2)) {
-    gameboy_print_diff(stderr, &g, &want_awake2);
-    FAIL("unexpected awake state");
+  diff = gameboy_diff(&g, &want_awake2);
+  if (diff != NULL) {
+    FAIL("Unexpected state after wake up 2:\n%s", diff);
   }
 }
 
@@ -6376,9 +6376,9 @@ void run_halt_ime_true_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake)) {
-    gameboy_print_diff(stderr, &g, &want_awake);
-    FAIL("unexpected awake state");
+  char *diff = gameboy_diff(&g, &want_awake);
+  if (diff != NULL) {
+    FAIL("Unexpected state after wake up:\n%s", diff);
   }
 
   // Should RETI to the HALT.
@@ -6404,9 +6404,9 @@ void run_halt_ime_true_pending_true_test() {
               [MEM_IE] = 0xFF,
           },
   };
-  if (!gameboy_eq(&g, &want_awake2)) {
-    gameboy_print_diff(stderr, &g, &want_awake2);
-    FAIL("unexpected awake2 state");
+  diff = gameboy_diff(&g, &want_awake2);
+  if (diff != NULL) {
+    FAIL("Unexpected state after wake up 2:\n%s", diff);
   }
 }
 

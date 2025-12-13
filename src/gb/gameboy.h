@@ -362,10 +362,8 @@ void ppu_tcycle(Gameboy *g);
 // Executes a single M cycle of the CPU.
 void cpu_mcycle(Gameboy *g);
 
-// Returns whether two Gameboy states are equal.
-bool gameboy_eq(const Gameboy *a, const Gameboy *b);
-
-// Prints the difference between two Gameboy states to f.
-void gameboy_print_diff(FILE *f, const Gameboy *a, const Gameboy *b);
+// Returns a string describing the difference between a and b or NULL if they
+// are the same.
+char *gameboy_diff(const Gameboy *a, const Gameboy *b);
 
 #endif // GAMEBOY_H
