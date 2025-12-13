@@ -192,18 +192,54 @@ char *gameboy_diff(const Gameboy *a, const Gameboy *b) {
   if (a->counter != b->counter) {
     bprintf(&buf, "counter: %d != %d\n", a->counter, b->counter);
   }
-  for (int y = 0; y < SCREEN_HEIGHT; y++) {
-    for (int x = 0; x < SCREEN_WIDTH; x++) {
-      if (a->lcd[y][x] != b->lcd[y][x]) {
-        bprintf(&buf, "lcd[y=%d][x=%d]: %d != %d\n", y, x, a->lcd[y][x],
-                b->lcd[y][x]);
-      }
-    }
-  }
   for (int i = 0; i < sizeof(a->mem); i++) {
     if (a->mem[i] != b->mem[i]) {
       bprintf(&buf, "mem[$%04X]: %d ($%02X) != %d ($%02X)\n", i, a->mem[i],
               a->mem[i], b->mem[i], b->mem[i]);
+    }
+  }
+
+  // Try to print a nicer diff of the LCD.
+  int ymin = SCREEN_HEIGHT;
+  int ymax = -1;
+  int xmin = SCREEN_WIDTH;
+  int xmax = -1;
+  for (int y = 0; y < SCREEN_HEIGHT; y++) {
+    for (int x = 0; x < SCREEN_WIDTH; x++) {
+      if (a->lcd[y][x] != b->lcd[y][x]) {
+        ymin = y < ymin ? y : ymin;
+        ymax = y > ymax ? y : ymax;
+        xmin = x < xmin ? x : xmin;
+        xmax = x > xmax ? x : xmax;
+      }
+    }
+  }
+  if (ymax >= 0) {
+    bprintf(&buf, "LCD diff\n    ");
+    for (int x = xmin; x <= xmax; x++) {
+      bprintf(&buf, " %3d", x);
+    }
+    bprintf(&buf, "\n    +");
+    for (int x = xmin; x <= xmax; x++) {
+      if (x > xmin) {
+        bprintf(&buf, "-");
+      }
+      bprintf(&buf, "----", x);
+    }
+    bprintf(&buf, "\n");
+    for (int y = ymin; y <= ymax; y++) {
+      bprintf(&buf, "%3d | ", y);
+      for (int x = xmin; x <= xmax; x++) {
+        if (x > xmin) {
+          bprintf(&buf, " ");
+        }
+        if (a->lcd[y][x] != b->lcd[y][x]) {
+          bprintf(&buf, "%d≠%d", a->lcd[y][x], b->lcd[y][x]);
+        } else {
+          bprintf(&buf, " %d ", a->lcd[y][x]);
+        }
+      }
+      bprintf(&buf, "\n");
     }
   }
   return buf.data;

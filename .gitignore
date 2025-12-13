@@ -7,3 +7,5 @@ disasm
 src/9/9fsys_test
 src/9/9p_test
 src/gb/cpu_test
+src/gb/gameboy_test
+src/gb/ppu_test

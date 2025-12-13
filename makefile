@@ -30,7 +30,7 @@ src/buf/%_test: src/buf/%_test.o $(LIB_BUF)
 
 LIB_GB=src/gb/libgb.a
 SRCS_GB=src/gb/cpu.c src/gb/ppu.c src/gb/gameboy.c
-TESTS_GB=src/gb/cpu_test.c
+TESTS_GB=src/gb/cpu_test.c src/gb/gameboy_test.c
 
 DEPS_GB=$(SRCS_GB:.c=.d) $(TESTS_GB:.c=.d)
 -include $(DEPS_GB)
