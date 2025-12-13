@@ -16,7 +16,6 @@
 static sig_atomic_t go = false;
 static sig_atomic_t done = false;
 static Acme *acme = NULL;
-static AcmeWin *vram_win = NULL;
 static AcmeWin *lcd_win = NULL;
 static int step = 0;
 static int next_sp = -1;
@@ -371,39 +370,6 @@ static const char *px_str(int px) {
   return ""; // impossible
 }
 
-enum { MAX_TILE_INDEX = 384 };
-
-static AcmeWin *get_vram_win() {
-  if (acme == NULL) {
-    return NULL;
-  }
-  if (vram_win == NULL) {
-    vram_win = acme_get_win(acme, "vram");
-    if (vram_win == NULL) {
-      printf("Failed to open Acme win %s\n", "vram");
-      return NULL;
-    }
-    return vram_win;
-  }
-  // Check whether the win may have been deleted by writing to it.
-  char *orig_err = NULL;
-  if (win_fmt_ctl(vram_win, "show") >= 0) {
-    // It seems to be not deleted.
-    return vram_win;
-  }
-  // It may have been deleted. Let's stash the error and try to reopen it.
-  orig_err = strdup(errstr9());
-  vram_win = acme_get_win(acme, "vram");
-  if (vram_win == NULL) {
-    // Failed to open it too. Let's just print the original error.
-    printf("Error getting vram window: %s\n", orig_err);
-    free(orig_err);
-    return NULL;
-  }
-  free(orig_err);
-  return vram_win;
-}
-
 static void *poll_events(void *arg) {
   Gameboy *g = arg;
   if (!win_start_events(lcd_win)) {
@@ -456,9 +422,9 @@ static void *poll_events(void *arg) {
 }
 
 static void print_vram(Buffer *b, const char *font) {
-  AcmeWin *vram_win = get_vram_win();
+  AcmeWin *vram_win = acme_get_win(acme, "vram");
   if (vram_win == NULL) {
-    printf("%s", b->data);
+    printf("Failed to open Acme win %s\n", "vram");
     return;
   }
   if (win_fmt_addr(vram_win, ",") < 0) {
@@ -473,7 +439,10 @@ static void print_vram(Buffer *b, const char *font) {
   if (win_fmt_ctl(vram_win, "font %s\nclean\ndot=addr\nshow\n", font) < 0) {
     printf("error writing to vram win ctl: %s\n", errstr9());
   }
+  win_release(vram_win);
 }
+
+enum { MAX_TILE_INDEX = 384 };
 
 static void do_tile(const Gameboy *g, int tile_index) {
   if (tile_index < 0 || tile_index > MAX_TILE_INDEX) {
@@ -866,10 +835,6 @@ int main(int argc, const char *argv[]) {
 
   // clean and del must be sent separately or else a bug in Acme triggers a
   // SEGFAULT.
-  if (vram_win != NULL) {
-    win_fmt_ctl(vram_win, "clean\n");
-    win_fmt_ctl(vram_win, "del\n");
-  }
   if (lcd_win != NULL) {
     win_fmt_ctl(lcd_win, "clean\n");
     win_fmt_ctl(lcd_win, "del\n");
