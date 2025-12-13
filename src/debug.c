@@ -194,7 +194,7 @@ static void redraw_disasm_win(DisasmWin *win) {
   win_fmt_addr(win->win, "%d,%d", start + 1, end + 1);
   win_write_data(win->win, b.size, b.data);
   win_fmt_addr(win->win, "%d", win->cur + 1);
-  win_fmt_ctl(win->win, "dot=addr\nshow\n");
+  win_fmt_ctl(win->win, "clean\ndot=addr\nshow\n");
   free(b.data);
 }
 
