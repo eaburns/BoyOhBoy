@@ -44,11 +44,7 @@ void thread_local_init9(ThreadLocal9 *local, void (*destroy)(void *)) {
 }
 
 void *thread_local_get9(ThreadLocal9 *local) {
-  void *v = pthread_getspecific(*local);
-  if (v == NULL) {
-    abort();
-  }
-  return v;
+  return pthread_getspecific(*local);
 }
 
 void thread_local_set9(ThreadLocal9 *local, void *val) {

@@ -10,12 +10,16 @@ static Once9 once = ONCE9_INIT;
 
 static void init_tss() {
   thread_local_init9(&err_msg, free);
-  thread_local_set9(&err_msg, strdup(""));
 }
 
 const char *errstr9() {
   do_once9(&once, init_tss);
-  return thread_local_get9(&err_msg);
+  char *msg = thread_local_get9(&err_msg);
+  if (msg == NULL) {
+    msg = strdup("OK");
+  }
+  thread_local_set9(&err_msg, msg);
+  return msg;
 }
 
 void errstr9f(const char *fmt, ...) {
