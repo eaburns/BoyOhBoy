@@ -425,6 +425,17 @@ static void *poll_events(void *arg) {
   return 0;
 }
 
+static void check_button_count() {
+  if (button_count == 0) {
+    return;
+  }
+  button_count--;
+  if (button_count == 0) {
+    g.buttons = 0;
+    g.dpad = 0;
+  }
+}
+
 static void print_vram(Buffer *b, const char *font) {
   AcmeWin *vram_win = acme_get_win(acme, "vram");
   if (vram_win == NULL) {
@@ -651,9 +662,26 @@ static void do_step(int n) {
   go = true;
 }
 
+static void check_step() {
+  if (step == 0) {
+    return;
+  }
+  step--;
+  if (step == 0) {
+    go = false;
+  }
+}
+
 static void do_next() {
   next_sp = g.cpu.sp;
   go = true;
+}
+
+static void check_next() {
+  if (next_sp >= 0 && g.cpu.sp == next_sp) {
+    next_sp = -1;
+    go = false;
+  }
 }
 
 static void do_break_n(int n) {
@@ -681,6 +709,21 @@ static void do_break() {
   printf("Break points:\n");
   for (int i = 0; i < nbreaks; i++) {
     printf("\t$%04X\n", breaks[i]);
+  }
+}
+
+static void check_break() {
+  for (int i = 0; i < nbreaks; i++) {
+    if (breaks[i] == g.cpu.pc - 1) {
+      go = false;
+    }
+  }
+}
+
+static void check_cpu_break_point() {
+  if (g.break_point) {
+    go = false;
+    g.break_point = false;
   }
 }
 
@@ -790,13 +833,7 @@ int main(int argc, const char *argv[]) {
     }
     long ns = time_ns() - start_ns;
 
-    if (button_count > 0) {
-      button_count--;
-      if (button_count == 0) {
-        g.buttons = 0;
-        g.dpad = 0;
-      }
-    }
+    check_button_count();
 
     if (go) {
       if (num_mcycle == 0) {
@@ -805,36 +842,20 @@ int main(int argc, const char *argv[]) {
         mcycle_ns_avg = mcycle_ns_avg + (ns - mcycle_ns_avg) / (num_mcycle + 1);
       }
       num_mcycle++;
-      if (g.break_point) {
-        go = false;
-        g.break_point = false;
+      check_step();
+      check_next();
+      check_break();
+      check_cpu_break_point();
+      if (go) {
+        continue;
       }
-      if (step > 0) {
-        step--;
-        if (step == 0) {
-          go = false;
-        }
+      if (num_mcycle > 0) {
+        printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
+               mcycle_ns_avg);
+        num_mcycle = 0;
       }
-      if (next_sp >= 0 && g.cpu.sp == next_sp) {
-        next_sp = -1;
-        go = false;
-      }
-      for (int i = 0; i < nbreaks; i++) {
-        if (breaks[i] == g.cpu.pc - 1) {
-          go = false;
-        }
-      }
+      g.break_point = false;
     }
-    // Step handling above may have set go==false, so re-check here.
-    if (go) {
-      continue;
-    }
-
-    if (num_mcycle > 0) {
-      printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle, mcycle_ns_avg);
-      num_mcycle = 0;
-    }
-    g.break_point = false;
   }
 
   // clean and del must be sent separately or else a bug in Acme triggers a
