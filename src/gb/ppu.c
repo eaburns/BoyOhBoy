@@ -31,6 +31,11 @@ static uint8_t fetch(const Gameboy *g, uint16_t addr) {
 }
 
 static void set_ppu_mode(Gameboy *g, PpuMode mode) {
+  if (ppu_enabled(g) && mode == 0 && (g->mem[MEM_STAT] & STAT_MODE_0_IRQ) ||
+      mode == 1 && (g->mem[MEM_STAT] & STAT_MODE_1_IRQ) ||
+      mode == 2 && (g->mem[MEM_STAT] & STAT_MODE_2_IRQ)) {
+    g->mem[MEM_IF] |= IF_LCD;
+  }
   store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
 }
 
@@ -181,10 +186,10 @@ static void do_vblank(Gameboy *g) {
 }
 
 void ppu_enable(Gameboy *g) {
-    set_ppu_mode(g, OAM_SCAN);
-    g->ppu.ticks = 0;
-    store(g, MEM_LY, 0);
-  }
+  set_ppu_mode(g, OAM_SCAN);
+  g->ppu.ticks = 0;
+  store(g, MEM_LY, 0);
+}
 
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;

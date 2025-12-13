@@ -100,6 +100,9 @@ enum : uint16_t {
   // Bits 0 and 1 are the PPU state.
   STAT_PPU_STATE = 0x3,
   STAT_LC_EQ_LYC = 1 << 2,
+  STAT_MODE_0_IRQ = 1 << 3,
+  STAT_MODE_1_IRQ = 1 << 4,
+  STAT_MODE_2_IRQ = 1 << 5,
   STAT_LYC_IRQ = 1 << 6,
 
   MEM_SCX = 0xFF42,

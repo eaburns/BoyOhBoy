@@ -181,6 +181,29 @@ static void run_cycle_count_tests() {
           .cycles = 171,
       },
       {
+          .name = "HBLANK IRQ",
+          .init =
+              {
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_0_IRQ | DRAWING,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .want =
+              {
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_0_IRQ | HBLANK,
+                          [MEM_IF] = IF_LCD,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .cycles = 171,
+      },
+      {
           .name = "HBLANK 202 cycles",
           .init =
               {
@@ -227,6 +250,30 @@ static void run_cycle_count_tests() {
           .cycles = 203,
       },
       {
+          .name = "OAM SCAN IRQ",
+          .init =
+              {
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_2_IRQ | HBLANK,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .want =
+              {
+                  .mem =
+                      {
+                          [MEM_LY] = 1,
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_2_IRQ | OAM_SCAN,
+                          [MEM_IF] = IF_LCD,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .cycles = 203,
+      },
+      {
           .name = "HBLANK enter VBLANK",
           .init =
               {
@@ -241,6 +288,31 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = VBLANK,
                           [MEM_IF] = IF_VBLANK,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .cycles = 203,
+      },
+      {
+          .name = "VBLANK LCD IRQ",
+          .init =
+              {
+                  .mem =
+                      {
+                          [MEM_LY] = 143,
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_1_IRQ,
+                      },
+                  .ppu = {.ticks = 0},
+              },
+          .want =
+              {
+                  .mem =
+                      {
+                          [MEM_LY] = 144,
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = STAT_MODE_1_IRQ | VBLANK,
+                          [MEM_IF] = IF_LCD | IF_VBLANK,
                       },
                   .ppu = {.ticks = 0},
               },
