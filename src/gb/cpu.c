@@ -136,7 +136,7 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
     return; // read only
 
   case MEM_DMA:
-    g->dma_ticks_remaining = DMA_MCYCLES;
+    g->dma_ticks_remaining = DMA_MCYCLES + DMA_SETUP_MCYCLES;
     g->mem[MEM_DMA] = x;
     return;
   }

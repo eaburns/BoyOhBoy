@@ -309,7 +309,10 @@ enum {
   SELECT_DPAD = 1 << 4,
 };
 
-enum { DMA_MCYCLES = 160 };
+enum {
+  DMA_SETUP_MCYCLES = 1,
+  DMA_MCYCLES = 160,
+};
 
 typedef struct {
   Cpu cpu;

@@ -7361,7 +7361,7 @@ static struct exec_test store_fetch_tests[] = {
                         .pc = HIGH_RAM_START + 3,
                         .registers = {[REG_A] = 10},
                     },
-                .dma_ticks_remaining = DMA_MCYCLES,
+                .dma_ticks_remaining = DMA_MCYCLES + DMA_SETUP_MCYCLES,
                 .mem =
                     {
                         [HIGH_RAM_START] = MEM_DMA & 0xFF,
