@@ -74,6 +74,34 @@ Gameboy init_gameboy(const Rom *rom) {
   return g;
 }
 
+static void do_oam_dma(Gameboy *g) {
+  if (g->dma_ticks_remaining <= 0) {
+    return;
+  }
+  if (g->dma_ticks_remaining > DMA_MCYCLES) {
+    g->dma_ticks_remaining--;
+    return;
+  }
+  uint16_t offs = DMA_MCYCLES - g->dma_ticks_remaining;
+  uint16_t src = g->mem[MEM_DMA] * 0x100 + offs;
+  uint16_t dst = MEM_OAM_START + offs;
+  g->mem[dst] = g->mem[src];
+  g->dma_ticks_remaining--;
+}
+
+void mcycle(Gameboy *g) {
+  do {
+    cpu_mcycle(g);
+    do_oam_dma(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    ppu_tcycle(g);
+    g->counter += 4;
+    g->mem[MEM_DIV] = g->counter >> 8;
+  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
+}
+
 char *gameboy_diff(const Gameboy *a, const Gameboy *b) {
   Buffer buf = {};
   for (int i = 0; i < sizeof(a->cpu.registers); i++) {
@@ -124,6 +152,33 @@ char *gameboy_diff(const Gameboy *a, const Gameboy *b) {
     bprintf(&buf, "z: %d ($%02X) != %d ($%02X)\n", a->cpu.z, a->cpu.z, b->cpu.z,
             b->cpu.z);
   }
+  if (a->ppu.mode != b->ppu.mode) {
+    bprintf(&buf, "ppu.mode: %d != %d\n", a->ppu.mode, b->ppu.mode);
+  }
+  if (a->ppu.ticks != b->ppu.ticks) {
+    bprintf(&buf, "ppu.ticks: %d != %d\n", a->ppu.ticks, b->ppu.ticks);
+  }
+  if (a->ppu.nobjs != b->ppu.nobjs) {
+    bprintf(&buf, "ppu.nobjs: %d != %d\n", a->ppu.nobjs, b->ppu.nobjs);
+  } else {
+    for (int i = 0; i < a->ppu.nobjs; i++) {
+      const Object *ao = &a->ppu.objs[i];
+      const Object *bo = &b->ppu.objs[i];
+      if (ao->x != bo->x) {
+        bprintf(&buf, "ppu.objs[%d].x: %d != %d\n", ao->x, bo->x);
+      }
+      if (ao->y != bo->y) {
+        bprintf(&buf, "ppu.objs[%d].y: %d != %d\n", ao->y, bo->y);
+      }
+      if (ao->tile != bo->tile) {
+        bprintf(&buf, "ppu.objs[%d].tile: %d != %d\n", ao->tile, bo->tile);
+      }
+      if (ao->flags != bo->flags) {
+        bprintf(&buf, "ppu.objs[%d].flags: $%02X != $%02X\n", ao->flags,
+                bo->flags);
+      }
+    }
+  }
   if (a->dma_ticks_remaining != b->dma_ticks_remaining) {
     bprintf(&buf, "dma_ticks_remaining: %d != %d\n", a->dma_ticks_remaining,
             b->dma_ticks_remaining);
@@ -152,32 +207,4 @@ char *gameboy_diff(const Gameboy *a, const Gameboy *b) {
     }
   }
   return buf.data;
-}
-
-static void do_oam_dma(Gameboy *g) {
-  if (g->dma_ticks_remaining <= 0) {
-    return;
-  }
-  if (g->dma_ticks_remaining > DMA_MCYCLES) {
-    g->dma_ticks_remaining--;
-    return;
-  }
-  uint16_t offs = DMA_MCYCLES - g->dma_ticks_remaining;
-  uint16_t src = g->mem[MEM_DMA] * 0x100 + offs;
-  uint16_t dst = MEM_OAM_START + offs;
-  g->mem[dst] = g->mem[src];
-  g->dma_ticks_remaining--;
-}
-
-void mcycle(Gameboy *g) {
-  do {
-    cpu_mcycle(g);
-    do_oam_dma(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    g->counter += 4;
-    g->mem[MEM_DIV] = g->counter >> 8;
-  } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
 }

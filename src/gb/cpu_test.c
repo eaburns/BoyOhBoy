@@ -6839,7 +6839,7 @@ static struct exec_test store_fetch_tests[] = {
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 3},
+                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
