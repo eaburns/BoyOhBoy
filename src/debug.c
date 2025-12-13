@@ -18,7 +18,6 @@ static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
 static Gameboy g;
 static Acme *acme = NULL;
-static AcmeWin *lcd_win = NULL;
 
 static int step = 0;
 
@@ -376,6 +375,7 @@ static const char *px_str(int px) {
 }
 
 static void *poll_events(void *arg) {
+  AcmeWin *lcd_win = arg;
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
@@ -413,6 +413,10 @@ static void *poll_events(void *arg) {
         button_count = BUTTON_TIME;
       } else if (strcmp(event->data, "Break") == 0) {
         go = false;
+      } else if (strcmp(event->data, "Del") == 0 ||
+                 strcmp(event->data, "Delete") == 0) {
+        free(event);
+        break;
       } else {
         win_write_event(lcd_win, event);
       }
@@ -587,7 +591,7 @@ static double time_ns() {
 
 enum { NS_PER_MS = 1000000 };
 
-static void draw_lcd() {
+static void draw_lcd(AcmeWin *lcd_win) {
   if (lcd_win == NULL) {
     return;
   }
@@ -650,22 +654,19 @@ static void draw_lcd() {
   }
 }
 
-static void do_lcd() {
-  if (acme == NULL || lcd_win != NULL) {
-    return;
+static AcmeWin *make_lcd_win() {
+  if (acme == NULL) {
+    return NULL;
   }
-  lcd_win = acme_get_win(acme, "lcd");
-  if (lcd_win == NULL) {
-    printf("Failed to open Acme win lcd\n");
-    return;
+  AcmeWin *win = acme_get_win(acme, "lcd");
+  if (win == NULL) {
+    return NULL;
   }
-  win_fmt_ctl(lcd_win, "cleartag\n");
-  win_fmt_tag(lcd_win, " Break\n        Up"
-                       "\nLeft         Right            AButton        Start"
-                       "\n      Down                    BButton        Select");
-  static pthread_t poll_thrd;
-  pthread_create(&poll_thrd, NULL, poll_events, NULL);
-  draw_lcd();
+  win_fmt_ctl(win, "cleartag\n");
+  win_fmt_tag(win, " Break\n        Up"
+                   "\nLeft         Right            AButton        Start"
+                   "\n      Down                    BButton        Select");
+  return win;
 }
 
 static void do_step(int n) {
@@ -770,8 +771,6 @@ static bool handle_input_line() {
     do_tilemap();
   } else if (sscanf(line, "bgmap %d", &arg_d) == 1) {
     do_bgmap(arg_d);
-  } else if (strcmp(line, "lcd") == 0) {
-    do_lcd();
   } else if (strcmp(line, "dump") == 0) {
     do_dump();
   } else if (sscanf(line, "step %d", &arg_d) == 1) {
@@ -794,28 +793,38 @@ int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("Expected 1 argument, got %d", argc);
   }
-  acme = acme_connect();
-  if (acme == NULL) {
-    printf("Failed to connect to Acme. Acme integration disabled.\n");
-  }
-
   signal(SIGINT, sigint_handler);
 
   Rom rom = read_rom(argv[1]);
   g = init_gameboy(&rom);
 
-  long num_mcycle = 0;
-  double mcycle_ns_avg = 0;
+  acme = acme_connect();
+  if (acme == NULL) {
+    printf("Failed to connect to Acme. Acme integration disabled.\n");
+  }
+
+  AcmeWin *lcd_win = make_lcd_win();
+  if (lcd_win == NULL) {
+    printf("Failed to open LCD win: %s\n", errstr9());
+  } else {
+    static pthread_t poll_thrd;
+    pthread_create(&poll_thrd, NULL, poll_events, lcd_win);
+    draw_lcd(lcd_win);
+  }
 
   DisasmWin code_win = {
       .data_size = MEM_SIZE,
       .data = g.mem,
       .win = acme != NULL ? acme_get_win(acme, "code") : NULL,
   };
-  if (code_win.win != NULL) {
+  if (code_win.win == NULL) {
+    printf("Failed to open code win: %s\n", errstr9());
+  } else {
     update_from_line(&code_win, 0, code_win.data_size);
   }
 
+  long num_mcycle = 0;
+  double mcycle_ns_avg = 0;
   while (!done) {
     if (!go && g.cpu.state == DONE) {
       print_current_instruction();
@@ -828,7 +837,7 @@ int main(int argc, const char *argv[]) {
     PpuMode prev_ppu_mode = ppu_mode(&g);
     mcycle(&g);
     if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
-      draw_lcd();
+      draw_lcd(lcd_win);
     }
     long ns = time_ns() - start_ns;
 
@@ -856,16 +865,11 @@ int main(int argc, const char *argv[]) {
       g.break_point = false;
     }
   }
-
-  // clean and del must be sent separately or else a bug in Acme triggers a
-  // SEGFAULT.
   if (lcd_win != NULL) {
-    win_fmt_ctl(lcd_win, "clean\n");
-    win_fmt_ctl(lcd_win, "del\n");
+    win_fmt_ctl(lcd_win, "delete");
   }
   if (code_win.win != NULL) {
-    win_fmt_ctl(code_win.win, "clean\n");
-    win_fmt_ctl(code_win.win, "del\n");
+    win_fmt_ctl(code_win.win, "delete\n");
   }
   free_rom(&rom);
   return 0;
