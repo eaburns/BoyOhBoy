@@ -1,10 +1,10 @@
 #include "9/acme.h"
 #include "9/errstr.h"
+#include "9/thread.h"
 #include "buf/buffer.h"
 #include "gb/gameboy.h"
 #include <ctype.h>
 #include <errno.h>
-#include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -16,6 +16,7 @@
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
+static Mutex9 g_mtx;
 static Gameboy g;
 static Acme *acme = NULL;
 
@@ -374,7 +375,7 @@ static const char *px_str(int px) {
   return ""; // impossible
 }
 
-static void *poll_events(void *arg) {
+static void poll_events(void *arg) {
   AcmeWin *lcd_win = arg;
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
@@ -387,6 +388,7 @@ static void *poll_events(void *arg) {
       break;
     }
     if (event->type == 'x') {
+      mutex_lock9(&g_mtx);
       if (strcmp(event->data, "Up") == 0) {
         g.dpad |= BUTTON_UP;
         button_count = BUTTON_TIME;
@@ -416,17 +418,18 @@ static void *poll_events(void *arg) {
       } else if (strcmp(event->data, "Del") == 0 ||
                  strcmp(event->data, "Delete") == 0) {
         free(event);
+        mutex_unlock9(&g_mtx);
         break;
       } else {
         win_write_event(lcd_win, event);
       }
+      mutex_unlock9(&g_mtx);
     } else if (event->type == 'X' || event->type == 'l' || event->type == 'L' ||
                event->type == 'r' || event->type == 'R') {
       win_write_event(lcd_win, event);
     }
     free(event);
   }
-  return 0;
 }
 
 static void check_button_count() {
@@ -795,6 +798,7 @@ int main(int argc, const char *argv[]) {
   }
   signal(SIGINT, sigint_handler);
 
+  mutex_init9(&g_mtx);
   Rom rom = read_rom(argv[1]);
   g = init_gameboy(&rom);
 
@@ -807,8 +811,8 @@ int main(int argc, const char *argv[]) {
   if (lcd_win == NULL) {
     printf("Failed to open LCD win: %s\n", errstr9());
   } else {
-    static pthread_t poll_thrd;
-    pthread_create(&poll_thrd, NULL, poll_events, lcd_win);
+    static Thread9 poll_thrd;
+    thread_create9(&poll_thrd, poll_events, lcd_win);
     draw_lcd(lcd_win);
   }
 
@@ -835,13 +839,14 @@ int main(int argc, const char *argv[]) {
 
     double start_ns = time_ns();
     PpuMode prev_ppu_mode = ppu_mode(&g);
+    mutex_lock9(&g_mtx);
     mcycle(&g);
+    check_button_count();
+    mutex_unlock9(&g_mtx);
     if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
       draw_lcd(lcd_win);
     }
     long ns = time_ns() - start_ns;
-
-    check_button_count();
 
     if (go) {
       if (num_mcycle == 0) {

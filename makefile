@@ -92,4 +92,5 @@ test: $(TESTS)
 clean:
 	rm -f $(SRCS_GB:.c=.o) $(TESTS_GB:.c=.o) $(DEPS_GB) $(LIB_GB)\
 		$(SRCS_9:.c=.o) $(TESTS_9:.c=.o) $(DEPS_9) $(LIB_9)\
+		$(SRCS_BUF:.c=.o) $(TESTS_BUF:.c=.o) $(DEPS_BUF) $(LIB_BUF)\
 		$(TESTS) $(BINS)
