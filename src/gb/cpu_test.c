@@ -6444,24 +6444,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6472,23 +6472,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6499,24 +6499,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6527,23 +6527,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6554,24 +6554,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6582,23 +6582,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6609,24 +6609,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
                         [MEM_VRAM_START] = 0xAA,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6637,22 +6637,22 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_VRAM_START & 0xFF,
                         MEM_VRAM_START >> 8,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6663,24 +6663,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6691,23 +6691,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 0},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 0,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6718,24 +6718,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6746,23 +6746,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 1},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 1,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6773,24 +6773,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6801,22 +6801,22 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6827,24 +6827,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = 0,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = 0,
                     },
             },
@@ -6855,23 +6855,23 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = 0,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 2},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 2,
                         [MEM_LCDC] = 0,
                     },
             },
@@ -6882,24 +6882,24 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_A_IMM16_MEM},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xFF}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
                         [MEM_OAM_START] = 0xAA,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
@@ -6910,22 +6910,22 @@ static struct exec_test store_fetch_tests[] = {
         .init =
             {
                 .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },
         .want =
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
-                .ppu = {.mode = 3},
                 .mem =
                     {
                         MEM_OAM_START & 0xFF,
                         MEM_OAM_START >> 8,
+                        [MEM_STAT] = 3,
                         [MEM_LCDC] = LCDC_ENABLED,
                     },
             },

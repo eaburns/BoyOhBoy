@@ -30,6 +30,14 @@ static uint8_t fetch(const Gameboy *g, uint16_t addr) {
   return g->mem[addr];
 }
 
+static void set_ppu_mode(Gameboy *g, PpuMode mode) {
+  store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
+}
+
+bool ppu_enabled(const Gameboy *g) { return g->mem[MEM_LCDC] & LCDC_ENABLED; }
+
+PpuMode ppu_mode(const Gameboy *g) { return g->mem[MEM_STAT] & STAT_PPU_STATE; }
+
 static int obj_height(const Gameboy *g) {
   return fetch(g, MEM_LCDC) & LCDC_OBJ_SIZE ? 16 : 8;
 }
@@ -57,7 +65,7 @@ static void do_oam_scan(Gameboy *g) {
     }
   }
   ppu->ticks = 0;
-  ppu->mode = DRAWING;
+  set_ppu_mode(g, DRAWING);
 }
 
 static int tile_from_map(const Gameboy *g, uint16_t map_base, int x, int y) {
@@ -140,7 +148,7 @@ static void do_drawing(Gameboy *g) {
     }
   }
   ppu->ticks = 0;
-  ppu->mode = HBLANK;
+  set_ppu_mode(g, HBLANK);
 }
 
 static void do_hblank(Gameboy *g) {
@@ -150,9 +158,9 @@ static void do_hblank(Gameboy *g) {
   }
   ppu->ticks = 0;
   int y = fetch(g, MEM_LY);
-  ppu->mode = y < 143 ? OAM_SCAN : VBLANK;
+  set_ppu_mode(g, y < 143 ? OAM_SCAN : VBLANK);
   store(g, MEM_LY, (y + 1) % YMAX);
-  if (ppu->mode == VBLANK) {
+  if (ppu_mode(g) == VBLANK) {
     store(g, MEM_IF, fetch(g, MEM_IF) | IF_VBLANK);
   }
 }
@@ -168,29 +176,26 @@ static void do_vblank(Gameboy *g) {
     store(g, MEM_LY, y + 1);
     return;
   }
-  ppu->mode = OAM_SCAN;
+  set_ppu_mode(g, OAM_SCAN);
   store(g, MEM_LY, 0);
 }
 
-static void stat_set_ppu_mode(Gameboy *g, PpuMode mode) {
-  store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
-}
-
-bool ppu_enabled(const Gameboy *g) { return g->mem[MEM_LCDC] & LCDC_ENABLED; }
+void ppu_enable(Gameboy *g) {
+    set_ppu_mode(g, OAM_SCAN);
+    g->ppu.ticks = 0;
+    store(g, MEM_LY, 0);
+  }
 
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;
   if (!ppu_enabled(g)) {
-    stat_set_ppu_mode(g, 0);
-    // Get ready for when the PPU enables.
-    // It will start in OAM_SCAN mode.
-    ppu->mode = OAM_SCAN;
+    set_ppu_mode(g, 0);
     ppu->ticks = 0;
     store(g, MEM_LY, 0);
     return;
   }
   ppu->ticks++;
-  switch (ppu->mode) {
+  switch (ppu_mode(g)) {
   case OAM_SCAN:
     do_oam_scan(g);
     break;
@@ -204,7 +209,6 @@ void ppu_tcycle(Gameboy *g) {
     do_vblank(g);
     break;
   }
-  stat_set_ppu_mode(g, ppu->mode);
 }
 
 const char *ppu_mode_name(PpuMode mode) {

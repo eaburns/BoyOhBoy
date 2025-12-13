@@ -71,7 +71,7 @@ static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
 static uint8_t do_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
+  if (ppu_enabled(g) && ppu_mode(g) == DRAWING) {
     if (!shhhh) {
       fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
     }
@@ -82,7 +82,7 @@ static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
 }
 
 static uint8_t do_vram_fetch(Gameboy *g, uint16_t addr) {
-  if (ppu_enabled(g) && g->ppu.mode == DRAWING) {
+  if (ppu_enabled(g) && ppu_mode(g) == DRAWING) {
     if (!shhhh) {
       fprintf(stderr, "Ignoring VRAM fetch at $%04X\n", addr);
     }
@@ -103,7 +103,7 @@ static uint8_t do_echo_ram_fetch(Gameboy *g, uint16_t addr) {
 }
 
 static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
+  if (ppu_enabled(g) && (ppu_mode(g) == OAM_SCAN || ppu_mode(g) == DRAWING)) {
 
     if (!shhhh) {
       fprintf(stderr, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
@@ -115,7 +115,7 @@ static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
 }
 
 static uint8_t do_oam_fetch(Gameboy *g, uint16_t addr) {
-  if (ppu_enabled(g) && (g->ppu.mode == OAM_SCAN || g->ppu.mode == DRAWING)) {
+  if (ppu_enabled(g) && (ppu_mode(g) == OAM_SCAN || ppu_mode(g) == DRAWING)) {
     if (!shhhh) {
       fprintf(stderr, "Ignoring OAM fetch at $%04X\n", addr);
     }
@@ -142,6 +142,12 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
     g->mem[addr] = 0;
     g->counter = 0;
     return;
+
+  case MEM_LCDC:
+    if (!ppu_enabled(g) && (x & LCDC_ENABLED)) {
+      ppu_enable(g);
+    }
+    break;
 
   case MEM_LY:
     return; // read only

@@ -152,9 +152,6 @@ char *gameboy_diff(const Gameboy *a, const Gameboy *b) {
     bprintf(&buf, "z: %d ($%02X) != %d ($%02X)\n", a->cpu.z, a->cpu.z, b->cpu.z,
             b->cpu.z);
   }
-  if (a->ppu.mode != b->ppu.mode) {
-    bprintf(&buf, "ppu.mode: %d != %d\n", a->ppu.mode, b->ppu.mode);
-  }
   if (a->ppu.ticks != b->ppu.ticks) {
     bprintf(&buf, "ppu.ticks: %d != %d\n", a->ppu.ticks, b->ppu.ticks);
   }

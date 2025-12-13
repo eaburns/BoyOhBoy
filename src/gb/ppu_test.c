@@ -43,7 +43,7 @@ static void run_stopped_test() {
                           [MEM_LCDC] = 0, /* PPU stopped */
                           [MEM_STAT] = DRAWING,
                       },
-                  .ppu = {.mode = DRAWING, .ticks = 10},
+                  .ppu = {.ticks = 10},
               },
           .want =
               {
@@ -52,7 +52,7 @@ static void run_stopped_test() {
                           [MEM_LYC] = 5,
                           [MEM_LCDC] = 0,
                       },
-                  .ppu = {.mode = OAM_SCAN, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 1,
       },
@@ -68,7 +68,7 @@ static void run_stopped_test() {
                           [MEM_LCDC] = 0, /* PPU stopped */
                           [MEM_STAT] = DRAWING,
                       },
-                  .ppu = {.mode = DRAWING, .ticks = 10},
+                  .ppu = {.ticks = 10},
               },
           .want =
               {
@@ -79,7 +79,7 @@ static void run_stopped_test() {
                           [MEM_LCDC] = 0,
                           [MEM_STAT] = STAT_LC_EQ_LYC,
                       },
-                  .ppu = {.mode = OAM_SCAN, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 1,
       },
@@ -93,8 +93,12 @@ static void run_cycle_count_tests() {
           .name = "OAM SCAN 78 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = OAM_SCAN, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = OAM_SCAN,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -103,7 +107,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = OAM_SCAN,
                       },
-                  .ppu = {.mode = OAM_SCAN, .ticks = 78},
+                  .ppu = {.ticks = 78},
               },
           .cycles = 78,
       },
@@ -113,8 +117,12 @@ static void run_cycle_count_tests() {
           .name = "OAM SCAN 79 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = OAM_SCAN, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = OAM_SCAN,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -123,7 +131,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = DRAWING,
                       },
-                  .ppu = {.mode = DRAWING, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 79,
       },
@@ -131,8 +139,12 @@ static void run_cycle_count_tests() {
           .name = "DRAWING 170 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = DRAWING, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = DRAWING,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -141,7 +153,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = DRAWING,
                       },
-                  .ppu = {.mode = DRAWING, .ticks = 170},
+                  .ppu = {.ticks = 170},
               },
           .cycles = 170,
       },
@@ -150,8 +162,12 @@ static void run_cycle_count_tests() {
           .name = "DRAWING 171 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = DRAWING, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = DRAWING,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -160,7 +176,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = HBLANK,
                       },
-                  .ppu = {.mode = HBLANK, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 171,
       },
@@ -168,8 +184,12 @@ static void run_cycle_count_tests() {
           .name = "HBLANK 202 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = HBLANK, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = HBLANK,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -178,7 +198,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = HBLANK,
                       },
-                  .ppu = {.mode = HBLANK, .ticks = 202},
+                  .ppu = {.ticks = 202},
               },
           .cycles = 202,
       },
@@ -187,8 +207,12 @@ static void run_cycle_count_tests() {
           .name = "HBLANK 203 cycles",
           .init =
               {
-                  .mem = {[MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = HBLANK, .ticks = 0},
+                  .mem =
+                      {
+                          [MEM_LCDC] = LCDC_ENABLED,
+                          [MEM_STAT] = HBLANK,
+                      },
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -198,7 +222,7 @@ static void run_cycle_count_tests() {
                           [MEM_LCDC] = LCDC_ENABLED,
                           [MEM_STAT] = OAM_SCAN,
                       },
-                  .ppu = {.mode = OAM_SCAN, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 203,
       },
@@ -207,7 +231,7 @@ static void run_cycle_count_tests() {
           .init =
               {
                   .mem = {[MEM_LY] = 143, [MEM_LCDC] = LCDC_ENABLED},
-                  .ppu = {.mode = HBLANK, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .want =
               {
@@ -218,7 +242,7 @@ static void run_cycle_count_tests() {
                           [MEM_STAT] = VBLANK,
                           [MEM_IF] = IF_VBLANK,
                       },
-                  .ppu = {.mode = VBLANK, .ticks = 0},
+                  .ppu = {.ticks = 0},
               },
           .cycles = 203,
       },

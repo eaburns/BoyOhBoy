@@ -290,9 +290,9 @@ typedef struct {
 } Object;
 
 typedef struct {
-  PpuMode mode;
+  // Ticks counts the number of tcycles in the current mode.
+  // (Mode is the lower 2 bits of the STAT register.)
   int ticks;
-
   // Objects on the current scanline.
   Object objs[MAX_SCANLINE_OBJS];
   int nobjs;
@@ -345,7 +345,9 @@ typedef struct {
 // so rom must outlive the use of the returned Gameboy.
 Gameboy init_gameboy(const Rom *rom);
 
+void ppu_enable(Gameboy *g);
 bool ppu_enabled(const Gameboy *g);
+PpuMode ppu_mode(const Gameboy *g);
 
 // Executes a single "M cycle" of the entire Gameboy.
 // The Gameboy clock ticks at 2²² Hz.

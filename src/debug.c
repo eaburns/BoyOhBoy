@@ -1,7 +1,7 @@
 #include "9/acme.h"
 #include "9/errstr.h"
-#include "gb/gameboy.h"
 #include "buf/buffer.h"
+#include "gb/gameboy.h"
 #include <ctype.h>
 #include <errno.h>
 #include <pthread.h>
@@ -802,9 +802,9 @@ int main(int argc, const char *argv[]) {
     }
 
     double start_ns = time_ns();
-    PpuMode orig_ppu_mode = g.ppu.mode;
+    PpuMode prev_ppu_mode = ppu_mode(&g);
     mcycle(&g);
-    if (lcd_win != NULL && g.ppu.mode == VBLANK && orig_ppu_mode != VBLANK) {
+    if (lcd_win != NULL && ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
       draw_lcd(&g);
       static double last_frame = 0;
       if (start_ns - last_frame < 17 * NS_PER_MS) {
