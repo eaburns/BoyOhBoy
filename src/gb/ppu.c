@@ -12,12 +12,12 @@ static void store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (addr == MEM_LY) {
     // STAT bit 2 indicates whether LY == LYC.
     if (g->mem[MEM_LY] == g->mem[MEM_LYC]) {
-      if (g->mem[MEM_STAT] & MEM_STAT_LYC_IRQ) {
-        g->mem[MEM_IF] |= MEM_IF_LCD;
+      if (g->mem[MEM_STAT] & STAT_LYC_IRQ) {
+        g->mem[MEM_IF] |= IF_LCD;
       }
-      g->mem[MEM_STAT] |= MEM_STAT_LC_EQ_LYC;
+      g->mem[MEM_STAT] |= STAT_LC_EQ_LYC;
     } else {
-      g->mem[MEM_STAT] &= ~(MEM_STAT_LC_EQ_LYC);
+      g->mem[MEM_STAT] &= ~(STAT_LC_EQ_LYC);
     }
   }
 }
@@ -56,6 +56,7 @@ static void do_oam_scan(Gameboy *g) {
       ppu->objs[ppu->nobjs++] = o;
     }
   }
+  ppu->ticks = 0;
   ppu->mode = DRAWING;
 }
 
@@ -144,7 +145,7 @@ static void do_drawing(Gameboy *g) {
 
 static void do_hblank(Gameboy *g) {
   Ppu *ppu = &g->ppu;
-  if (ppu->ticks < 455) {
+  if (ppu->ticks < 203) {
     return;
   }
   ppu->ticks = 0;
@@ -152,7 +153,7 @@ static void do_hblank(Gameboy *g) {
   ppu->mode = y < 143 ? OAM_SCAN : VBLANK;
   store(g, MEM_LY, (y + 1) % YMAX);
   if (ppu->mode == VBLANK) {
-    store(g, MEM_IF, fetch(g, MEM_IF) | MEM_IF_VBLANK);
+    store(g, MEM_IF, fetch(g, MEM_IF) | IF_VBLANK);
   }
 }
 
@@ -175,9 +176,7 @@ static void stat_set_ppu_mode(Gameboy *g, PpuMode mode) {
   store(g, MEM_STAT, (fetch(g, MEM_STAT) & ~0x3) | mode);
 }
 
-bool ppu_enabled(const Gameboy *g) {
-  return g->mem[MEM_LCDC] & LCDC_ENABLED;
-}
+bool ppu_enabled(const Gameboy *g) { return g->mem[MEM_LCDC] & LCDC_ENABLED; }
 
 void ppu_tcycle(Gameboy *g) {
   Ppu *ppu = &g->ppu;
