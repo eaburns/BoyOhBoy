@@ -661,7 +661,7 @@ static void do_lcd(Gameboy *g) {
     return;
   }
   win_fmt_ctl(lcd_win, "cleartag\n");
-  win_fmt_tag(lcd_win, "\n        Up"
+  win_fmt_tag(lcd_win, " Break\n        Up"
                        "\nLeft         Right            AButton        Start"
                        "\n      Down                    BButton        Select");
   static pthread_t poll_thrd;
