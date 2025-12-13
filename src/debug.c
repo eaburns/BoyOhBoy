@@ -579,10 +579,25 @@ static int last_line_diff(uint8_t a[SCREEN_HEIGHT][SCREEN_WIDTH],
   return -1;
 }
 
+static double time_ns() {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
+}
+
+enum { NS_PER_MS = 1000000 };
+
 static void draw_lcd() {
   if (lcd_win == NULL) {
     return;
   }
+  static double last_frame = 0;
+  double now = time_ns();
+  if (now - last_frame < 17 * NS_PER_MS) {
+    struct timespec ts = {.tv_nsec = 17 * NS_PER_MS - (now - last_frame)};
+    nanosleep(&ts, NULL);
+  }
+  last_frame = now;
 
   static Buffer b;
   static bool first = true;
@@ -775,14 +790,6 @@ static bool handle_input_line() {
   return true;
 }
 
-static double time_ns() {
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
-}
-
-enum { NS_PER_MS = 1000000 };
-
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("Expected 1 argument, got %d", argc);
@@ -820,16 +827,8 @@ int main(int argc, const char *argv[]) {
     double start_ns = time_ns();
     PpuMode prev_ppu_mode = ppu_mode(&g);
     mcycle(&g);
-    if (lcd_win != NULL && ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
+    if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
       draw_lcd();
-      static double last_frame = 0;
-      if (start_ns - last_frame < 17 * NS_PER_MS) {
-        struct timespec ts = {
-            .tv_nsec = 17 * NS_PER_MS - (start_ns - last_frame),
-        };
-        nanosleep(&ts, NULL);
-      }
-      last_frame = start_ns;
     }
     long ns = time_ns() - start_ns;
 
