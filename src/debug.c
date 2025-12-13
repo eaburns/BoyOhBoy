@@ -1,11 +1,11 @@
 #include "9/acme.h"
 #include "9/errstr.h"
 #include "gb/gameboy.h"
+#include "buf/buffer.h"
 #include <ctype.h>
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -39,34 +39,6 @@ void sigint_handler(int s) {
   } else {
     done = true;
   }
-}
-
-typedef struct {
-  char *data;
-  int size, cap;
-} Buffer;
-
-static void bprintf(Buffer *b, const char *fmt, ...) {
-  char one[1];
-  va_list args;
-  va_start(args, fmt);
-  int n = vsnprintf(one, 1, fmt, args);
-  va_end(args);
-
-  if (b->size + n + 1 >= b->cap) {
-    if (b->cap == 0) {
-      b->cap = 32;
-    }
-    while (b->size + n + 1 >= b->cap) {
-      b->cap *= 2;
-    }
-    b->data = realloc(b->data, b->cap);
-  }
-
-  va_start(args, fmt);
-  vsnprintf(b->data + b->size, n + 1, fmt, args);
-  va_end(args);
-  b->size += n;
 }
 
 typedef struct {

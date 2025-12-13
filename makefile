@@ -44,13 +44,27 @@ src/9/%_test: src/9/%_test.o $(LIB_9)
 
 
 #
+# buffer.o
+#
+LIB_BUF=src/buf/buffer.o
+SRCS_BUF=src/buf/buffer.c
+TESTS_BUF=
+
+DEPS_BUF=$(SRCS_BUF:.c=.d) $(TESTS_BUF:.c=.d)
+-include $(DEPS_BUF)
+
+src/buf/%_test: src/buf/%_test.o $(LIB_BUF)
+	$(CC) $(CFLAGS) $^ -o $@
+
+
+#
 # binaries
 #
 
 9test: src/9test.c $(LIB_9)
 	$(CC) $(CFLAGS) $^ -o $@
 
-debug: src/debug.c $(LIB_GB) $(LIB_9)
+debug: src/debug.c $(LIB_GB) $(LIB_9) $(LIB_BUF)
 	$(CC) $(CFLAGS_POSIX) $^ -o $@
 
 disasm: src/disasm.c $(LIB_GB)
