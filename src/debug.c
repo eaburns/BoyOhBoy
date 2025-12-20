@@ -247,7 +247,7 @@ static const struct {
     {.name = "AF", .size = REG16, .r16 = REG_AF},
     {.name = "SP", .size = REG16, .r16 = REG_SP},
     {.name = "PC", .size = REG16, .r16 = REG_PC},
-    {.name = "IR", .size = REG16, .r16 = REG_IR},
+    {.name = "IR", .size = REG8, .r8 = REG_IR},
 };
 
 static void do_reg(const char *arg_in) {

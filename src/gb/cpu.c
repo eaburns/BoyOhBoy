@@ -2295,6 +2295,9 @@ uint8_t get_reg8(const Cpu *cpu, Reg8 r) {
   if (r == REG_F) {
     return cpu->flags;
   }
+  if (r == REG_IR) {
+    return cpu->ir;
+  }
   return cpu->registers[r];
 }
 
@@ -2304,6 +2307,9 @@ void set_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
   }
   if (r == REG_F) {
     cpu->flags = x;
+  }
+  if (r == REG_IR) {
+    cpu->ir = x;
   }
   cpu->registers[r] = x;
 }
@@ -2324,8 +2330,6 @@ uint16_t get_reg16(const Cpu *cpu, Reg16 r) {
     return (uint16_t)get_reg8(cpu, REG_A) << 8 | cpu->flags;
   case REG_PC:
     return cpu->pc;
-  case REG_IR:
-    return cpu->ir;
   default:
     fail("invalid argument to get_reg16: %d", r);
   }
@@ -2357,9 +2361,6 @@ void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
     break;
   case REG_PC:
     cpu->pc = (uint16_t)high << 8 | low;
-    break;
-  case REG_IR:
-    cpu->ir = (uint16_t)high << 8 | low;
     break;
   default:
     fail("invalid argument to set_reg16: %d", r);
