@@ -13,6 +13,7 @@
 #include <string.h>
 #include <time.h>
 
+static const char *CODE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
@@ -846,6 +847,7 @@ int main(int argc, const char *argv[]) {
   if (code_win.win == NULL) {
     printf("Failed to open code win: %s\n", errstr9());
   } else {
+    win_fmt_ctl(code_win.win, "font %s\n", CODE_FONT);
     update_from_line(&code_win, 0, code_win.data_size);
   }
 
