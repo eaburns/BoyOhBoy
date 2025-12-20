@@ -7,11 +7,9 @@ static void store(Gameboy *g, uint16_t addr, uint8_t x) {
     return;
   }
 
-  g->mem[addr] = x;
-
   if (addr == MEM_LY) {
     // STAT bit 2 indicates whether LY == LYC.
-    if (g->mem[MEM_LY] == g->mem[MEM_LYC]) {
+    if (g->mem[MEM_LY] != g->mem[MEM_LYC] && x == g->mem[MEM_LYC]) {
       if (g->mem[MEM_STAT] & STAT_LYC_IRQ) {
         g->mem[MEM_IF] |= IF_LCD;
       }
@@ -20,6 +18,8 @@ static void store(Gameboy *g, uint16_t addr, uint8_t x) {
       g->mem[MEM_STAT] &= ~(STAT_LC_EQ_LYC);
     }
   }
+
+  g->mem[addr] = x;
 }
 static uint8_t fetch(const Gameboy *g, uint16_t addr) {
   if (g->dma_ticks_remaining > 0 && addr >= MEM_OAM_START &&
