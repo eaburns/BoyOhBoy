@@ -37,7 +37,8 @@ typedef enum {
   IMM8_OFFSET, // 2s complement signed address offset
   IMM8MEM,     // [imm8]
   IMM16,
-  IMM16MEM, // [imm16]
+  IMM16ADDR, // Same as IMM16, but formats as an address.
+  IMM16MEM,  // [imm16]
 } Operand;
 
 struct instruction {
@@ -1939,13 +1940,13 @@ static const Instruction _instructions[] = {
         .op_code = 0xC2,
         .operand1 = COND,
         .shift = 3,
-        .operand2 = IMM16,
+        .operand2 = IMM16ADDR,
         .exec = exec_jp_cond_imm16,
     },
     {
         .mnemonic = "JP",
         .op_code = 0xC3,
-        .operand1 = IMM16,
+        .operand1 = IMM16ADDR,
         .exec = exec_jp_imm16,
     },
     {
@@ -1959,13 +1960,13 @@ static const Instruction _instructions[] = {
         .op_code = 0xC4,
         .operand1 = COND,
         .shift = 3,
-        .operand2 = IMM16,
+        .operand2 = IMM16ADDR,
         .exec = exec_call_cond_imm16,
     },
     {
         .mnemonic = "CALL",
         .op_code = 0xCD,
-        .operand1 = IMM16,
+        .operand1 = IMM16ADDR,
         .exec = exec_call_imm16,
     },
     {
@@ -2177,6 +2178,7 @@ static int operand_size(Operand operand) {
   case IMM8MEM:
     return 1;
   case IMM16:
+  case IMM16ADDR:
   case IMM16MEM:
     return 2;
   }
@@ -2208,6 +2210,7 @@ static int operand_op_code_bits(const Operand operand) {
   case IMM8_OFFSET:
   case IMM8MEM:
   case IMM16:
+  case IMM16ADDR:
   case IMM16MEM:
     return 0;
 
@@ -2415,6 +2418,8 @@ static int format_operand(char *buf, int size, Operand operand, int shift,
   case IMM16:
     int x = (int)data[offs + 1] << 8 | data[offs];
     return snprintf(buf, size, "%d ($%04X)", x, x);
+  case IMM16ADDR:
+    return snprintf(buf, size, "$%04X", (int)data[offs + 1] << 8 | data[offs]);
   case IMM16MEM:
     return snprintf(buf, size, "[$%04X]",
                     (int)data[offs + 1] << 8 | data[offs]);
