@@ -293,6 +293,8 @@ static void do_dump() {
     printf(col == NCOL - 1 ? "\n" : "\t");
     col = (col + 1) % NCOL;
   }
+  printf("IME: $%01X %-11s IF: $%02X             IE: $%02X\n", g.cpu.ime,
+         g.cpu.ei_pend ? "(pend)" : "      ", g.mem[MEM_IF], g.mem[MEM_IE]);
 }
 
 // Various named memory locations.
