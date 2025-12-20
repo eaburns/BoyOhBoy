@@ -27,6 +27,7 @@ enum : uint16_t {
   // Rom bank N (depending which is mapped in by the Memory Bank Controller.)
   MEM_ROM_N_START = 0x4000,
   MEM_ROM_N_END = MEM_ROM_END,
+  ROM_BANK_SIZE = MEM_ROM_N_END - MEM_ROM_N_START + 1,
 
   // Video RAM.
   MEM_VRAM_START = 0x8000,

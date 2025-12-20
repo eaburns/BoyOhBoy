@@ -68,10 +68,32 @@ static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
 static uint8_t do_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
 
 static void do_rom_store(Gameboy *g, uint16_t addr, uint8_t x) {
-  if (!shhhh) {
-    fprintf(stderr, "Ignoring ROM store %d ($%02X) to $%04X\n", x, x, addr);
+  switch (g->rom->cart_type) {
+  case CART_MBC1:
+  case CART_MBC1_RAM:
+  case CART_MBC1_RAM_BATTERY:
+    if (0x0000 <= addr && addr <= 0x1FFF) {
+      // ram enable --- just ignore it for now
+    } else if (0x2000 <= addr && addr <= 0x3FFF) {
+      int bank = x % g->rom->num_rom_banks;
+      if (bank == 0) {
+        bank = 1;
+      }
+      int offs = bank * ROM_BANK_SIZE;
+      memcpy(g->mem + MEM_ROM_N_START, g->rom->data + offs, ROM_BANK_SIZE);
+    } else if (0x4000 <= addr && addr <= 0x5FFF) {
+      // ram bank number --- just ignore it for now.
+    } else if (0x6000 <= addr && addr <= 0x7FFF) {
+      // banking mode select --- just ignore it for now.
+    }
+    break;
+  default:
+    if (!shhhh) {
+      fprintf(stderr, "Ignoring unsupported ROM store %d ($%02X) to $%04X\n", x,
+              x, addr);
+    }
+    g->break_point = true;
   }
-  g->break_point = true;
 }
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
