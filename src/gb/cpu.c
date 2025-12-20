@@ -2406,17 +2406,17 @@ static int format_operand(char *buf, int size, Operand operand, int shift,
     return snprintf(buf, size, "%s",
                     reg8_name(decode_reg8_dst(shift, data[offs])));
   case IMM8:
-    return snprintf(buf, size, "%d ($%02x)", data[offs], data[offs]);
+    return snprintf(buf, size, "%d ($%02X)", data[offs], data[offs]);
   case IMM8_OFFSET:
-    return snprintf(buf, size, "%+d ($%04x)", (int8_t)data[offs],
+    return snprintf(buf, size, "%+d ($%04X)", (int8_t)data[offs],
                     offs + 1 + (int8_t)data[offs]);
   case IMM8MEM:
-    return snprintf(buf, size, "[$FF%02x]", data[offs]);
+    return snprintf(buf, size, "[$FF%02X]", data[offs]);
   case IMM16:
     int x = (int)data[offs + 1] << 8 | data[offs];
-    return snprintf(buf, size, "%d ($%04x)", x, x);
+    return snprintf(buf, size, "%d ($%04X)", x, x);
   case IMM16MEM:
-    return snprintf(buf, size, "[$%04x]",
+    return snprintf(buf, size, "[$%04X]",
                     (int)data[offs + 1] << 8 | data[offs]);
   }
 }
@@ -2471,15 +2471,15 @@ Disasm disassemble(const uint8_t *data, uint16_t offs) {
   disasm.size = instruction_size(instr);
   switch (disasm.size) {
   case 1:
-    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x      %s%s", offs,
+    snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X      %s%s", offs,
              data[offs], ident, disasm.instr);
     break;
   case 2:
-    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x %02x   %s%s", offs,
+    snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X %02X   %s%s", offs,
              data[offs], data[offs + 1], ident, disasm.instr);
     break;
   case 3:
-    snprintf(disasm.full, sizeof(disasm.full), "%04x: %02x %02x %02x%s%s", offs,
+    snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X %02X %02X%s%s", offs,
              data[offs], data[offs + 1], data[offs + 2], ident, disasm.instr);
     break;
   }

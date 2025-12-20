@@ -37,7 +37,7 @@ int main() {
     fprintf(stderr, "	origin: %c\n", event->origin);
     fprintf(stderr, "	type: %c\n", event->type);
     fprintf(stderr, "	addr: %d, %d\n", event->addr[0], event->addr[1]);
-    fprintf(stderr, "	flags: %02x\n", event->flags);
+    fprintf(stderr, "	flags: %02X\n", event->flags);
     fprintf(stderr, "	count: %d\n", event->count);
     fprintf(stderr, "	data: [%s]\n", event->data);
     if (strchr("xXlLrR", event->type) != NULL) {

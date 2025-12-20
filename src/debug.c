@@ -170,7 +170,7 @@ static void jump_disasm_win(DisasmWin *win, uint16_t addr) {
     // size 1 to get an UNKNOWN. Instead we fake one here.
     strcpy(line->instr.instr, "UNKNOWN");
     snprintf(line->instr.full, sizeof(line->instr.full),
-             "%04x: %02x      		UNKNOWN", line->addr,
+             "%04X: %02X      		UNKNOWN", line->addr,
              win->data[line->addr]);
     line->instr.size = 1;
   }

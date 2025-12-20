@@ -456,7 +456,7 @@ void run_snprint_tests() {
     mem[2] = 0x02;
     Disasm disasm = disassemble(mem, 0);
     if (strcmp(disasm.instr, test->str) != 0) {
-      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op,
+      FAIL("op_code: 0x%02X printed as %s, but expected %s", test->op,
            disasm.instr, test->str);
     }
   }
@@ -474,7 +474,7 @@ void run_cb_snprint_tests() {
     mem[3] = 0x02;
     Disasm disasm = disassemble(mem, 0);
     if (strcmp(disasm.instr, test->str) != 0) {
-      FAIL("op_code: 0x%02x printed as %s, but expected %s", test->op,
+      FAIL("op_code: 0x%02X printed as %s, but expected %s", test->op,
            disasm.instr, test->str);
     }
   }
@@ -506,7 +506,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_BC, 1, 2);
     if (get_reg16(&cpu, REG_BC) != 0x0201) {
-      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04X, wanted 0x0201",
            get_reg16(&cpu, REG_BC));
     }
     if (get_reg8(&cpu, REG_B) != 2) {
@@ -538,7 +538,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_DE, 1, 2);
     if (get_reg16(&cpu, REG_DE) != 0x0201) {
-      FAIL("set_reg(DE, 1), get_reg(DE)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(DE, 1), get_reg(DE)=0x%04X, wanted 0x0201",
            get_reg16(&cpu, REG_DE));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
@@ -570,7 +570,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_HL, 1, 2);
     if (get_reg16(&cpu, REG_HL) != 0x0201) {
-      FAIL("set_reg(HL, 1), get_reg(HL)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(HL, 1), get_reg(HL)=0x%04X, wanted 0x0201",
            get_reg16(&cpu, REG_HL));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
@@ -602,7 +602,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16_low_high(&cpu, REG_SP, 1, 2);
     if (get_reg16(&cpu, REG_SP) != 0x0201) {
-      FAIL("set_reg(SP, 1), get_reg(SP)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(SP, 1), get_reg(SP)=0x%04X, wanted 0x0201",
            get_reg16(&cpu, REG_SP));
     }
     if (get_reg8(&cpu, REG_B) != 0) {
@@ -636,7 +636,7 @@ void run_reg16_get_set_tests() {
     Cpu cpu = {};
     set_reg16(&cpu, REG_BC, 0x0102);
     if (get_reg16(&cpu, REG_BC) != 0x0102) {
-      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04x, wanted 0x0201",
+      FAIL("set_reg(BC, 1), get_reg(BC)=0x%04X, wanted 0x0201",
            get_reg16(&cpu, REG_BC));
     }
   }
