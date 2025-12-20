@@ -16,6 +16,69 @@ void fail(const char *fmt, ...) {
   abort();
 }
 
+const char *cart_type_string(CartType cart_type) {
+  switch (cart_type) {
+  case CART_ROM_ONLY:
+    return "ROM ONLY";
+  case CART_MBC1:
+    return "MBC1";
+  case CART_MBC1_RAM:
+    return "MBC1 + RAM";
+  case CART_MBC1_RAM_BATTERY:
+    return "MBC1 + RAM + BATTERY";
+  case CART_MBC2:
+    return "MBC2";
+  case CART_MBC2_BATTERY:
+    return "MBC2 + BATTERY";
+  case CART_ROM_RAM:
+    return "ROM + RAM";
+  case CART_ROM_RAM_BATTERY:
+    return "ROM + RAM + BATTERY";
+  case CART_MMM01:
+    return "MMM01";
+  case CART_MMM01_RAM:
+    return "MMM01 + RAM";
+  case CART_MMM01_RAM_BATTERY:
+    return "MMM01 + RAM + BATTERY";
+  case CART_MBC3_TIMER_BATTERY:
+    return "MBC3 + TIMER + BATTERY";
+  case CART_MBC3_TIMER_RAM_BATTERY:
+    return "MBC3 + TIMER + RAM + BATTERY";
+  case CART_MBC3:
+    return "MBC3";
+  case CART_MBC3_RAM:
+    return "MBC3 + RAM";
+  case CART_MBC3_RAM_BATTERY:
+    return "MBC3 + RAM + BATTERY";
+  case CART_MBC5:
+    return "MBC5";
+  case CART_MBC5_RAM:
+    return "MBC5 + RAM";
+  case CART_MBC5_RAM_BATTERY:
+    return "MBC5 + RAM + BATTERY";
+  case CART_MBC5_RUMBLE:
+    return "MBC5 + RUMBLE";
+  case CART_MBC5_RUMBLE_RAM:
+    return "MBC5 + RUMBLE + RAM";
+  case CART_MBC5_RUMBLE_RAM_BATTERY:
+    return "MBC5 + RUMBLE + RAM + BATTERY";
+  case CART_MBC6:
+    return "MBC6";
+  case CART_MBC7_SENSOR_RUMBLE_RAM_BATTERY:
+    return "MBC7 + SENSOR + RUMBLE + RAM + BATTERY";
+  case CART_POCKET_CAMERA:
+    return "POCKET CAMERA";
+  case CART_BANDAI_TAMA5:
+    return "BANDAI TAMA5";
+  case CART_HuC3:
+    return "HuC3";
+  case CART_HuC1_RAM_BATTERY:
+    return "HuC1 + RAM + BATTERY";
+  default:
+    return "UNKNOWN";
+  }
+}
+
 Rom read_rom(const char *path) {
   FILE *in = fopen(path, "r");
   if (in == NULL) {
@@ -39,7 +102,78 @@ Rom read_rom(const char *path) {
   if (fclose(in) != 0) {
     fail("failed to close %s: %s", path, strerror(errno));
   }
-  Rom rom = {.data = data, .size = size};
+  Rom rom = {
+      .data = data,
+      .size = size,
+      .gbc = data[MEM_HEADER_GBC_FLAG],
+      .cart_type = data[MEM_HEADER_CART_TYPE],
+  };
+  memcpy(rom.title, data + MEM_HEADER_TITLE_START, sizeof(rom.title) - 1);
+
+  switch (data[MEM_HEADER_ROM_SIZE]) {
+  case 0:
+    rom.rom_size = 1 << 15;
+    rom.num_rom_banks = 2;
+    break;
+  case 1:
+    rom.rom_size = 1 << 16;
+    rom.num_rom_banks = 4;
+    break;
+  case 2:
+    rom.rom_size = 1 << 17;
+    rom.num_rom_banks = 8;
+    break;
+  case 3:
+    rom.rom_size = 1 << 18;
+    rom.num_rom_banks = 16;
+    break;
+  case 4:
+    rom.rom_size = 1 << 19;
+    rom.num_rom_banks = 32;
+    break;
+  case 5:
+    rom.rom_size = 1 << 20;
+    rom.num_rom_banks = 64;
+    break;
+  case 6:
+    rom.rom_size = 1 << 21;
+    rom.num_rom_banks = 128;
+    break;
+  case 7:
+    rom.rom_size = 1 << 22;
+    rom.num_rom_banks = 256;
+    break;
+  case 8:
+    rom.rom_size = 1 << 23;
+    rom.num_rom_banks = 512;
+    break;
+  default:
+    fprintf(stderr, "Unknown ROM size indicator: %d\n",
+            data[MEM_HEADER_ROM_SIZE]);
+  }
+
+  switch (data[MEM_HEADER_RAM_SIZE]) {
+  case 0:
+    rom.ram_size = 0;
+    break;
+  case 2:
+    rom.ram_size = 8192;
+    break;
+  case 3:
+    rom.ram_size = 32768;
+    break;
+  case 4:
+    rom.ram_size = 131072;
+    break;
+  case 5:
+    rom.ram_size = 65536;
+    break;
+  case 1:
+  // unused -- fallthrough intended
+  default:
+    fprintf(stderr, "Unknown RAM size indicator: %d\n",
+            data[MEM_HEADER_RAM_SIZE]);
+  }
   return rom;
 }
 

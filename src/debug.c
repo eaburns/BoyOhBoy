@@ -815,6 +815,13 @@ int main(int argc, const char *argv[]) {
 
   mutex_init9(&g_mtx);
   Rom rom = read_rom(argv[1]);
+  printf("Loaded ROM file %s\n", argv[1]);
+  printf("File Size: %d bytes\n", rom.size);
+  printf("Title: %s\n", rom.title);
+  printf("Type: %s\n", cart_type_string(rom.cart_type));
+  printf("ROM size: %d\n", rom.rom_size);
+  printf("ROM banks: %d\n", rom.num_rom_banks);
+  printf("RAM size: %d\n", rom.ram_size);
   g = init_gameboy(&rom);
 
   acme = acme_connect();

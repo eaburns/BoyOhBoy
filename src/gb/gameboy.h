@@ -8,20 +8,6 @@
 // Aborts with a message printf-style message.
 void fail(const char *fmt, ...);
 
-typedef struct {
-  const uint8_t *data;
-  int size;
-} Rom;
-
-// Reads and returns the Rom at path.
-// If there is an error reading the file, fail() is called.
-// The memory allocated for the returned Rom
-// can be freed with free_rom();
-Rom read_rom(const char *path);
-
-// Frees any memory allocated for the Rom.
-void free_rom(Rom *rom);
-
 enum : uint16_t {
   MEM_ROM_START = 0x0000,
   MEM_ROM_END = 0x7FFF,
@@ -29,10 +15,18 @@ enum : uint16_t {
   // Rom bank 0.
   MEM_ROM0_START = 0,
   MEM_ROM0_END = 0x3FFF,
+  // The start of the cartridge header.
+  MEM_HEADER_START = 0x0100,
+  MEM_HEADER_TITLE_START = 0x0134,
+  MEM_HEADER_TITLE_END = 0x0143,
+  MEM_HEADER_GBC_FLAG = 0x0143,
+  MEM_HEADER_CART_TYPE = 0x0147,
+  MEM_HEADER_ROM_SIZE = 0x0148,
+  MEM_HEADER_RAM_SIZE = 0x0149,
 
-  // Rom bank N (depending which is mapped in.)
-  MEM_ROMN_START = 0x4000,
-  MEM_ROMN_END = MEM_ROM_END,
+  // Rom bank N (depending which is mapped in by the Memory Bank Controller.)
+  MEM_ROM_N_START = 0x4000,
+  MEM_ROM_N_END = MEM_ROM_END,
 
   // Video RAM.
   MEM_VRAM_START = 0x8000,
@@ -129,6 +123,59 @@ enum : uint16_t {
 enum { MEM_SIZE = 0x10000 };
 
 typedef uint8_t Mem[MEM_SIZE];
+
+typedef enum {
+  CART_ROM_ONLY = 0x00,
+  CART_MBC1 = 0x01,
+  CART_MBC1_RAM = 0x02,
+  CART_MBC1_RAM_BATTERY = 0x03,
+  CART_MBC2 = 0x05,
+  CART_MBC2_BATTERY = 0x06,
+  CART_ROM_RAM = 0x08,
+  CART_ROM_RAM_BATTERY = 0x09,
+  CART_MMM01 = 0x0B,
+  CART_MMM01_RAM = 0x0C,
+  CART_MMM01_RAM_BATTERY = 0x0D,
+  CART_MBC3_TIMER_BATTERY = 0x0F,
+  CART_MBC3_TIMER_RAM_BATTERY = 0x10,
+  CART_MBC3 = 0x11,
+  CART_MBC3_RAM = 0x12,
+  CART_MBC3_RAM_BATTERY = 0x13,
+  CART_MBC5 = 0x19,
+  CART_MBC5_RAM = 0x1A,
+  CART_MBC5_RAM_BATTERY = 0x1B,
+  CART_MBC5_RUMBLE = 0x1C,
+  CART_MBC5_RUMBLE_RAM = 0x1D,
+  CART_MBC5_RUMBLE_RAM_BATTERY = 0x1E,
+  CART_MBC6 = 0x20,
+  CART_MBC7_SENSOR_RUMBLE_RAM_BATTERY = 0x22,
+  CART_POCKET_CAMERA = 0xFC,
+  CART_BANDAI_TAMA5 = 0xFD,
+  CART_HuC3 = 0xFE,
+  CART_HuC1_RAM_BATTERY = 0xFF,
+} CartType;
+
+const char *cart_type_string(CartType cart_type);
+
+typedef struct {
+  const uint8_t *data;
+  int size;
+  char title[MEM_HEADER_TITLE_END - MEM_HEADER_TITLE_START + 1];
+  bool gbc;
+  CartType cart_type;
+  int rom_size;
+  int num_rom_banks;
+  int ram_size;
+} Rom;
+
+// Reads and returns the Rom at path.
+// If there is an error reading the file, fail() is called.
+// The memory allocated for the returned Rom
+// can be freed with free_rom();
+Rom read_rom(const char *path);
+
+// Frees any memory allocated for the Rom.
+void free_rom(Rom *rom);
 
 typedef uint16_t Addr;
 
