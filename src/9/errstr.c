@@ -8,9 +8,7 @@
 static ThreadLocal9 err_msg;
 static Once9 once = ONCE9_INIT;
 
-static void init_tss() {
-  thread_local_init9(&err_msg, free);
-}
+static void init_tss() { thread_local_init9(&err_msg, free); }
 
 const char *errstr9() {
   do_once9(&once, init_tss);
