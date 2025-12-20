@@ -100,8 +100,8 @@ enum : uint16_t {
   STAT_MODE_2_IRQ = 1 << 5,
   STAT_LYC_IRQ = 1 << 6,
 
-  MEM_SCX = 0xFF42,
-  MEM_SCY = 0xFF43,
+  MEM_SCY = 0xFF42,
+  MEM_SCX = 0xFF43,
   MEM_LY = 0xFF44,
   MEM_LYC = 0xFF45,
   MEM_DMA = 0xFF46,
