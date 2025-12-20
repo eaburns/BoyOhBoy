@@ -853,6 +853,11 @@ int main(int argc, const char *argv[]) {
   double mcycle_ns_avg = 0;
   while (!done && !lcd_deleted()) {
     if (!go && g.cpu.state == DONE) {
+      if (num_mcycle > 0) {
+        printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
+               mcycle_ns_avg);
+        num_mcycle = 0;
+      }
       print_current_instruction();
       update_code_win(&code_win);
       while (!go && !done && handle_input_line()) {
@@ -884,12 +889,6 @@ int main(int argc, const char *argv[]) {
       if (go) {
         continue;
       }
-      if (num_mcycle > 0) {
-        printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
-               mcycle_ns_avg);
-        num_mcycle = 0;
-      }
-      g.break_point = false;
     }
   }
   if (lcd_win != NULL) {
