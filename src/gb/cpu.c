@@ -2405,6 +2405,15 @@ void set_reg16(Cpu *cpu, Reg16 r, uint16_t x) {
   set_reg16_low_high(cpu, r, x & 0xFF, x >> 8);
 }
 
+static const char *mem_name(uint16_t addr) {
+  for (const MemName *n = mem_names; n->name != NULL; n++) {
+    if (n->addr == addr) {
+      return n->name;
+    }
+  }
+  return NULL;
+}
+
 static int format_operand(char *buf, int size, Operand operand, int shift,
                           const uint8_t *data, int offs) {
   switch (operand) {
@@ -2445,21 +2454,122 @@ static int format_operand(char *buf, int size, Operand operand, int shift,
                     reg8_name(decode_reg8_dst(shift, data[offs])));
   case IMM8:
     return snprintf(buf, size, "%d ($%02X)", data[offs], data[offs]);
-  case IMM8_OFFSET:
-    return snprintf(buf, size, "%+d ($%04X)", (int8_t)data[offs],
-                    offs + 1 + (int8_t)data[offs]);
-  case IMM8MEM:
-    return snprintf(buf, size, "[$FF%02X]", data[offs]);
+  case IMM8_OFFSET: {
+    uint16_t addr = offs + 1 + (int8_t)data[offs];
+    const char *n = mem_name(addr);
+    if (n == NULL) {
+      return snprintf(buf, size, "%+d ($%04X)", (int8_t)data[offs], addr);
+    }
+    return snprintf(buf, size, "%+d ($%04X, %s)", (int8_t)data[offs], addr, n);
+  }
+  case IMM8MEM: {
+    const char *n = mem_name(0xFF00 | data[offs]);
+    if (n == NULL) {
+      return snprintf(buf, size, "[$FF%02X]", data[offs]);
+    }
+    return snprintf(buf, size, "[$FF%02X (%s)]", data[offs], n);
+  }
   case IMM16:
     int x = (int)data[offs + 1] << 8 | data[offs];
     return snprintf(buf, size, "%d ($%04X)", x, x);
-  case IMM16ADDR:
-    return snprintf(buf, size, "$%04X", (int)data[offs + 1] << 8 | data[offs]);
-  case IMM16MEM:
-    return snprintf(buf, size, "[$%04X]",
-                    (int)data[offs + 1] << 8 | data[offs]);
+  case IMM16ADDR: {
+    uint16_t addr = (int)data[offs + 1] << 8 | data[offs];
+    const char *n = mem_name(addr);
+    if (n == NULL) {
+      return snprintf(buf, size, "$%04X", addr);
+    }
+    return snprintf(buf, size, "$%04X (%s)", addr, n);
+  }
+  case IMM16MEM: {
+    uint16_t addr = (int)data[offs + 1] << 8 | data[offs];
+    const char *n = mem_name(addr);
+    if (n == NULL) {
+      return snprintf(buf, size, "[$%04X]", addr);
+    }
+    return snprintf(buf, size, "[$%04X (%s)]", addr, n);
+  }
   }
 }
+
+/*
+  Acme commands to build this from the enum:
+    Edit , | grep '  MEM'
+    Edit ,s/  MEM_(.*) = .*,/{"\1", MEM_\1},/g
+  Then add
+    {"JOYP", MEM_P1_JOYPAD},
+    {"P1", MEM_P1_JOYPAD},
+    {"JOYPAD", MEM_P1_JOYPAD},
+  And the terminating
+    {},
+  And remove some of the boring ones like ROM_END, IO_END.
+*/
+const MemName mem_names[] = {
+    {"ROM0_START", MEM_ROM0_START},
+    {"ROM0_END", MEM_ROM0_END},
+    {"HEADER_START", MEM_HEADER_START},
+    {"HEADER_TITLE_START", MEM_HEADER_TITLE_START},
+    {"HEADER_TITLE_END", MEM_HEADER_TITLE_END},
+    {"HEADER_GBC_FLAG", MEM_HEADER_GBC_FLAG},
+    {"HEADER_CART_TYPE", MEM_HEADER_CART_TYPE},
+    {"HEADER_ROM_SIZE", MEM_HEADER_ROM_SIZE},
+    {"HEADER_RAM_SIZE", MEM_HEADER_RAM_SIZE},
+    {"ROM_N_START", MEM_ROM_N_START},
+    {"ROM_N_END", MEM_ROM_N_END},
+    {"VRAM_START", MEM_VRAM_START},
+    {"TILE_BLOCK0_START", MEM_TILE_BLOCK0_START},
+    {"TILE_BLOCK0_END", MEM_TILE_BLOCK0_END},
+    {"TILE_BLOCK1_START", MEM_TILE_BLOCK1_START},
+    {"TILE_BLOCK1_END", MEM_TILE_BLOCK1_END},
+    {"TILE_BLOCK2_START", MEM_TILE_BLOCK2_START},
+    {"TILE_BLOCK2_END", MEM_TILE_BLOCK2_END},
+    {"TILE_MAP0_START", MEM_TILE_MAP0_START},
+    {"TILE_MAP0_END", MEM_TILE_MAP0_END},
+    {"TILE_MAP1_START", MEM_TILE_MAP1_START},
+    {"TILE_MAP1_END", MEM_TILE_MAP1_END},
+    {"VRAM_END", MEM_VRAM_END},
+    {"EXT_RAM_START", MEM_EXT_RAM_START},
+    {"EXT_RAM_END", MEM_EXT_RAM_END},
+    {"WRAM_START", MEM_WRAM_START},
+    {"WRAM_END", MEM_WRAM_END},
+    {"ECHO_RAM_START", MEM_ECHO_RAM_START},
+    {"ECHO_RAM_END", MEM_ECHO_RAM_END},
+    {"OAM_START", MEM_OAM_START},
+    {"OAM_END", MEM_OAM_END},
+    {"PROHIBITED_START", MEM_PROHIBITED_START},
+    {"PROHIBITED_END", MEM_PROHIBITED_END},
+    {"IO_START", MEM_IO_START},
+    {"P1_JOYPAD", MEM_P1_JOYPAD},
+    {"JOYP", MEM_P1_JOYPAD},
+    {"P1", MEM_P1_JOYPAD},
+    {"JOYPAD", MEM_P1_JOYPAD},
+    {"SERIAL_DATA", MEM_SERIAL_DATA},
+    {"SERIAL_CONTROL", MEM_SERIAL_CONTROL},
+    {"DIV", MEM_DIV},
+    {"TIMA", MEM_TIMA},
+    {"TMA", MEM_TMA},
+    {"TAC", MEM_TAC},
+    {"IF", MEM_IF},
+    {"AUDIO_START", MEM_AUDIO_START},
+    {"AUDIO_END", MEM_AUDIO_END},
+    {"WAVE_START", MEM_WAVE_START},
+    {"WAVE_END", MEM_WAVE_END},
+    {"LCDC", MEM_LCDC},
+    {"STAT", MEM_STAT},
+    {"SCY", MEM_SCY},
+    {"SCX", MEM_SCX},
+    {"LY", MEM_LY},
+    {"LYC", MEM_LYC},
+    {"DMA", MEM_DMA},
+    {"BGP", MEM_BGP},
+    {"OBP0", MEM_OBP0},
+    {"OBP1", MEM_OBP1},
+    {"WY", MEM_WY},
+    {"WX", MEM_WX},
+    {"HIGH_RAM_START", MEM_HIGH_RAM_START},
+    {"HIGH_RAM_END", MEM_HIGH_RAM_END},
+    {"IE", MEM_IE},
+    {},
+};
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
@@ -2487,7 +2597,7 @@ format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
   if (immediate_operand(instr->operand1)) {
     offs++;
   }
-  char buf1[16];
+  char buf1[32];
   format_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, data, offs);
   if (instr->operand2 == NONE) {
     snprintf(out, size, "%s %s", instr->mnemonic, buf1);
@@ -2497,7 +2607,7 @@ format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
   if (immediate_operand(instr->operand2)) {
     offs++;
   }
-  char buf2[16];
+  char buf2[32];
   format_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, data, offs);
   snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
   return instr;

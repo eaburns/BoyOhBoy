@@ -125,6 +125,14 @@ enum { MEM_SIZE = 0x10000 };
 
 typedef uint8_t Mem[MEM_SIZE];
 
+typedef struct mem_names {
+  const char *name;
+  uint16_t addr;
+} MemName;
+// An array of names for memory locations, terminated by .name==NULL.
+// Some memory locations may have multiple names.
+extern const MemName mem_names[];
+
 typedef enum {
   CART_ROM_ONLY = 0x00,
   CART_MBC1 = 0x01,

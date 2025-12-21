@@ -297,42 +297,16 @@ static void do_dump() {
          g.cpu.ei_pend ? "(pend)" : "      ", g.mem[MEM_IF], g.mem[MEM_IE]);
 }
 
-// Various named memory locations.
-static const struct {
-  const char *name;
-  uint16_t addr;
-} mems[] = {
-    {"P1_JOYPAD", MEM_P1_JOYPAD},
-    {"JOYP", MEM_P1_JOYPAD},
-    {"P1", MEM_P1_JOYPAD},
-    {"JOYPAD", MEM_P1_JOYPAD},
-    {"DIV", MEM_DIV},
-    {"TIMA", MEM_TIMA},
-    {"TMA", MEM_TMA},
-    {"TAC", MEM_TAC},
-    {"IF", MEM_IF},
-    {"LCDC", MEM_LCDC},
-    {"STAT", MEM_STAT},
-    {"SCX", MEM_SCX},
-    {"SCY", MEM_SCY},
-    {"LY", MEM_LY},
-    {"LYC", MEM_LYC},
-    {"DMA", MEM_DMA},
-    {"BGP", MEM_BGP},
-    {"OBP0", MEM_OBP0},
-    {"OBP1", MEM_OBP1},
-    {"IE", MEM_IE},
-};
-
 static void do_peek(const char *arg_in) {
   char arg[LINE_MAX] = {};
   for (int i = 0; i < strlen(arg_in); i++) {
     arg[i] = toupper(arg_in[i]);
   }
-  for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
-    if (strcmp(arg, mems[i].name) == 0) {
-      uint8_t x = g.mem[mems[i].addr];
-      printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
+
+  for (const MemName *n = mem_names; n->name != NULL; n++) {
+    if (strcmp(arg, n->name) == 0) {
+      uint8_t x = g.mem[n->addr];
+      printf("%s ($%04X): %d ($%02X)\n", n->name, n->addr, x, x);
       return;
     }
   }
@@ -342,11 +316,11 @@ static void do_peek(const char *arg_in) {
     printf("Invalid peek: %s\n", arg_in);
     printf("Expected a named location, decimal, or $hex address\n");
     printf("Available named locations are: ");
-    for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
-      if (i > 0) {
+    for (const MemName *n = mem_names; n->name != NULL; n++) {
+      if (n != mem_names) {
         printf(", ");
       }
-      printf("%s", mems[i].name);
+      printf("%s", n->name);
     }
     printf("\n");
     return;
@@ -357,9 +331,9 @@ static void do_peek(const char *arg_in) {
     return;
   }
   uint8_t x = g.mem[addr];
-  for (int i = 0; i < sizeof(mems) / sizeof(mems[0]); i++) {
-    if (mems[i].addr == addr) {
-      printf("%s ($%04X): %d ($%02X)\n", mems[i].name, mems[i].addr, x, x);
+  for (const MemName *n = mem_names; n->name != NULL; n++) {
+    if (n->addr == addr) {
+      printf("%s ($%04X): %d ($%02X)\n", n->name, n->addr, x, x);
       return;
     }
   }
