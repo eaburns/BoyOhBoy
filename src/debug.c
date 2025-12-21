@@ -20,6 +20,7 @@ static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 static Mutex9 g_mtx;
 static Gameboy g;
 static Acme *acme = NULL;
+static AcmeWin *lcd_win = NULL;
 
 static int step = 0;
 
@@ -30,10 +31,6 @@ static int nbreaks = 0;
 static int breaks[MAX_BREAKS];
 
 static sig_atomic_t go = false;
-static sig_atomic_t done = false;
-
-// Guarded by g_mtx.
-static bool poll_thread_exited = false;
 
 // Guarded by g_mtx;
 enum { BUTTON_TIME = 10000 };
@@ -46,7 +43,7 @@ void sigint_handler(int s) {
     printf("\n");
     go = false;
   } else {
-    done = true;
+    exit(0);
   }
 }
 
@@ -68,6 +65,8 @@ typedef struct {
   Mem mem;
   AcmeWin *win;
 } DisasmWin;
+
+static DisasmWin *code_win = NULL;
 
 static void update_from_line(DisasmWin *win, int i, uint16_t align_start_addr) {
   int addr = win->lines[i].addr;
@@ -356,8 +355,7 @@ static const char *px_str(int px) {
   return ""; // impossible
 }
 
-static void poll_events(void *arg) {
-  AcmeWin *lcd_win = arg;
+static void poll_events(void *unused) {
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
@@ -411,16 +409,7 @@ static void poll_events(void *arg) {
     }
     free(event);
   }
-  mutex_lock9(&g_mtx);
-  poll_thread_exited = true;
-  mutex_unlock9(&g_mtx);
-}
-
-static bool lcd_deleted() {
-  mutex_lock9(&g_mtx);
-  bool d = poll_thread_exited;
-  mutex_unlock9(&g_mtx);
-  return d;
+  exit(0);
 }
 
 static void check_button_count() {
@@ -585,7 +574,7 @@ static double time_ns() {
 
 enum { NS_PER_MS = 1000000 };
 
-static void draw_lcd(AcmeWin *lcd_win) {
+static void draw_lcd() {
   if (lcd_win == NULL) {
     return;
   }
@@ -648,6 +637,12 @@ static void draw_lcd(AcmeWin *lcd_win) {
   }
 }
 
+static void close_lcd_win() {
+  if (lcd_win != NULL) {
+    win_fmt_ctl(lcd_win, "delete");
+  }
+}
+
 static AcmeWin *make_lcd_win() {
   if (acme == NULL) {
     return NULL;
@@ -660,7 +655,33 @@ static AcmeWin *make_lcd_win() {
   win_fmt_tag(win, " Break\n        Up"
                    "\nLeft         Right            AButton        Start"
                    "\n      Down                    BButton        Select");
+
+  static Thread9 poll_thrd;
+  thread_create9(&poll_thrd, poll_events, NULL);
+  draw_lcd();
+  atexit(close_lcd_win);
   return win;
+}
+
+static void close_code_win() {
+  if (code_win != NULL) {
+    win_fmt_ctl(code_win->win, "delete\n");
+  }
+}
+
+static DisasmWin *make_code_win() {
+  AcmeWin *win = acme_get_win(acme, "code");
+  if (win == NULL) {
+    return NULL;
+  }
+  code_win = calloc(1, sizeof(*code_win));
+  code_win->data_size = MEM_SIZE;
+  code_win->data = g.mem;
+  code_win->win = win;
+  win_fmt_ctl(code_win->win, "font %s\n", CODE_FONT);
+  update_from_line(code_win, 0, code_win->data_size);
+  atexit(close_code_win);
+  return code_win;
 }
 
 static void do_step(int n) {
@@ -778,15 +799,20 @@ static bool handle_input_line() {
   } else if (strcmp(line, "go") == 0) {
     go = true;
   } else if (strcmp(line, "quit") == 0) {
-    done = true;
+    exit(0);
   }
   return true;
+}
+
+static void print_exiting() {
+  printf("exiting\n");
 }
 
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
     fail("Expected 1 argument, got %d", argc);
   }
+  atexit(print_exiting);
 
   signal(SIGINT, sigint_handler);
 
@@ -805,31 +831,18 @@ int main(int argc, const char *argv[]) {
   if (acme == NULL) {
     printf("Failed to connect to Acme. Acme integration disabled.\n");
   }
-
-  AcmeWin *lcd_win = make_lcd_win();
+  lcd_win = make_lcd_win();
   if (lcd_win == NULL) {
     printf("Failed to open LCD win: %s\n", errstr9());
-  } else {
-    static Thread9 poll_thrd;
-    thread_create9(&poll_thrd, poll_events, lcd_win);
-    draw_lcd(lcd_win);
   }
-
-  DisasmWin code_win = {
-      .data_size = MEM_SIZE,
-      .data = g.mem,
-      .win = acme != NULL ? acme_get_win(acme, "code") : NULL,
-  };
-  if (code_win.win == NULL) {
+  code_win = make_code_win();
+  if (code_win == NULL) {
     printf("Failed to open code win: %s\n", errstr9());
-  } else {
-    win_fmt_ctl(code_win.win, "font %s\n", CODE_FONT);
-    update_from_line(&code_win, 0, code_win.data_size);
   }
 
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
-  while (!done && !lcd_deleted()) {
+  for (;;) {
     if (!go && g.cpu.state == DONE) {
       if (num_mcycle > 0) {
         printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
@@ -837,8 +850,8 @@ int main(int argc, const char *argv[]) {
         num_mcycle = 0;
       }
       print_current_instruction();
-      update_code_win(&code_win);
-      while (!go && !done && handle_input_line()) {
+      update_code_win(code_win);
+      while (!go && handle_input_line()) {
       }
     }
 
@@ -849,7 +862,7 @@ int main(int argc, const char *argv[]) {
     check_button_count();
     mutex_unlock9(&g_mtx);
     if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
-      draw_lcd(lcd_win);
+      draw_lcd();
     }
     long ns = time_ns() - start_ns;
 
@@ -868,12 +881,6 @@ int main(int argc, const char *argv[]) {
         continue;
       }
     }
-  }
-  if (lcd_win != NULL) {
-    win_fmt_ctl(lcd_win, "delete");
-  }
-  if (code_win.win != NULL) {
-    win_fmt_ctl(code_win.win, "delete\n");
   }
   free_rom(&rom);
   return 0;
