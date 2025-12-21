@@ -17,22 +17,31 @@ static const char *CODE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
-static Mutex9 g_mtx;
+enum {
+  FRAME_HZ = 30,
+  VBLANK_HZ = 60,
+};
+const double NS_PER_S = 1e9;
+const double FRAME_NS = NS_PER_S / FRAME_HZ;
+const double VBLANK_NS = NS_PER_S / VBLANK_HZ;
+
+static Mutex9 mtx;
 static Gameboy g;
 static Acme *acme = NULL;
 static AcmeWin *lcd_win = NULL;
+// The LCD at the last transition to VBLANK.
+// Guarded by mtx;
+uint8_t lcd[SCREEN_HEIGHT][SCREEN_WIDTH];
 
 static int step = 0;
-
 static int next_sp = -1;
-
 enum { MAX_BREAKS = 10 };
 static int nbreaks = 0;
 static int breaks[MAX_BREAKS];
 
 static sig_atomic_t go = false;
 
-// Guarded by g_mtx;
+// Guarded by mtx;
 enum { BUTTON_TIME = 10000 };
 static int button_count;
 
@@ -355,7 +364,7 @@ static const char *px_str(int px) {
   return ""; // impossible
 }
 
-static void poll_events(void *unused) {
+static void poll_lcd_event_thread(void *unused) {
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
@@ -367,7 +376,7 @@ static void poll_events(void *unused) {
       break;
     }
     if (event->type == 'x') {
-      mutex_lock9(&g_mtx);
+      mutex_lock9(&mtx);
       if (strcmp(event->data, "Up") == 0) {
         g.dpad |= BUTTON_UP;
         button_count = BUTTON_TIME;
@@ -397,12 +406,12 @@ static void poll_events(void *unused) {
       } else if (strcmp(event->data, "Del") == 0 ||
                  strcmp(event->data, "Delete") == 0) {
         free(event);
-        mutex_unlock9(&g_mtx);
+        mutex_unlock9(&mtx);
         break;
       } else {
         win_write_event(lcd_win, event);
       }
-      mutex_unlock9(&g_mtx);
+      mutex_unlock9(&mtx);
     } else if (event->type == 'X' || event->type == 'l' || event->type == 'L' ||
                event->type == 'r' || event->type == 'R') {
       win_write_event(lcd_win, event);
@@ -572,69 +581,69 @@ static double time_ns() {
   return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
 }
 
-enum { NS_PER_MS = 1000000 };
-
-static void draw_lcd() {
-  if (lcd_win == NULL) {
-    return;
-  }
-  static double last_frame = 0;
-  double now = time_ns();
-  if (now - last_frame < 17 * NS_PER_MS) {
-    struct timespec ts = {.tv_nsec = 17 * NS_PER_MS - (now - last_frame)};
-    nanosleep(&ts, NULL);
-  }
-  last_frame = now;
-
+static void draw_thread(void *unused) {
   static Buffer b;
   static bool first = true;
   static uint8_t cur[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
-
-  int start_y;
-  int end_y;
-  if (first) {
-    start_y = 0;
-    end_y = SCREEN_HEIGHT - 1;
-  } else {
-    start_y = first_line_diff(cur, g.lcd);
-    if (start_y >= SCREEN_HEIGHT) {
-      return;
+  static uint8_t latest[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
+  double last = time_ns();
+  for (;;) {
+    double since = time_ns() - last;
+    if (since < FRAME_NS) {
+      struct timespec ts = {.tv_nsec = FRAME_NS - since};
+      nanosleep(&ts, NULL);
     }
-    end_y = last_line_diff(cur, g.lcd);
-  }
-  for (int y = start_y; y <= end_y; y++) {
-    memcpy(cur[y], g.lcd[y], SCREEN_WIDTH);
-  }
+    last = time_ns();
 
-  b.size = 0;
-  for (int y = start_y; y <= end_y; y++) {
-    for (int x = 0; x < SCREEN_WIDTH; x++) {
-      bprintf(&b, "%s", px_str(g.lcd[y][x]));
+    mutex_lock9(&mtx);
+    memcpy(latest, lcd, sizeof(lcd));
+    mutex_unlock9(&mtx);
+
+    int start_y;
+    int end_y;
+    if (first) {
+      start_y = 0;
+      end_y = SCREEN_HEIGHT - 1;
+    } else {
+      start_y = first_line_diff(cur, latest);
+      if (start_y >= SCREEN_HEIGHT) {
+        continue;
+      }
+      end_y = last_line_diff(cur, latest);
     }
-    bprintf(&b, "\n");
-  }
+    for (int y = start_y; y <= end_y; y++) {
+      memcpy(cur[y], latest[y], SCREEN_WIDTH);
+    }
 
-  int n = 0;
-  if (start_y == 0 && end_y == SCREEN_HEIGHT - 1) {
-    n = win_fmt_addr(lcd_win, ",");
-    first = false;
-  } else {
-    n = win_fmt_addr(lcd_win, "%d,%d", start_y + 1, end_y + 1);
+    b.size = 0;
+    for (int y = start_y; y <= end_y; y++) {
+      for (int x = 0; x < SCREEN_WIDTH; x++) {
+        bprintf(&b, "%s", px_str(latest[y][x]));
+      }
+      bprintf(&b, "\n");
+    }
+
+    int n = 0;
+    if (start_y == 0 && end_y == SCREEN_HEIGHT - 1) {
+      n = win_fmt_addr(lcd_win, ",");
+      first = false;
+    } else {
+      n = win_fmt_addr(lcd_win, "%d,%d", start_y + 1, end_y + 1);
+    }
+    if (n < 0) {
+      printf("error writing to lcd win addr: %s\n", errstr9());
+      continue;
+    }
+    if (win_write_data(lcd_win, b.size, b.data) < 0) {
+      printf("error writing to lcd win data: %s\n", errstr9());
+    }
   }
-  if (n < 0) {
-    printf("error writing to lcd win addr: %s\n", errstr9());
-    return;
-  }
-  if (win_write_data(lcd_win, b.size, b.data) < 0) {
-    printf("error writing to lcd win data: %s\n", errstr9());
-  }
-  if (win_fmt_addr(lcd_win, "#0") < 0) {
-    printf("error writing to lcd win addr: %s\n", errstr9());
-  }
-  if (win_fmt_ctl(lcd_win, "font %s\nclean\ndot=addr\nshow\n", VRAM_MAP_FONT) <
-      0) {
-    printf("error writing to lcd win ctl: %s\n", errstr9());
-  }
+}
+
+static void draw_lcd() {
+  mutex_lock9(&mtx);
+  memcpy(lcd, g.lcd, sizeof(lcd));
+  mutex_unlock9(&mtx);
 }
 
 static void close_lcd_win() {
@@ -647,20 +656,21 @@ static AcmeWin *make_lcd_win() {
   if (acme == NULL) {
     return NULL;
   }
-  AcmeWin *win = acme_get_win(acme, "lcd");
-  if (win == NULL) {
+  lcd_win = acme_get_win(acme, "lcd");
+  if (lcd_win == NULL) {
     return NULL;
   }
-  win_fmt_ctl(win, "cleartag\n");
-  win_fmt_tag(win, " Break\n        Up"
-                   "\nLeft         Right            AButton        Start"
-                   "\n      Down                    BButton        Select");
+  win_fmt_ctl(lcd_win, "cleartag\nfont %s\n", VRAM_MAP_FONT);
+  win_fmt_tag(lcd_win, " Break\n        Up"
+                       "\nLeft         Right            AButton        Start"
+                       "\n      Down                    BButton        Select");
 
   static Thread9 poll_thrd;
-  thread_create9(&poll_thrd, poll_events, NULL);
-  draw_lcd();
+  thread_create9(&poll_thrd, poll_lcd_event_thread, NULL);
+  static Thread9 draw_thrd;
+  thread_create9(&draw_thrd, draw_thread, NULL);
   atexit(close_lcd_win);
-  return win;
+  return lcd_win;
 }
 
 static void close_code_win() {
@@ -804,9 +814,7 @@ static bool handle_input_line() {
   return true;
 }
 
-static void print_exiting() {
-  printf("exiting\n");
-}
+static void print_exiting() { printf("exiting\n"); }
 
 int main(int argc, const char *argv[]) {
   if (argc != 2) {
@@ -816,7 +824,7 @@ int main(int argc, const char *argv[]) {
 
   signal(SIGINT, sigint_handler);
 
-  mutex_init9(&g_mtx);
+  mutex_init9(&mtx);
   Rom rom = read_rom(argv[1]);
   printf("Loaded ROM file %s\n", argv[1]);
   printf("File Size: %d bytes\n", rom.size);
@@ -840,6 +848,7 @@ int main(int argc, const char *argv[]) {
     printf("Failed to open code win: %s\n", errstr9());
   }
 
+  double last_vblank = time_ns();
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
   for (;;) {
@@ -855,16 +864,23 @@ int main(int argc, const char *argv[]) {
       }
     }
 
-    double start_ns = time_ns();
     PpuMode prev_ppu_mode = ppu_mode(&g);
-    mutex_lock9(&g_mtx);
+    double start_ns = time_ns();
+    mutex_lock9(&mtx);
     mcycle(&g);
     check_button_count();
-    mutex_unlock9(&g_mtx);
+    mutex_unlock9(&mtx);
+    long ns = time_ns() - start_ns;
+
     if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
       draw_lcd();
+      double since = time_ns() - last_vblank;
+      if (since < VBLANK_NS) {
+        struct timespec ts = {.tv_nsec = VBLANK_NS - since};
+        nanosleep(&ts, NULL);
+      }
+      last_vblank = time_ns();
     }
-    long ns = time_ns() - start_ns;
 
     if (go) {
       if (num_mcycle == 0) {
