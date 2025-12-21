@@ -42,7 +42,7 @@ static int breaks[MAX_BREAKS];
 static sig_atomic_t go = false;
 
 // Guarded by mtx;
-enum { BUTTON_TIME = 10000 };
+enum { BUTTON_TIME = 100000 };
 static int button_count;
 
 enum { LINE_MAX = 128 };
