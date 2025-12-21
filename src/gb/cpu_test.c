@@ -1,6 +1,7 @@
 #include "gameboy.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 // Calls fail with the current function name prefixed to the format string.
@@ -9,6 +10,8 @@
     fprintf(stderr, "%s: ", __func__);                                         \
     fail(__VA_ARGS__);                                                         \
   } while (0)
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
 enum {
   // Memory addresses.
@@ -447,9 +450,7 @@ static struct snprint_test cb_snprint_tests[] = {
 
 void run_snprint_tests() {
   for (struct snprint_test *test = snprint_tests;
-       test <
-       snprint_tests + sizeof(snprint_tests) / sizeof(struct snprint_test);
-       test++) {
+       test < snprint_tests + ARRAY_SIZE(snprint_tests); test++) {
     Mem mem;
     mem[0] = test->op;
     mem[1] = 0x01;
@@ -464,9 +465,7 @@ void run_snprint_tests() {
 
 void run_cb_snprint_tests() {
   for (struct snprint_test *test = cb_snprint_tests;
-       test < cb_snprint_tests +
-                  sizeof(cb_snprint_tests) / sizeof(struct snprint_test);
-       test++) {
+       test < cb_snprint_tests + ARRAY_SIZE(cb_snprint_tests); test++) {
     Mem mem;
     mem[0] = 0xCB;
     mem[1] = test->op;
@@ -644,6 +643,7 @@ void run_reg16_get_set_tests() {
 
 struct exec_test {
   const char *name;
+  const Rom rom;
   const Gameboy init;
   const Gameboy want;
   int cycles;
@@ -5337,6 +5337,7 @@ void _run_exec_tests(struct exec_test exec_tests[], int n) {
   for (int i = 0; i < n; i++) {
     struct exec_test *test = &exec_tests[i];
     Gameboy g = test->init;
+    g.rom = &test->rom;
     int cycles = step(&g);
     if (cycles != test->cycles) {
       FAIL("%s: got %d cycles, expected %d", test->name, cycles, test->cycles);
@@ -5348,9 +5349,7 @@ void _run_exec_tests(struct exec_test exec_tests[], int n) {
   }
 }
 
-void run_exec_tests() {
-  _run_exec_tests(exec_tests, sizeof(exec_tests) / sizeof(exec_tests[0]));
-}
+void run_exec_tests() { _run_exec_tests(exec_tests, ARRAY_SIZE(exec_tests)); }
 
 void run_ei_delayed_test() {
   Gameboy g = {.cpu = {.ir = 0xFB /* EI */}, .mem = {NOP}};
@@ -5567,8 +5566,7 @@ static struct exec_test call_interrupt_tests[] = {
 };
 
 void run_call_interrupt_tests() {
-  _run_exec_tests(call_interrupt_tests, sizeof(call_interrupt_tests) /
-                                            sizeof(call_interrupt_tests[0]));
+  _run_exec_tests(call_interrupt_tests, ARRAY_SIZE(call_interrupt_tests));
 }
 
 void run_call_interrupt_and_reti_test() {
@@ -6422,6 +6420,20 @@ static struct exec_test store_fetch_tests[] = {
             {
                 .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
                 .mem = {0, 5, [0x0500] = 0xAA},
+            },
+        .cycles = 4,
+    },
+    {
+        .name = "Store ROM ignored",
+        .init =
+            {
+                .cpu = {.ir = LD_IMM16_MEM_A, .registers = {[REG_A] = 0xAA}},
+                .mem = {0, 5},
+            },
+        .want =
+            {
+                .cpu = {.pc = 3, .registers = {[REG_A] = 0xAA}},
+                .mem = {0, 5},
             },
         .cycles = 4,
     },
@@ -7473,9 +7485,94 @@ static struct exec_test store_fetch_tests[] = {
 };
 
 void run_store_fetch_tests() {
-  _run_exec_tests(store_fetch_tests,
-                  sizeof(store_fetch_tests) / sizeof(store_fetch_tests[0]));
+  _run_exec_tests(store_fetch_tests, ARRAY_SIZE(store_fetch_tests));
 }
+
+struct mbc_test {
+  const char *name;
+  CartType cart_type;
+  int num_banks;
+  int switch_to_bank;
+  int expected_bank;
+};
+
+void _run_mbc_tests(struct mbc_test mbc_tests[], int n) {
+  for (int i = 0; i < n; i++) {
+    struct mbc_test *test = &mbc_tests[i];
+    int rom_size = ROM_BANK_SIZE * test->num_banks;
+    uint8_t *data = calloc(1, rom_size);
+    for (int j = 0; j < test->num_banks; j++) {
+      data[ROM_BANK_SIZE * j] = j;
+    }
+    Rom rom = {
+        .data = data,
+        .size = rom_size,
+        .cart_type = test->cart_type,
+        .rom_size = rom_size,
+        .num_rom_banks = test->num_banks,
+    };
+    Gameboy g = {
+        .cpu =
+            {
+                .ir = LD_IMM16_MEM_A,
+                .registers = {[REG_A] = test->switch_to_bank},
+            },
+        .mem =
+            {
+                // address 0x2000 is MBC1 ROM bank register.
+                [0] = 0x00,
+                [1] = 0x20,
+            },
+        .rom = &rom,
+    };
+    Gameboy want = g;
+    want.mem[MEM_ROM_N_START] = test->expected_bank;
+    want.cpu.ir = 0;
+    want.cpu.pc = 3;
+
+    step(&g);
+
+    char *diff = gameboy_diff(&g, &want);
+    if (diff != NULL) {
+      FAIL("%s: Unexpected ROM bank switch:\n%s", test->name, diff);
+    }
+
+    free(data);
+  }
+}
+
+struct mbc_test mbc1_tests[] = {
+    {
+        .name = "Bank 0 is bank 1",
+        .cart_type = CART_MBC1,
+        .num_banks = 3,
+        .switch_to_bank = 0,
+        .expected_bank = 1,
+    },
+    {
+        .name = "Switch to bank 1",
+        .cart_type = CART_MBC1,
+        .num_banks = 3,
+        .switch_to_bank = 1,
+        .expected_bank = 1,
+    },
+    {
+        .name = "Switch to bank 2",
+        .cart_type = CART_MBC1,
+        .num_banks = 3,
+        .switch_to_bank = 2,
+        .expected_bank = 2,
+    },
+    {
+        .name = "Switch to bank 3 wraps",
+        .cart_type = CART_MBC1,
+        .num_banks = 3,
+        .switch_to_bank = 1,
+        .expected_bank = 1,
+    },
+};
+
+void run_mbc1_tests() { _run_mbc_tests(mbc1_tests, ARRAY_SIZE(mbc1_tests)); }
 
 int main() {
   // Turn off fprintf statements for testing storing/fetching VRAM/OAM when it's
@@ -7503,6 +7600,8 @@ int main() {
   run_halt_ime_true_pending_true_test();
 
   run_store_fetch_tests();
+
+  run_mbc1_tests();
 
   return 0;
 }
