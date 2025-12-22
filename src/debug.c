@@ -357,7 +357,7 @@ static const char *px_str(int px) {
   case 2:
     return "x";
   case 3:
-    return "0";
+    return "#";
   default:
     fail("impossible pixel value %d\n", px);
   }
