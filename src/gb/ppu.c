@@ -79,7 +79,8 @@ static int tile_from_map(const Gameboy *g, uint16_t map_base, int x, int y) {
   return fetch(g, map_base + (map_y * TILE_MAP_WIDTH) + map_x);
 }
 
-static uint8_t tile_px(const Gameboy *g, uint16_t tile_addr, int x, int y) {
+static uint8_t tile_color_index(const Gameboy *g, uint16_t tile_addr, int x,
+                                int y) {
   int tile_x = x % TILE_WIDTH;
   int tile_y = y % TILE_HEIGHT;
   uint8_t low = fetch(g, tile_addr + tile_y * 2);
@@ -98,10 +99,12 @@ static uint8_t tile_map_px(const Gameboy *g, uint16_t map_base, int x, int y) {
     i = (int8_t)(uint8_t)i; // sign-extend the lower 8 bits of i.
     addr = MEM_TILE_BLOCK2_START + i * 16;
   }
-  return tile_px(g, addr, x, y);
+  uint8_t color_index = tile_color_index(g, addr, x, y);
+  uint8_t pallet = fetch(g, MEM_BGP);
+  return (pallet >> 2 * color_index) & 0x3;
 }
 
-static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
+static int get_obj_px(const Gameboy *g, int x, int y) {
   const Object *obj = NULL;
   for (int i = 0; i < g->ppu.nobjs; i++) {
     const Object *o = &g->ppu.objs[i];
@@ -113,7 +116,7 @@ static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
     }
   }
   if (obj == NULL) {
-    return 0;
+    return -1;
   }
   int h = obj_height(g);
   int obj_px_x = x - (obj->x - TILE_WIDTH);
@@ -136,7 +139,15 @@ static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
   if (obj_px_y >= TILE_HEIGHT) {
     tile++;
   }
-  return tile_px(g, MEM_TILE_BLOCK0_START + tile * 16, obj_px_x, obj_px_y);
+  int color_index = tile_color_index(g, MEM_TILE_BLOCK0_START + tile * 16,
+                                     obj_px_x, obj_px_y);
+  // object color_index==0 is transparent.
+  if (color_index == 0) {
+    return -1;
+  }
+  uint16_t pallet_addr = obj->flags & OBJ_FLAG_PALLET ? MEM_OBP1 : MEM_OBP0;
+  uint8_t pallet = fetch(g, pallet_addr);
+  return (pallet >> 2 * color_index) & 0x3;
 }
 
 static void do_drawing(Gameboy *g) {
@@ -153,8 +164,8 @@ static void do_drawing(Gameboy *g) {
   int bgy = y + fetch(g, MEM_SCY);
   for (int x = 0; x < SCREEN_WIDTH; x++) {
     int bgx = x + fetch(g, MEM_SCX);
-    uint8_t obj_px = get_obj_px(g, x, y);
-    if (obj_px > 0) {
+    int obj_px = get_obj_px(g, x, y);
+    if (obj_px >= 0) {
       g->lcd[y][x] = obj_px;
     } else {
       g->lcd[y][x] = tile_map_px(g, bg_tile_map_base, bgx, bgy);
