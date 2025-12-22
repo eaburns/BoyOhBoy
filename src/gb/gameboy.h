@@ -330,6 +330,11 @@ enum {
   TILE_BIG_HEIGHT = 16,
   TILE_MAP_WIDTH = 32,
   TILE_MAP_HEIGHT = 32,
+
+  OBJ_FLAG_PRIO = 1 << 7,
+  OBJ_FLAG_Y_FLIP = 1 << 6,
+  OBJ_FLAG_X_FLIP = 1 << 5,
+  OBJ_FLAG_PALLET = 1 << 4,
 };
 
 typedef enum {

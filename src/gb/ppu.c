@@ -116,14 +116,22 @@ static uint8_t get_obj_px(const Gameboy *g, int x, int y) {
     return 0;
   }
   int h = obj_height(g);
-  int obj_px_x = x - (obj->x - 8);
-  if (obj_px_x < 0 || obj_px_x >= 8) {
+  int obj_px_x = x - (obj->x - TILE_WIDTH);
+  if (obj_px_x < 0 || obj_px_x >= TILE_WIDTH) {
     fail("obj_px_x=%d\n", obj_px_x);
   }
-  int obj_px_y = y - (obj->y - 16);
+  if (obj->flags & OBJ_FLAG_X_FLIP) {
+    obj_px_x = TILE_WIDTH - obj_px_x - 1;
+  }
+
+  int obj_px_y = y - (obj->y - TILE_BIG_HEIGHT);
   if (obj_px_y < 0 || obj_px_y >= h) {
     fail("obj_px_y=%d\n", obj_px_y, h);
   }
+  if (obj->flags & OBJ_FLAG_Y_FLIP) {
+    obj_px_y = h - obj_px_y - 1;
+  }
+
   int tile = obj->tile;
   if (obj_px_y >= TILE_HEIGHT) {
     tile++;
