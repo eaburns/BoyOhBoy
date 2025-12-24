@@ -891,7 +891,7 @@ int main(int argc, const char *argv[]) {
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
   for (;;) {
-    if (!go && g.cpu.state == DONE) {
+    if (!go && (g.cpu.state == DONE || g.cpu.state == HALTED)) {
       if (num_mcycle > 0) {
         printf("num mcycles: %ld\navg time: %lf ns\n", num_mcycle,
                mcycle_ns_avg);
