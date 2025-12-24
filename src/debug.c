@@ -219,7 +219,7 @@ static void update_code_win(DisasmWin *win) {
   if (diff_start < MEM_SIZE - 1) {
     int diff_end = mem_diff_end(win->mem);
     update_disasm_win(win, diff_start, diff_end);
-    memcpy(win->mem + diff_start, g.mem + diff_start, diff_end - diff_start);
+    memcpy(win->mem + diff_start, g.mem + diff_start, diff_end - diff_start + 1);
   }
   jump_disasm_win(win, g.cpu.pc - 1);
   redraw_disasm_win(win);
