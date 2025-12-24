@@ -13,6 +13,8 @@
 #include <string.h>
 #include <time.h>
 
+#define DEBUG 0
+
 static const char *CODE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
@@ -21,17 +23,28 @@ enum {
   FRAME_HZ = 30,
   VBLANK_HZ = 60,
 };
-const double NS_PER_S = 1e9;
-const double FRAME_NS = NS_PER_S / FRAME_HZ;
-const double VBLANK_NS = NS_PER_S / VBLANK_HZ;
+static const double NS_PER_S = 1e9;
+static const double FRAME_NS = NS_PER_S / FRAME_HZ;
+static const double VBLANK_NS = NS_PER_S / VBLANK_HZ;
+static const uint16_t HALT = 0x76;
 
 static Mutex9 mtx;
 static Gameboy g;
 static Acme *acme = NULL;
-static AcmeWin *lcd_win = NULL;
+
 // The LCD at the last transition to VBLANK.
 // Guarded by mtx;
 uint8_t lcd[SCREEN_HEIGHT][SCREEN_WIDTH];
+static AcmeWin *lcd_win = NULL;
+
+typedef struct {
+  uint16_t addr;
+  Disasm disasm;
+} DisasmLine;
+DisasmLine *lines;
+int nlines;
+Mem disasm_mem;
+static AcmeWin *disasm_win = NULL;
 
 static int step = 0;
 static int next_sp = -1;
@@ -45,6 +58,7 @@ static sig_atomic_t go = false;
 enum { BUTTON_TIME = 100000 };
 static int button_count;
 
+// Maximum size of an input line.
 enum { LINE_MAX = 128 };
 
 void sigint_handler(int s) {
@@ -56,8 +70,227 @@ void sigint_handler(int s) {
   }
 }
 
+static int find_disasm_line(uint16_t addr) {
+  // TODO: binary search.
+  for (int i = 0; i < nlines; i++) {
+    if (lines[i].addr > addr) {
+      return i - 1;
+    }
+  }
+  return -1;
+}
+
+static void update_disasm_lines() {
+  int s;
+  for (s = 0; s < MEM_SIZE; s++) {
+    if (disasm_mem[s] != g.mem[s]) {
+      break;
+    }
+  }
+  if (s == MEM_SIZE) {
+    return;
+  }
+  int sline = find_disasm_line(s);
+  if (sline >= 0) {
+    s = lines[sline].addr;
+  }
+
+  int e;
+  for (e = MEM_SIZE - 1; e >= 0; e--) {
+    if (disasm_mem[e] != g.mem[e]) {
+      break;
+    }
+  }
+  e++; // make e exclusive.
+  memcpy(disasm_mem + s, g.mem + s, e - s);
+  int eline = find_disasm_line(e);
+
+  // We cannot have more than one line per byte of memory,
+  // so MEM_SIZE is an upper bound.
+  DisasmLine *new_lines = calloc(MEM_SIZE, sizeof(*new_lines));
+  if (sline > 0) {
+    memcpy(new_lines, lines, sizeof(DisasmLine) * sline);
+  }
+  int addr = s;
+  int i = sline < 0 ? 0 : sline;
+  int diff0_start_line = i;
+  int diff0_end_line = nlines;
+  int diff1_start_line = i;
+  int diff1_end_line = i;
+  while (addr < MEM_SIZE) {
+    new_lines[i].addr = addr;
+    new_lines[i].disasm = disassemble(disasm_mem, MEM_SIZE, addr);
+    addr += new_lines[i].disasm.size;
+    diff1_end_line = i;
+    i++;
+    if (eline < 0 || addr < e) {
+      continue;
+    }
+    // Once we are beyond the last changed address,
+    // look for a line in our original lines that has a matching address.
+    // If we find it, the remaining lines will disassemble the same,
+    // and we can just copy them over.
+    while (eline < nlines && lines[eline].addr < addr) {
+      eline++;
+    }
+    if (eline < nlines && addr == lines[eline].addr) {
+      diff1_end_line = i - 1;
+      diff0_end_line = eline - 1;
+      while (eline < nlines) {
+        new_lines[i++] = lines[eline++];
+      }
+      break;
+    }
+  }
+
+  if (DEBUG) {
+    fprintf(stderr, "addr change $%04X to $%04X (exclusive)\n", s, e);
+    fprintf(stderr, "changed lines: %d,%d --> %d,%d\n", diff0_start_line,
+            diff0_end_line, diff1_start_line, diff1_end_line);
+    if (diff1_end_line - diff1_start_line < 5) {
+      for (int j = diff0_start_line; j <= diff0_end_line; j++) {
+        fprintf(stderr, "	%s\n", lines[j].disasm.full);
+      }
+      fprintf(stderr, "changed to\n");
+      for (int j = diff1_start_line; j <= diff1_end_line; j++) {
+        fprintf(stderr, "	%s\n", new_lines[j].disasm.full);
+      }
+    }
+  }
+
+  free(lines);
+  lines = new_lines;
+  nlines = i;
+
+  Buffer b = {};
+  for (int i = diff1_start_line; i <= diff1_end_line; i++) {
+    bprintf(&b, "%s\n", lines[i].disasm.full);
+  }
+  win_fmt_addr(disasm_win, "%d,%d", diff0_start_line + 1, diff0_end_line + 1);
+  win_write_data(disasm_win, b.size, b.data);
+  free(b.data);
+}
+
+static int split_disasm_line(int line, int addr) {
+  if (DEBUG) {
+    fprintf(stderr, "splitting a line\n");
+  }
+
+  // We cannot have more than one line per byte of memory,
+  // so MEM_SIZE is an upper bound.
+  DisasmLine *new_lines = calloc(MEM_SIZE, sizeof(*new_lines));
+  if (line > 1) {
+    memcpy(new_lines, lines, sizeof(DisasmLine) * line - 1);
+  }
+
+  int i = line;
+  int diff0_start_line = i;
+  int diff0_end_line = nlines;
+  int diff1_start_line = i;
+  int diff1_end_line = i;
+  int eline = line + 1;
+  int e = line < nlines - 1 ? lines[line + 1].addr : MEM_SIZE;
+
+  uint16_t a = lines[line].addr;
+  uint16_t s = a;
+  while (a < addr) {
+    new_lines[i].addr = a;
+    // Limit to 1 byte to make UNKNOWN instructions up to addr.
+    new_lines[i].disasm = disassemble(disasm_mem, 1, a);
+    a += new_lines[i].disasm.size;
+    i++;
+    diff1_end_line = i;
+  }
+
+  int new_line = i;
+
+  while (addr < MEM_SIZE) {
+    new_lines[i].addr = addr;
+    new_lines[i].disasm = disassemble(disasm_mem, MEM_SIZE, addr);
+    addr += new_lines[i].disasm.size;
+    diff1_end_line = i;
+    i++;
+    if (eline < 0 || addr < e) {
+      continue;
+    }
+    // Once we are beyond the last changed address,
+    // look for a line in our original lines that has a matching address.
+    // If we find it, the remaining lines will disassemble the same,
+    // and we can just copy them over.
+    while (eline < nlines && lines[eline].addr < addr) {
+      eline++;
+    }
+    if (eline < nlines && addr == lines[eline].addr) {
+      diff1_end_line = i - 1;
+      diff0_end_line = eline - 1;
+      while (eline < nlines) {
+        new_lines[i++] = lines[eline++];
+      }
+      break;
+    }
+  }
+
+  if (DEBUG) {
+    fprintf(stderr, "addr change $%04X to $%04X (exclusive)\n", s, e);
+    fprintf(stderr, "changed lines: %d,%d --> %d,%d\n", diff0_start_line,
+            diff0_end_line, diff1_start_line, diff1_end_line);
+    if (diff1_end_line - diff1_start_line < 5) {
+      for (int j = diff0_start_line; j <= diff0_end_line; j++) {
+        fprintf(stderr, "	%s\n", lines[j].disasm.full);
+      }
+      fprintf(stderr, "changed to\n");
+      for (int j = diff1_start_line; j <= diff1_end_line; j++) {
+        fprintf(stderr, "	%s\n", new_lines[j].disasm.full);
+      }
+    }
+  }
+
+  free(lines);
+  lines = new_lines;
+  nlines = i;
+
+  Buffer b = {};
+  for (int i = diff1_start_line; i <= diff1_end_line; i++) {
+    bprintf(&b, "%s\n", lines[i].disasm.full);
+  }
+  win_fmt_addr(disasm_win, "%d,%d", diff0_start_line + 1, diff0_end_line + 1);
+  win_write_data(disasm_win, b.size, b.data);
+  free(b.data);
+  return new_line;
+}
+
+static void highlight_pc_line() {
+  uint16_t addr = g.cpu.ir == HALT ? g.cpu.pc : g.cpu.pc - 1;
+  int line = find_disasm_line(addr);
+  if (lines[line].addr != addr) {
+    line = split_disasm_line(line, addr);
+  }
+  win_fmt_addr(disasm_win, "%d", line + 1);
+  win_fmt_ctl(disasm_win, "clean\ndot=addr\nshow\n");
+}
+
+static void update_disasm_win() {
+  update_disasm_lines();
+  highlight_pc_line();
+}
+
+static void close_disasm_win() { win_fmt_ctl(disasm_win, "delete"); }
+
+static AcmeWin *make_disasm_win() {
+  if (acme == NULL) {
+    return NULL;
+  }
+  disasm_win = acme_get_win(acme, "disassembly");
+  if (disasm_win == NULL) {
+    return NULL;
+  }
+  win_fmt_ctl(disasm_win, "font %s\n", CODE_FONT);
+  update_disasm_win();
+  atexit(close_disasm_win);
+  return disasm_win;
+}
+
 static void print_current_instruction() {
-  static const uint16_t HALT = 0x76;
   // IR has already been fetched into PC, so we go back one,
   // except for HALT, which doesn't increment PC.
   Addr pc = g.cpu.ir == HALT ? g.cpu.pc : g.cpu.pc - 1;
@@ -477,11 +710,7 @@ static void draw_lcd() {
   mutex_unlock9(&mtx);
 }
 
-static void close_lcd_win() {
-  if (lcd_win != NULL) {
-    win_fmt_ctl(lcd_win, "delete");
-  }
-}
+static void close_lcd_win() { win_fmt_ctl(lcd_win, "delete"); }
 
 static AcmeWin *make_lcd_win() {
   if (acme == NULL) {
@@ -653,6 +882,10 @@ int main(int argc, const char *argv[]) {
   if (lcd_win == NULL) {
     printf("Failed to open LCD win: %s\n", errstr9());
   }
+  disasm_win = make_disasm_win();
+  if (disasm_win == NULL) {
+    printf("Failed to open disassembly win: %s\n", errstr9());
+  }
 
   double last_vblank = time_ns();
   long num_mcycle = 0;
@@ -664,6 +897,7 @@ int main(int argc, const char *argv[]) {
                mcycle_ns_avg);
         num_mcycle = 0;
       }
+      update_disasm_win();
       print_current_instruction();
       while (!go && handle_input_line()) {
       }
