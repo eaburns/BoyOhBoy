@@ -2391,7 +2391,7 @@ void set_reg16_low_high(Cpu *cpu, Reg16 r, uint8_t low, uint8_t high) {
     break;
   case REG_AF:
     set_reg8(cpu, REG_A, high);
-    cpu->flags = low;
+    cpu->flags = low & 0xF0;
     break;
   case REG_PC:
     cpu->pc = (uint16_t)high << 8 | low;
