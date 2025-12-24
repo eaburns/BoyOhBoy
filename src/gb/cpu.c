@@ -200,7 +200,12 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
   g->mem[addr] = x;
 }
 
-static uint8_t do_io_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
+static uint8_t do_io_fetch(Gameboy *g, uint16_t addr) {
+  if (addr == 0xFF4D) {
+    return 0xFF;
+  }
+  return g->mem[addr];
+}
 
 typedef struct {
   const char *name;
