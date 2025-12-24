@@ -31,7 +31,7 @@ int main(int argc, const char *argv[]) {
 
   Addr addr = start_addr;
   while (addr < rom.size) {
-    Disasm disasm = disassemble(rom.data, addr);
+    Disasm disasm = disassemble(rom.data, rom.size, addr);
     printf("%s\n", disasm.full);
     addr += disasm.size;
   }

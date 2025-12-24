@@ -2573,13 +2573,14 @@ const MemName mem_names[] = {
 
 bool immediate_operand(Operand operand) { return operand_size(operand) > 0; }
 
-static const Instruction *
-format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
+static const Instruction *format_instruction(char *out, int out_size,
+                                             const uint8_t *data, int data_size,
+                                             int offs) {
   const Instruction *bank = instructions;
   if (data[offs] == 0x76) {
     // This would normally be LD [HL], [HL], but it is special-cased to be
     // HALT.
-    snprintf(out, size, "HALT");
+    snprintf(out, out_size, "HALT");
     return find_instruction(bank, data[offs]);
   }
 
@@ -2587,20 +2588,29 @@ format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
     offs++;
     bank = cb_instructions;
   }
+  if (offs >= data_size) {
+    snprintf(out, out_size, "%s", unknown_instruction->mnemonic);
+    return unknown_instruction;
+  }
 
   const Instruction *instr = find_instruction(bank, data[offs]);
+  if (offs + instruction_size(instr) >= data_size) {
+    snprintf(out, out_size, "%s", unknown_instruction->mnemonic);
+    return unknown_instruction;
+  }
   if (instr->operand1 == NONE) {
-    snprintf(out, size, "%s", instr->mnemonic);
+    snprintf(out, out_size, "%s", instr->mnemonic);
     return instr;
   }
 
   if (immediate_operand(instr->operand1)) {
     offs++;
   }
+
   char buf1[32];
   format_operand(buf1, sizeof(buf1), instr->operand1, instr->shift, data, offs);
   if (instr->operand2 == NONE) {
-    snprintf(out, size, "%s %s", instr->mnemonic, buf1);
+    snprintf(out, out_size, "%s %s", instr->mnemonic, buf1);
     return instr;
   }
 
@@ -2609,28 +2619,34 @@ format_instruction(char *out, int size, const uint8_t *data, uint16_t offs) {
   }
   char buf2[32];
   format_operand(buf2, sizeof(buf2), instr->operand2, instr->shift, data, offs);
-  snprintf(out, size, "%s %s, %s", instr->mnemonic, buf1, buf2);
+  snprintf(out, out_size, "%s %s, %s", instr->mnemonic, buf1, buf2);
   return instr;
 }
 
-Disasm disassemble(const uint8_t *data, uint16_t offs) {
-  const char *ident = "		";
+Disasm disassemble(const uint8_t *data, int size, int offs) {
+  static const char *INDENT = "		";
   Disasm disasm;
+  if (size == 0) {
+    snprintf(disasm.full, sizeof(disasm.full), "%04X:         %s%s", offs,
+             INDENT, "UNKNOWN");
+    strncpy(disasm.instr, "UNKNOWN", sizeof(disasm.instr) - 1);
+    return disasm;
+  }
   const Instruction *instr =
-      format_instruction(disasm.instr, sizeof(disasm.instr), data, offs);
+      format_instruction(disasm.instr, sizeof(disasm.instr), data, size, offs);
   disasm.size = instruction_size(instr);
   switch (disasm.size) {
   case 1:
     snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X      %s%s", offs,
-             data[offs], ident, disasm.instr);
+             data[offs], INDENT, disasm.instr);
     break;
   case 2:
     snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X %02X   %s%s", offs,
-             data[offs], data[offs + 1], ident, disasm.instr);
+             data[offs], data[offs + 1], INDENT, disasm.instr);
     break;
   case 3:
     snprintf(disasm.full, sizeof(disasm.full), "%04X: %02X %02X %02X%s%s", offs,
-             data[offs], data[offs + 1], data[offs + 2], ident, disasm.instr);
+             data[offs], data[offs + 1], data[offs + 2], INDENT, disasm.instr);
     break;
   }
   return disasm;

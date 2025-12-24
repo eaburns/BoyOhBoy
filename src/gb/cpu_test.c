@@ -49,7 +49,7 @@ static int step(Gameboy *g) {
   return cycles;
 }
 
-struct snprint_test {
+struct disassemble_test {
   uint8_t op;
   const char *str;
 };
@@ -57,7 +57,7 @@ struct snprint_test {
 // The test tests the opcode followed by bytes 0x01 and 0x02.
 // If loaded as imm8, the value is 1.
 // If loaded as imm16, the value is 513.
-static struct snprint_test snprint_tests[] = {
+static struct disassemble_test disassemble_tests[] = {
     {.op = 0x00, .str = "NOP"},
     {.op = 0x01, .str = "LD BC, 513 ($0201)"},
     {.op = 0x02, .str = "LD [BC], A"},
@@ -317,7 +317,7 @@ static struct snprint_test snprint_tests[] = {
     {.op = 0xFF, .str = "RST 56"},
 };
 
-static struct snprint_test cb_snprint_tests[] = {
+static struct disassemble_test cb_disassemble_tests[] = {
     {.op = 0x00, .str = "RLC B"},       {.op = 0x01, .str = "RLC C"},
     {.op = 0x02, .str = "RLC D"},       {.op = 0x03, .str = "RLC E"},
     {.op = 0x04, .str = "RLC H"},       {.op = 0x05, .str = "RLC L"},
@@ -448,14 +448,14 @@ static struct snprint_test cb_snprint_tests[] = {
     {.op = 0xFE, .str = "SET 7, [HL]"}, {.op = 0xFF, .str = "SET 7, A"},
 };
 
-void run_snprint_tests() {
-  for (struct snprint_test *test = snprint_tests;
-       test < snprint_tests + ARRAY_SIZE(snprint_tests); test++) {
+void run_disassemble_tests() {
+  for (struct disassemble_test *test = disassemble_tests;
+       test < disassemble_tests + ARRAY_SIZE(disassemble_tests); test++) {
     Mem mem;
     mem[0] = test->op;
     mem[1] = 0x01;
     mem[2] = 0x02;
-    Disasm disasm = disassemble(mem, 0);
+    Disasm disasm = disassemble(mem, MEM_SIZE, 0);
     if (strcmp(disasm.instr, test->str) != 0) {
       FAIL("op_code: 0x%02X printed as %s, but expected %s", test->op,
            disasm.instr, test->str);
@@ -463,15 +463,88 @@ void run_snprint_tests() {
   }
 }
 
-void run_cb_snprint_tests() {
-  for (struct snprint_test *test = cb_snprint_tests;
-       test < cb_snprint_tests + ARRAY_SIZE(cb_snprint_tests); test++) {
+void run_disassemble_zero_test() {
+  Disasm disasm = disassemble(NULL, 0, 0);
+  const char *full = "0000:         		UNKNOWN";
+  if (strcmp(disasm.full, full) != 0) {
+    FAIL("full: got [%s], wanted [%s]\n", disasm.full, full);
+  }
+  if (strcmp(disasm.instr, "UNKNOWN") != 0) {
+    FAIL("instr: got [%s], wanted [UNKNOWN]\n", disasm.instr);
+  }
+  if (disasm.size != 0) {
+    FAIL("got size %d, wanted 0", disasm.size);
+  }
+}
+
+void run_disassemble_instr_too_big_mem_size_1_test() {
+  uint8_t ld_bc_imm16[3] = {0x01, 0xFF, 0xAA};
+  Disasm disasm = disassemble(ld_bc_imm16, 1, 0);
+  const char *full = "0000: 01      		UNKNOWN";
+  if (strcmp(disasm.full, full) != 0) {
+    FAIL("full: got [%s], wanted [%s]\n", disasm.full, full);
+  }
+  if (strcmp(disasm.instr, "UNKNOWN") != 0) {
+    FAIL("instr: got [%s], wanted [UNKNOWN]\n", disasm.instr);
+  }
+  if (disasm.size != 1) {
+    FAIL("got size %d, wanted 1", disasm.size);
+  }
+}
+
+void run_disassemble_instr_too_big_mem_size_2_test() {
+  uint8_t ld_bc_imm16[3] = {0x01, 0xFF, 0xAA};
+  Disasm disasm = disassemble(ld_bc_imm16, 2, 0);
+  const char *full = "0000: 01      		UNKNOWN";
+  if (strcmp(disasm.full, full) != 0) {
+    FAIL("full: got [%s], wanted [%s]\n", disasm.full, full);
+  }
+  if (strcmp(disasm.instr, "UNKNOWN") != 0) {
+    FAIL("instr: got [%s], wanted [UNKNOWN]\n", disasm.instr);
+  }
+  if (disasm.size != 1) {
+    FAIL("got size %d, wanted 1", disasm.size);
+  }
+}
+
+void run_disassemble_cb_instr_too_big_test() {
+  uint8_t ld_bc_imm16[3] = {0xCB, 0xAA};
+  Disasm disasm = disassemble(ld_bc_imm16, 1, 0);
+  const char *full = "0000: CB      		UNKNOWN";
+  if (strcmp(disasm.full, full) != 0) {
+    FAIL("full: got [%s], wanted [%s]\n", disasm.full, full);
+  }
+  if (strcmp(disasm.instr, "UNKNOWN") != 0) {
+    FAIL("instr: got [%s], wanted [UNKNOWN]\n", disasm.instr);
+  }
+  if (disasm.size != 1) {
+    FAIL("got size %d, wanted 1", disasm.size);
+  }
+}
+
+void run_disassemble_instr_too_big_mem_size_3_offs_1_test() {
+  uint8_t ld_bc_imm16[4] = {0x00, 0x01, 0xFF, 0xAA};
+  Disasm disasm = disassemble(ld_bc_imm16, 3, 1);
+  const char *full = "0001: 01      		UNKNOWN";
+  if (strcmp(disasm.full, full) != 0) {
+    FAIL("full: got [%s], wanted [%s]\n", disasm.full, full);
+  }
+  if (strcmp(disasm.instr, "UNKNOWN") != 0) {
+    FAIL("instr: got [%s], wanted [UNKNOWN]\n", disasm.instr);
+  }
+  if (disasm.size != 1) {
+    FAIL("got size %d, wanted 1", disasm.size);
+  }
+}
+void run_cb_disassemble_tests() {
+  for (struct disassemble_test *test = cb_disassemble_tests;
+       test < cb_disassemble_tests + ARRAY_SIZE(cb_disassemble_tests); test++) {
     Mem mem;
     mem[0] = 0xCB;
     mem[1] = test->op;
     mem[2] = 0x01;
     mem[3] = 0x02;
-    Disasm disasm = disassemble(mem, 0);
+    Disasm disasm = disassemble(mem, MEM_SIZE, 0);
     if (strcmp(disasm.instr, test->str) != 0) {
       FAIL("op_code: 0x%02X printed as %s, but expected %s", test->op,
            disasm.instr, test->str);
@@ -7580,8 +7653,13 @@ int main() {
   extern bool shhhh;
   shhhh = true;
 
-  run_snprint_tests();
-  run_cb_snprint_tests();
+  run_disassemble_tests();
+  run_disassemble_zero_test();
+  run_disassemble_instr_too_big_mem_size_1_test();
+  run_disassemble_instr_too_big_mem_size_2_test();
+  run_disassemble_cb_instr_too_big_test();
+  run_disassemble_instr_too_big_mem_size_3_offs_1_test();
+  run_cb_disassemble_tests();
   run_reg8_get_set_tests();
   run_reg16_get_set_tests();
   run_exec_tests();

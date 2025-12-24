@@ -218,7 +218,8 @@ typedef struct {
 } Disasm;
 
 // Returns the human-readable version of the instruction at data[offs].
-Disasm disassemble(const uint8_t *data, uint16_t offs);
+// The size of data is size, and an instruction will not go beyond data+size.
+Disasm disassemble(const uint8_t *data, int size, int offs);
 
 typedef enum {
   // An instruction just finished, and we have fetch IR for the next

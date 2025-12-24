@@ -61,7 +61,7 @@ static void print_current_instruction() {
   // IR has already been fetched into PC, so we go back one,
   // except for HALT, which doesn't increment PC.
   Addr pc = g.cpu.ir == HALT ? g.cpu.pc : g.cpu.pc - 1;
-  Disasm disasm = disassemble(g.mem, pc);
+  Disasm disasm = disassemble(g.mem, MEM_SIZE, pc);
   printf("%s\n", disasm.full);
 }
 
