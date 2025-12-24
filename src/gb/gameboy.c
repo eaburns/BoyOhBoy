@@ -183,7 +183,11 @@ Gameboy init_gameboy(const Rom *rom) {
   Gameboy g = {};
   g.rom = rom;
 
-  memcpy(g.mem, rom->data, rom->size < MEM_ROM_END ? rom->size : MEM_ROM_END);
+  int rom_size = MEM_ROM_END + 1;
+  if (rom->size < rom_size) {
+    rom_size = rom_size;
+  }
+  memcpy(g.mem, rom->data, rom_size);
 
   // Starting state of DMG after running the boot ROM and ending at 0x0101.
   g.cpu.registers[REG_B] = 0x00;
