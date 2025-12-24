@@ -164,9 +164,9 @@ static void do_drawing(Gameboy *g) {
     bg_tile_map_base = MEM_TILE_MAP1_START;
   }
   int y = fetch(g, MEM_LY);
-  int bgy = y + fetch(g, MEM_SCY);
+  int bgy = (y + fetch(g, MEM_SCY)) % (TILE_MAP_HEIGHT*TILE_HEIGHT);
   for (int x = 0; x < SCREEN_WIDTH; x++) {
-    int bgx = x + fetch(g, MEM_SCX);
+    int bgx = (x + fetch(g, MEM_SCX)) % (TILE_MAP_WIDTH*TILE_WIDTH);
     int obj_px = get_obj_px(g, x, y);
     if (obj_px >= 0) {
       g->lcd[y][x] = obj_px;
