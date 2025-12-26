@@ -1145,6 +1145,45 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_add_hl_r16) ADD HL, BC (carries due to low-carry)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0x09,
+                                .registers =
+                                    {
+                                        [REG_B] = 0xFF,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0xFF,
+                                        [REG_L] = 0xFF,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAGS_NHC,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers =
+                                    {
+                                        [REG_B] = 0xFF,
+                                        [REG_C] = 1,
+                                        [REG_H] = 0xFF,
+                                        [REG_L] = 0,
+                                    },
+                                // Ensure the flags are set.
+                                .flags = FLAG_C | FLAG_H,
+                                .pc = 1,
+                                .ir = 0x01,
+                            },
+                        .mem = {1, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_add_hl_r16) ADD HL, BC (low and high carry)",
                 .init =
                     {

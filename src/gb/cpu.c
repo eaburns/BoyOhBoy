@@ -528,16 +528,6 @@ static bool sub3_half_borrows(uint8_t x, uint8_t y, uint8_t z) {
   return sub_half_borrows(x, y) || sub_half_borrows(x - y, z);
 }
 
-// Adds x to register r, setting flag N to 0 and setting H and C to the
-// appropriate carry bits.
-static void add_to_reg8(Cpu *cpu, Reg8 r, uint8_t x) {
-  uint8_t y = get_reg8(cpu, r);
-  set_reg8(cpu, r, x + y);
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, add_half_carries(x, y));
-  assign_flag(cpu, FLAG_C, add_carries(x, y));
-}
-
 static CpuState exec_nop(Gameboy *g, const Instruction *, int cycle) {
   g->cpu.ir = fetch_pc(g);
   return DONE;
@@ -661,10 +651,19 @@ static CpuState exec_add_hl_r16(Gameboy *g, const Instruction *instr,
   uint16_t x = get_reg16(cpu, r);
   switch (cycle) {
   case 0:
-    add_to_reg8(cpu, REG_L, x & 0xFF);
+    uint8_t l = get_reg8(cpu, REG_L);
+    uint8_t low = x & 0xFF;
+    set_reg8(cpu, REG_L, l + low);
+    assign_flag(cpu, FLAG_C, add_carries(l, low));
     return EXECUTING;
   default: // 1
-    add_to_reg8(cpu, REG_H, (x >> 8) + get_flag(cpu, FLAG_C));
+    int carry = get_flag(cpu, FLAG_C);
+    uint8_t h = get_reg8(cpu, REG_H);
+    uint8_t high = x >> 8;
+    set_reg8(cpu, REG_H, h + high + carry);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, add3_half_carries(h, high, carry));
+    assign_flag(cpu, FLAG_C, add3_carries(h, high, carry));
     cpu->ir = fetch_pc(g);
     return DONE;
   }
