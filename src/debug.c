@@ -262,7 +262,7 @@ static int split_disasm_line(int line, int addr) {
 static void highlight_pc_line() {
   uint16_t addr = g.cpu.ir == HALT ? g.cpu.pc : g.cpu.pc - 1;
   int line = find_disasm_line(addr);
-  if (lines[line].addr != addr) {
+  if (line >= 0 && line < nlines && lines[line].addr != addr) {
     line = split_disasm_line(line, addr);
   }
   win_fmt_addr(disasm_win, "%d", line + 1);
