@@ -72,10 +72,13 @@ enum : uint16_t {
   MEM_TIMA = 0xFF05,
   MEM_TMA = 0xFF06,
   MEM_TAC = 0xFF07,
+  TAC_FREQ_MASK = 0x3,
+  TAC_TIMA_ENABLED = 1 << 2,
   // 0xFF08-0xFF0E??
   MEM_IF = 0xFF0F,
   IF_VBLANK = 1 << 0,
   IF_LCD = 1 << 1,
+  IF_TIMER = 1 << 2,
   MEM_AUDIO_START = 0xFF10,
   MEM_AUDIO_END = 0xFF26,
   // 0xFF27-0xFF2F ??

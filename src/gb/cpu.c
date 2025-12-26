@@ -174,8 +174,8 @@ static void do_io_store(Gameboy *g, uint16_t addr, uint8_t x) {
 
   case MEM_DIV:
     // Writing anything to div resets the entire counter to 0.
-    g->mem[addr] = 0;
     g->counter = 0;
+    g->mem[MEM_DIV] = 0;
     return;
 
   case MEM_LCDC:

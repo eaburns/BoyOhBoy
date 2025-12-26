@@ -1,4 +1,4 @@
-#include "gameboy.h"
+ #include "gameboy.h"
 
 #include "buf/buffer.h"
 #include <errno.h>
@@ -227,16 +227,52 @@ static void do_oam_dma(Gameboy *g) {
   g->dma_ticks_remaining--;
 }
 
+// Returns the value of the tima counter bit, which is AND
+// of the TIMA enabled bit of TAC and the corresponding
+// frequency bit of the system counter.
+static bool tima_bit(const Gameboy *g) {
+  int tima_shift = 2 * (g->mem[MEM_TAC] & TAC_FREQ_MASK) + 1;
+  bool counter_bit = (g->counter >> tima_shift) & 0x1;
+  bool tima_enabled = g->mem[MEM_TAC] & TAC_TIMA_ENABLED;
+  return counter_bit && tima_enabled;
+}
+
+static bool inc_counter(Gameboy *g, bool tima_bit_start) {
+  g->counter++;
+  g->mem[MEM_DIV] = g->counter >> 8;
+
+  // TIMA increments based on a falling edge,
+  // so we need to track the previous value
+  // and compare to the current.
+  bool tima_bit_end = tima_bit(g);
+  if (tima_bit_start && !tima_bit_end) {
+    g->mem[MEM_TIMA]++;
+    if (g->mem[MEM_TIMA] == 0) {
+      g->mem[MEM_TIMA] = g->mem[MEM_TMA];
+      g->mem[MEM_IF] |= IF_TIMER;
+    }
+  }
+  return tima_bit_end;
+}
+
 void mcycle(Gameboy *g) {
   do {
+    // We increment the counter once before calling cpu_mcycle,
+    // so that if the CPU writes to DIV, resetting the counter,
+    // the reset resets this single count.
+    // Additionally, TIMA is incremented based on a falling edge detector
+    // so we need to track the previous bit value of tima_bit()
+    // and pass it to inc_counter so it can detect a falling edge.
+    bool tb = inc_counter(g, tima_bit(g));
+
     cpu_mcycle(g);
     do_oam_dma(g);
     ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    ppu_tcycle(g);
-    g->counter += 4;
-    g->mem[MEM_DIV] = g->counter >> 8;
+
+    for (int i = 0; i < 3; i++) {
+      ppu_tcycle(g);
+      tb = inc_counter(g, tb);
+    }
   } while (g->cpu.state == EXECUTING || g->cpu.state == INTERRUPTING);
 }
 
