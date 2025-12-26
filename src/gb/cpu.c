@@ -1609,18 +1609,20 @@ static CpuState exec_add_sp_imm8(Gameboy *g, const Instruction *instr,
     cpu->z = fetch_pc(g);
     return EXECUTING;
   case 1:
+    // Flags from the addition are set on cycle 1.
     int8_t x = cpu->z;
-    cpu->w = (cpu->sp + x) & 0xFF;
     assign_flag(cpu, FLAG_Z, false);
     assign_flag(cpu, FLAG_N, false);
     assign_flag(cpu, FLAG_H, add_half_carries(cpu->sp, x));
     assign_flag(cpu, FLAG_C, add_carries(cpu->sp, x));
     return EXECUTING;
   case 2:
-    cpu->z = (cpu->sp + (int8_t)cpu->z) >> 8;
+    // Typically this would do part of the 16-bit 2s complement addition.
+    // But we can more simply do the whole addition with + during cycle 3,
+    // so just do nothing here.
     return EXECUTING;
   default: // 3
-    cpu->sp = (uint16_t)cpu->z << 8 | cpu->w;
+    cpu->sp = cpu->sp + (int8_t)cpu->z;
     cpu->ir = fetch_pc(g);
     return DONE;
   }
