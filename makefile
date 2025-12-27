@@ -64,8 +64,11 @@ src/9/%_test: src/9/%_test.o $(LIB_9)
 # binaries
 #
 
-debug: src/debug.c $(LIB_BUF) $(LIB_GB) $(LIB_9)
-	$(CC) $(CFLAGS_POSIX) $^ -o $@
+debug: src/debug.c src/time_ns.o $(LIB_BUF) $(LIB_GB) $(LIB_9)
+	$(CC) $(CFLAGS) -lSDL3 $^ -o $@
+
+src/time_ns.o: src/time_ns.c src/time_ns.h
+	$(CC) $(CFLAGS_POSIX) -c $< -o $@
 
 disasm: src/disasm.c $(LIB_GB)
 	$(CC) $(CFLAGS) $^ -o $@

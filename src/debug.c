@@ -3,6 +3,11 @@
 #include "9/thread.h"
 #include "buf/buffer.h"
 #include "gb/gameboy.h"
+#include "time_ns.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_main.h>
+#include <SDL3/SDL_video.h>
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
@@ -11,7 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #define DEBUG 0
 
@@ -20,13 +24,19 @@ static const char *TILE_FONT = "/mnt/font/GoMono/11a/font";
 static const char *VRAM_MAP_FONT = "/mnt/font/GoMono-Bold/3a/font";
 
 enum {
-  FRAME_HZ = 30,
+  SDL_SCREEN_SCALE = 3,
+
+  ACME_FRAME_HZ = 30,
   VBLANK_HZ = 60,
 };
 static const double NS_PER_S = 1e9;
-static const double FRAME_NS = NS_PER_S / FRAME_HZ;
+static const double ACME_FRAME_NS = NS_PER_S / ACME_FRAME_HZ;
 static const double VBLANK_NS = NS_PER_S / VBLANK_HZ;
 static const uint16_t HALT = 0x76;
+
+// Flags.
+static bool enable_trap = true;
+static bool acme_video = false;
 
 static Mutex9 mtx;
 static Gameboy g;
@@ -428,7 +438,7 @@ static const char *px_str(int px) {
   return ""; // impossible
 }
 
-static void poll_lcd_event_thread(void *unused) {
+static void acme_event_thread(void *unused) {
   if (!win_start_events(lcd_win)) {
     fprintf(stderr, "failed to start events: %s\n", errstr9());
   }
@@ -638,25 +648,18 @@ static int last_line_diff(uint8_t a[SCREEN_HEIGHT][SCREEN_WIDTH],
   return -1;
 }
 
-static double time_ns() {
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec * 1000000000 + (double)ts.tv_nsec;
-}
-
-static void draw_thread(void *unused) {
+static void acme_draw_thread(void *unused) {
   static Buffer b;
   static bool first = true;
   static uint8_t cur[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
   static uint8_t latest[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
-  double last = time_ns();
+  double last = monoclock_time_ns();
   for (;;) {
-    double since = time_ns() - last;
-    if (since < FRAME_NS) {
-      struct timespec ts = {.tv_nsec = FRAME_NS - since};
-      nanosleep(&ts, NULL);
+    double since = monoclock_time_ns() - last;
+    if (since < ACME_FRAME_NS) {
+      sleep_ns(ACME_FRAME_NS - since);
     }
-    last = time_ns();
+    last = monoclock_time_ns();
 
     mutex_lock9(&mtx);
     memcpy(latest, lcd, sizeof(lcd));
@@ -725,11 +728,108 @@ static AcmeWin *make_lcd_win() {
                        "\n      Down                    BButton        Select");
 
   static Thread9 poll_thrd;
-  thread_create9(&poll_thrd, poll_lcd_event_thread, NULL);
+  thread_create9(&poll_thrd, acme_event_thread, NULL);
   static Thread9 draw_thrd;
-  thread_create9(&draw_thrd, draw_thread, NULL);
+  thread_create9(&draw_thrd, acme_draw_thread, NULL);
   atexit(close_lcd_win);
   return lcd_win;
+}
+
+static int sdl_keycode_to_button(SDL_Keycode key) {
+  switch (key) {
+  case SDLK_A:
+    return BUTTON_A;
+  case SDLK_B:
+    return BUTTON_B;
+  case SDLK_TAB:
+    return BUTTON_SELECT;
+  case SDLK_RETURN:
+    return BUTTON_START;
+  default:
+    return -1;
+  }
+}
+
+static int sdl_keycode_to_dir(SDL_Keycode key) {
+  switch (key) {
+  case SDLK_UP:
+    return BUTTON_UP;
+  case SDLK_DOWN:
+    return BUTTON_DOWN;
+  case SDLK_LEFT:
+    return BUTTON_LEFT;
+  case SDLK_RIGHT:
+    return BUTTON_RIGHT;
+  default:
+    return -1;
+  }
+}
+
+static void sdl_poll_event() {
+  SDL_Event event = {};
+  if (!SDL_PollEvent(&event)) {
+    return;
+  }
+  switch (event.type) {
+  case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+    exit(0);
+  case SDL_EVENT_KEY_DOWN:
+  case SDL_EVENT_KEY_UP:
+    SDL_KeyboardEvent *key_event = (SDL_KeyboardEvent *)&event;
+    mutex_lock9(&mtx);
+    int button = sdl_keycode_to_button(key_event->key);
+    if (button >= 0) {
+      if (event.type == SDL_EVENT_KEY_DOWN) {
+        g.buttons |= button;
+      } else {
+        g.buttons &= ~button;
+      }
+    }
+    int dir = sdl_keycode_to_dir(key_event->key);
+    if (dir >= 0) {
+      if (event.type == SDL_EVENT_KEY_DOWN) {
+        g.dpad |= dir;
+      } else {
+        g.dpad &= ~dir;
+      }
+    }
+    mutex_unlock9(&mtx);
+    break;
+  }
+}
+
+static void run_sdl(SDL_Window *sdl_win) {
+  SDL_Renderer *renderer = SDL_CreateRenderer(sdl_win, NULL);
+  static uint8_t l[SCREEN_HEIGHT][SCREEN_WIDTH] = {};
+  SDL_FRect rect = {
+      .w = SDL_SCREEN_SCALE,
+      .h = SDL_SCREEN_SCALE,
+  };
+  double last = monoclock_time_ns();
+  for (;;) {
+    sdl_poll_event();
+
+    double since = monoclock_time_ns() - last;
+    if (since < VBLANK_NS) {
+      sleep_ns(VBLANK_NS - since);
+    }
+    last = monoclock_time_ns();
+
+    mutex_lock9(&mtx);
+    memcpy(l, lcd, sizeof(lcd));
+    mutex_unlock9(&mtx);
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+      for (int x = 0; x < SCREEN_WIDTH; x++) {
+        rect.x = x * SDL_SCREEN_SCALE;
+        rect.y = y * SDL_SCREEN_SCALE;
+        uint8_t c = (255 / 4) * (4 - l[y][x]);
+        SDL_SetRenderDrawColor(renderer, c, c, c, 0xFF);
+        SDL_RenderFillRect(renderer, &rect);
+      }
+    }
+    SDL_RenderPresent(renderer);
+  }
 }
 
 static void do_step(int n) {
@@ -854,29 +954,7 @@ static bool handle_input_line() {
 
 static void print_exiting() { printf("exiting\n"); }
 
-int main(int argc, const char *argv[]) {
-  bool enable_trap = true;
-  const char *rom_name = NULL;
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-notrap") == 0) {
-      enable_trap = false;
-    } else if (rom_name == NULL) {
-      rom_name = argv[i];
-    } else {
-      // Forces Usage message.
-      rom_name = NULL;
-      break;
-    }
-  }
-  if (rom_name == NULL) {
-    printf("Usage: debug [-notrap] <rom-file-name>\n");
-    return 1;
-  }
-  atexit(print_exiting);
-
-  signal(SIGINT, sigint_handler);
-
-  mutex_init9(&mtx);
+static void run_gameboy(const char *rom_name) {
   Rom rom = read_rom(rom_name);
   printf("Loaded ROM file %s\n", rom_name);
   printf("File Size: %d bytes\n", rom.size);
@@ -887,20 +965,7 @@ int main(int argc, const char *argv[]) {
   printf("RAM size: %d\n", rom.ram_size);
   g = init_gameboy(&rom);
 
-  acme = acme_connect();
-  if (acme == NULL) {
-    printf("Failed to connect to Acme. Acme integration disabled.\n");
-  }
-  lcd_win = make_lcd_win();
-  if (lcd_win == NULL) {
-    printf("Failed to open LCD win: %s\n", errstr9());
-  }
-  disasm_win = make_disasm_win();
-  if (disasm_win == NULL) {
-    printf("Failed to open disassembly win: %s\n", errstr9());
-  }
-
-  double last_vblank = time_ns();
+  double last_vblank = monoclock_time_ns();
   long num_mcycle = 0;
   double mcycle_ns_avg = 0;
   for (;;) {
@@ -917,21 +982,22 @@ int main(int argc, const char *argv[]) {
     }
 
     PpuMode prev_ppu_mode = ppu_mode(&g);
-    double start_ns = time_ns();
+    double start_ns = monoclock_time_ns();
     mutex_lock9(&mtx);
     mcycle(&g);
-    check_button_count();
+    if (acme_video) {
+      check_button_count();
+    }
     mutex_unlock9(&mtx);
-    long ns = time_ns() - start_ns;
+    long ns = monoclock_time_ns() - start_ns;
 
     if (ppu_mode(&g) == VBLANK && prev_ppu_mode != VBLANK) {
       draw_lcd();
-      double since = time_ns() - last_vblank;
+      double since = monoclock_time_ns() - last_vblank;
       if (since < VBLANK_NS) {
-        struct timespec ts = {.tv_nsec = VBLANK_NS - since};
-        nanosleep(&ts, NULL);
+        sleep_ns(VBLANK_NS - since);
       }
-      last_vblank = time_ns();
+      last_vblank = monoclock_time_ns();
     }
 
     if (go) {
@@ -952,6 +1018,65 @@ int main(int argc, const char *argv[]) {
       }
     }
   }
-  free_rom(&rom);
+}
+
+static void sdl_run_gameboy(void *rom_name) {
+  run_gameboy((const char *)rom_name);
+}
+
+int main(int argc, const char *argv[]) {
+  const char *rom_name = NULL;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-notrap") == 0) {
+      enable_trap = false;
+    } else if (strcmp(argv[i], "-acme") == 0) {
+      acme_video = true;
+    } else if (rom_name == NULL) {
+      rom_name = argv[i];
+    } else {
+      // Forces Usage message.
+      rom_name = NULL;
+      break;
+    }
+  }
+  if (rom_name == NULL) {
+    printf("Usage: debug [-notrap] <rom-file-name>\n");
+    return 1;
+  }
+  atexit(print_exiting);
+  signal(SIGINT, sigint_handler);
+  mutex_init9(&mtx);
+
+  acme = acme_connect();
+  if (acme == NULL) {
+    printf("Failed to connect to Acme. Acme integration disabled.\n");
+  }
+  disasm_win = make_disasm_win();
+  if (disasm_win == NULL) {
+    printf("Failed to open disassembly win: %s\n", errstr9());
+  }
+
+  if (acme_video) {
+    lcd_win = make_lcd_win();
+    if (lcd_win == NULL) {
+      printf("Failed to open LCD win: %s\n", errstr9());
+    }
+    run_gameboy(rom_name);
+    return 0;
+  }
+
+  SDL_Init(SDL_INIT_VIDEO);
+  SDL_Window *sdl_win =
+      SDL_CreateWindow("BoyOhBoy!", SCREEN_WIDTH * SDL_SCREEN_SCALE,
+                       SCREEN_HEIGHT * SDL_SCREEN_SCALE, 0);
+  if (sdl_win == NULL) {
+    printf("Failed to open SDL window: %s\n", SDL_GetError());
+  }
+  // SDL functions must run in the main thread.
+  // So when SDL is enabled the Gameboy emulation runs in a separate thread.
+  static Thread9 gameboy_thread;
+  thread_create9(&gameboy_thread, sdl_run_gameboy, (void *)rom_name);
+  run_sdl(sdl_win);
+
   return 0;
 }
