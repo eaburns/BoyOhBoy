@@ -799,10 +799,10 @@ static void check_break() {
   }
 }
 
-static void check_cpu_break_point() {
-  if (g.break_point) {
+static void check_cpu_trap() {
+  if (g.trap) {
     go = false;
-    g.break_point = false;
+    g.trap = false;
   }
 }
 
@@ -855,16 +855,30 @@ static bool handle_input_line() {
 static void print_exiting() { printf("exiting\n"); }
 
 int main(int argc, const char *argv[]) {
-  if (argc != 2) {
-    fail("Expected 1 argument, got %d", argc);
+  bool enable_trap = true;
+  const char *rom_name = NULL;
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-notrap") == 0) {
+      enable_trap = false;
+    } else if (rom_name == NULL) {
+      rom_name = argv[i];
+    } else {
+      // Forces Usage message.
+      rom_name = NULL;
+      break;
+    }
+  }
+  if (rom_name == NULL) {
+    printf("Usage: debug [-notrap] <rom-file-name>\n");
+    return 1;
   }
   atexit(print_exiting);
 
   signal(SIGINT, sigint_handler);
 
   mutex_init9(&mtx);
-  Rom rom = read_rom(argv[1]);
-  printf("Loaded ROM file %s\n", argv[1]);
+  Rom rom = read_rom(rom_name);
+  printf("Loaded ROM file %s\n", rom_name);
   printf("File Size: %d bytes\n", rom.size);
   printf("Title: %s\n", rom.title);
   printf("Type: %s\n", cart_type_string(rom.cart_type));
@@ -930,7 +944,9 @@ int main(int argc, const char *argv[]) {
       check_step();
       check_next();
       check_break();
-      check_cpu_break_point();
+      if (enable_trap) {
+        check_cpu_trap();
+      }
       if (go) {
         continue;
       }

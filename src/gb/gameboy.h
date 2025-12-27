@@ -405,7 +405,7 @@ typedef struct {
   uint16_t counter;
 
   // For debugging; can set this to true to cause the debugger to break.
-  bool break_point;
+  bool trap;
 } Gameboy;
 
 // Returns a new Gameboy for the given Rom.

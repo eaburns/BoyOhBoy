@@ -1,5 +1,6 @@
 #include "gameboy.h"
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -63,6 +64,18 @@ struct instruction {
   CpuState (*exec)(Gameboy *g, const Instruction *instr, int cycle);
 };
 
+// Print a message, if enabled, and set trap=true to signal the debugger to
+// break.
+static void trap(Gameboy *g, const char *fmt, ...) {
+  if (!shhhh) {
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+  }
+  g->trap = true;
+}
+
 static void do_store(Gameboy *g, uint16_t addr, uint8_t x) { g->mem[addr] = x; }
 
 static uint8_t do_fetch(Gameboy *g, uint16_t addr) { return g->mem[addr]; }
@@ -88,20 +101,13 @@ static void do_rom_store(Gameboy *g, uint16_t addr, uint8_t x) {
     }
     break;
   default:
-    if (!shhhh) {
-      fprintf(stderr, "Ignoring unsupported ROM store %d ($%02X) to $%04X\n", x,
-              x, addr);
-    }
-    g->break_point = true;
+    trap(g, "Ignoring unsupported ROM store %d ($%02X) to $%04X\n", x, x, addr);
   }
 }
 
 static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (ppu_enabled(g) && ppu_mode(g) == DRAWING) {
-    if (!shhhh) {
-      fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
-    }
-    // g->break_point = true;
+    trap(g, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
     return;
   }
   g->mem[addr] = x;
@@ -130,10 +136,7 @@ static uint8_t do_echo_ram_fetch(Gameboy *g, uint16_t addr) {
 
 static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
   if (ppu_enabled(g) && (ppu_mode(g) == OAM_SCAN || ppu_mode(g) == DRAWING)) {
-    if (!shhhh) {
-      fprintf(stderr, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
-    }
-    g->break_point = true;
+    trap(g, "Ignoring OAM store %d ($%02X) to $%04X\n", x, x, addr);
     return;
   }
   g->mem[addr] = x;
@@ -141,10 +144,7 @@ static void do_oam_store(Gameboy *g, uint16_t addr, uint8_t x) {
 
 static uint8_t do_oam_fetch(Gameboy *g, uint16_t addr) {
   if (ppu_enabled(g) && (ppu_mode(g) == OAM_SCAN || ppu_mode(g) == DRAWING)) {
-    if (!shhhh) {
-      fprintf(stderr, "Ignoring OAM fetch at $%04X\n", addr);
-    }
-    g->break_point = true;
+    trap(g, "Ignoring OAM fetch at $%04X\n", addr);
     return 0xFF;
   }
   return g->mem[addr];
@@ -153,10 +153,7 @@ static uint8_t do_oam_fetch(Gameboy *g, uint16_t addr) {
 static void do_prohibited_store(Gameboy *g, uint16_t addr, uint8_t x) {}
 
 static uint8_t do_prohibited_fetch(Gameboy *g, uint16_t addr) {
-  if (!shhhh) {
-    fprintf(stderr, "Ignoring Prohibited fetch at $%04X\n", addr);
-  }
-  g->break_point = true;
+  trap(g, "Ignoring Prohibited fetch at $%04X\n", addr);
   return 0xFF;
 }
 
@@ -1677,9 +1674,8 @@ static CpuState exec_cb_bank_switch(Gameboy *g, const Instruction *instr,
 
 static CpuState exec_unknown(Gameboy *g, const Instruction *instr, int cycle) {
   Cpu *cpu = &g->cpu;
-  fprintf(stderr, "Ignoring unknown instruction %s$%02X\n",
-          cpu->bank == cb_instructions ? "$CB " : "", cpu->ir);
-  g->break_point = true;
+  trap(g, "Ignoring unknown instruction %s$%02X\n",
+       cpu->bank == cb_instructions ? "$CB " : "", cpu->ir);
   cpu->pc = fetch_pc(g);
   return DONE;
 }
