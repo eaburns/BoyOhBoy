@@ -974,20 +974,19 @@ static CpuState exec_bit_b3_r8(Gameboy *g, const Instruction *instr,
   case 0:
     fail("impossible cycle 0"); // cycle 0 is reading the 0xCB prefix.
   case 1:
-    if (r != REG_HL_MEM) {
-      assign_flag(cpu, FLAG_Z, (get_reg8(cpu, r) >> bit) ^ 1);
-      break;
+    if (r == REG_HL_MEM) {
+      cpu->z = fetch(g, get_reg16(cpu, REG_HL));
+      return EXECUTING;
     }
-    cpu->z = fetch(g, get_reg16(cpu, REG_HL));
-    return EXECUTING;
-  default: // 2
-    assign_flag(cpu, FLAG_Z, (cpu->z >> bit) ^ 1);
-    break;
+    cpu->z = get_reg8(cpu, r);
+    // FALLTHROUGH intended.
+  default: // 1 (!REG_HL_MEM) or 2 (REG_HL_MEM)
+    assign_flag(cpu, FLAG_Z, ((cpu->z >> bit) & 0x1) ^ 1);
+    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_H, true);
+    cpu->ir = fetch_pc(g);
+    return DONE;
   }
-  assign_flag(cpu, FLAG_N, false);
-  assign_flag(cpu, FLAG_H, false);
-  cpu->ir = fetch_pc(g);
-  return DONE;
 }
 
 static CpuState exec_res_set_b3_r8(Gameboy *g, const Instruction *instr,

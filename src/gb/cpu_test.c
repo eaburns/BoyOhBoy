@@ -3054,6 +3054,56 @@ static struct exec_test
                 .cycles = 4,
             },
             {
+                .name = "(exec_bit_b3_r8) BIT 0 B (1)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x11},
+                                .flags = FLAG_Z | FLAG_N,
+                            },
+                        .mem = {/* op code */ 0x40, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x11},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_H,
+                            },
+                        .mem = {/* op code */ 0x40, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_bit_b3_r8) BIT 0 B (0)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                                .registers = {[REG_B] = 0x00},
+                                .flags = FLAG_N,
+                            },
+                        .mem = {/* op code */ 0x40, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_B] = 0x00},
+                                .pc = 2,
+                                .ir = 2,
+                                .flags = FLAG_H | FLAG_Z,
+                            },
+                        .mem = {/* op code */ 0x40, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_bit_b3_r8) BIT 2 B (1)",
                 .init =
                     {
@@ -3072,7 +3122,7 @@ static struct exec_test
                                 .registers = {[REG_B] = 0x04},
                                 .pc = 2,
                                 .ir = 2,
-                                .flags = 0,
+                                .flags = FLAG_H,
                             },
                         .mem = {/* op code */ 0x50, 2, 3, 4},
                     },
@@ -3097,7 +3147,7 @@ static struct exec_test
                                 .registers = {[REG_B] = ~0x04},
                                 .pc = 2,
                                 .ir = 2,
-                                .flags = FLAG_Z,
+                                .flags = FLAG_Z | FLAG_H,
                             },
                         .mem = {/* op code */ 0x50, 2, 3, 4},
                     },
@@ -3136,7 +3186,7 @@ static struct exec_test
                                     },
                                 .pc = 2,
                                 .ir = 2,
-                                .flags = 0,
+                                .flags = FLAG_H,
                             },
                         .mem = {
                             /* op code */ 0x56,
