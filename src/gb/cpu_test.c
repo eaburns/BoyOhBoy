@@ -1469,7 +1469,7 @@ static struct exec_test
                                         [REG_L] = HIGH_RAM_START & 0xFF,
                                     },
                                 // Ensure the flags are set.
-                                .flags = FLAGS_ZNH,
+                                .flags = FLAG_Z | FLAG_H,
                             },
                         .mem = {1, 2, 3, 4, [HIGH_RAM_START] = 5},
                     },
@@ -1482,7 +1482,7 @@ static struct exec_test
                                         [REG_H] = HIGH_RAM_START >> 8,
                                         [REG_L] = HIGH_RAM_START & 0xFF,
                                     },
-                                .flags = 0,
+                                .flags = FLAG_N,
                                 .pc = 1,
                                 .ir = 1,
                             },

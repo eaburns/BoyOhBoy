@@ -711,7 +711,7 @@ static CpuState exec_dec_r8(Gameboy *g, const Instruction *instr, int cycle) {
   case 1:
     uint8_t result = cpu->z - 1;
     assign_flag(cpu, FLAG_Z, result == 0);
-    assign_flag(cpu, FLAG_N, false);
+    assign_flag(cpu, FLAG_N, true);
     assign_flag(cpu, FLAG_H, sub_half_borrows(cpu->z, 1));
     store(g, get_reg16(cpu, REG_HL), result);
     return EXECUTING;
