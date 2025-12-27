@@ -1666,7 +1666,6 @@ static CpuState exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
   return DONE;
 }
 
-static const Instruction _unknown_instruction = {.mnemonic = "UNKNOWN"};
 static CpuState exec_cb_bank_switch(Gameboy *g, const Instruction *instr,
                                     int cycle) {
   Cpu *cpu = &g->cpu;
@@ -1676,6 +1675,19 @@ static CpuState exec_cb_bank_switch(Gameboy *g, const Instruction *instr,
   return EXECUTING;
 }
 
+static CpuState exec_unknown(Gameboy *g, const Instruction *instr, int cycle) {
+  Cpu *cpu = &g->cpu;
+  fprintf(stderr, "Ignoring unknown instruction %s$%02X\n",
+          cpu->bank == cb_instructions ? "$CB " : "", cpu->ir);
+  g->break_point = true;
+  cpu->pc = fetch_pc(g);
+  return DONE;
+}
+
+static const Instruction _unknown_instruction = {
+    .mnemonic = "UNKNOWN",
+    .exec = exec_unknown,
+};
 
 static const Instruction _instructions[] = {
     {
