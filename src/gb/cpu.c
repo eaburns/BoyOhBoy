@@ -414,14 +414,6 @@ void cpu_mcycle(Gameboy *g) {
     cpu->state = call_interrupt(g, cpu->cycle);
     goto done;
   }
-
-  if (cpu->bank != cb_instructions && cpu->ir == 0xCB) {
-    cpu->ir = fetch_pc(g);
-    cpu->bank = cb_instructions;
-    cpu->instr = NULL; // should already be null, but just in case.
-    cpu->state = EXECUTING;
-    goto done;
-  }
   if (cpu->bank == NULL) {
     cpu->bank = instructions;
   }
@@ -429,7 +421,9 @@ void cpu_mcycle(Gameboy *g) {
     cpu->instr = find_instruction(cpu->bank, cpu->ir);
   }
   cpu->state = cpu->instr->exec(g, cpu->instr, cpu->cycle);
-  if (cpu->instr->op_code != EI && cpu->ei_pend) {
+  // cpu->instr can be NULL after exec() in the case of 0xCB,
+  // switching the instruction bank.
+  if (cpu->instr != NULL && cpu->instr->op_code != EI && cpu->ei_pend) {
     cpu->ei_pend = false;
     cpu->ime = true;
   }
@@ -1673,6 +1667,15 @@ static CpuState exec_ei(Gameboy *g, const Instruction *instr, int cycle) {
 }
 
 static const Instruction _unknown_instruction = {.mnemonic = "UNKNOWN"};
+static CpuState exec_cb_bank_switch(Gameboy *g, const Instruction *instr,
+                                    int cycle) {
+  Cpu *cpu = &g->cpu;
+  cpu->ir = fetch_pc(g);
+  cpu->bank = cb_instructions;
+  cpu->instr = NULL; // should already be null, but just in case.
+  return EXECUTING;
+}
+
 
 static const Instruction _instructions[] = {
     {
@@ -2101,6 +2104,11 @@ static const Instruction _instructions[] = {
         .mnemonic = "EI",
         .op_code = 0xFB,
         .exec = exec_ei,
+    },
+    {
+        .mnemonic = "CB",
+        .op_code = 0xCB,
+        .exec = exec_cb_bank_switch,
     },
     {.mnemonic = NULL /* sentinal value */},
 };
