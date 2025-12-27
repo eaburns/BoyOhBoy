@@ -573,9 +573,8 @@ static void server_thread(void *arg) {
     if (read_full(server->socket, buf, size) != size) {
       FAIL("test server: failed to read message: %s", errstr9());
     }
-    int type = buf[0];
-    int tag = buf[1] | (int)buf[2] << 8;
-    DEBUG("TEST SERVER: read message type %d tag %d\n", type, tag);
+    DEBUG("TEST SERVER: read message type %d tag %d\n", buf[0],
+          buf[1] | (int)buf[2] << 8);
     free(buf);
 
     mutex_lock9(&server->mtx);

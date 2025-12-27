@@ -1,7 +1,9 @@
 CC=clang
 AR=ar
-CFLAGS_POSIX=-I src -Werror -O2 -g -fsanitize=address
-CFLAGS=-I src -Werror -std=c23 -O2 -g -fsanitize=address
+INCLUDE=-I src
+WARN=-Werror -Wall -Wno-logical-op-parentheses -Wno-bitwise-op-parentheses
+CFLAGS_POSIX=$(WARN) $(INCLUDE) -O2 -g -fsanitize=address
+CFLAGS=$(CFLAGS_POSIX) -std=c23
 
 BINS=debug disasm
 
@@ -76,7 +78,7 @@ disasm: src/disasm.c $(LIB_GB)
 TESTS=$(TESTS_GB:.c=) $(TESTS_9:.c=)
 
 test: $(TESTS)
-	@for test in $^; do echo $$test ; ./$$test; done
+	@for test in $^; do echo $$test ; ./$$test || exit 1; done
 
 
 %.o: %.c

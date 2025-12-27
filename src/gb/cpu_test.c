@@ -4053,8 +4053,9 @@ static struct exec_test
             },
             {
                 .name = "(exec_sub_a_r8) SUB A, B (borrow)",
-                .init = {.cpu = {.ir = 0x90,
-                                 .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
+                .init = {.cpu =
+                             {.ir = 0x90,
+                              .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
                 .want = {.cpu = {.pc = 1,
                                  .registers = {[REG_A] = 0xF0, [REG_B] = 0x20},
                                  .flags = FLAG_N | FLAG_C}},
@@ -4368,8 +4369,9 @@ static struct exec_test
             },
             {
                 .name = "(exec_cp_a_r8) CP A, B (borrow)",
-                .init = {.cpu = {.ir = 0xB8,
-                                 .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
+                .init = {.cpu =
+                             {.ir = 0xB8,
+                              .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
                 .want = {.cpu = {.pc = 1,
                                  .registers = {[REG_A] = 0x10, [REG_B] = 0x20},
                                  .flags = FLAG_N | FLAG_C}},

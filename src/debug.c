@@ -551,7 +551,6 @@ static void do_tile(int tile_index) {
 }
 
 static void do_tilemap() {
-  int row = 0;
   int row_start = 0;
   static const int COLS = 24;
   Buffer b = {};

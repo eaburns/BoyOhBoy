@@ -914,6 +914,7 @@ int main() {
   run_mount_attach_error_test();
   run_open_close_test();
   run_open_walk_error_test();
+  run_open_walk_short_test();
   run_open_open_error_test();
   run_read_test();
   run_short_read_test();

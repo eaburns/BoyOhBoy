@@ -75,9 +75,7 @@ static uint8_t *put_string(uint8_t *p, const char *s);
 static uint8_t *get1(uint8_t *p, uint8_t *x);
 static uint8_t *get_le2(uint8_t *p, uint16_t *x);
 static uint8_t *get_le4(uint8_t *p, uint32_t *x);
-static uint8_t *get_le8(uint8_t *p, uint64_t *x);
 static uint8_t *get_qid(uint8_t *p, Qid9p qid);
-static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s);
 static uint8_t *get_string_or_null(uint8_t *p, const char **s);
 
 Client9p *connect9p(const char *path) {
@@ -96,10 +94,6 @@ Client9p *connect_fd9p(int fd) {
   cond_init9(&c->cnd);
   thread_create9(&c->recv_thrd, recv_thread, c);
   return c;
-err:
-  close_fd(fd);
-  free(c);
-  return NULL;
 }
 
 void close9p(Client9p *c) {
@@ -424,16 +418,6 @@ Tag9p attach9p(Client9p *c, Fid9p fid, Fid9p afid, const char *uname,
   return send_msg(c, msg);
 }
 
-static int count(const uint8_t *path, char c) {
-  int n = 0;
-  for (const uint8_t *p = path; *p != '\0'; p++) {
-    if (*p == c) {
-      n++;
-    }
-  }
-  return n;
-}
-
 Tag9p walk9p(Client9p *c, Fid9p fid, Fid9p new_fid, uint16_t nelms, ...) {
   va_list args;
   va_start(args, nelms);
@@ -739,27 +723,9 @@ static uint8_t *get_le4(uint8_t *p, uint32_t *x) {
   return p;
 }
 
-static uint8_t *get_le8(uint8_t *p, uint64_t *x) {
-  *x = (uint64_t)(uint8_t)*p++ << 0;
-  *x |= (uint64_t)(uint8_t)*p++ << 8;
-  *x |= (uint64_t)(uint8_t)*p++ << 16;
-  *x |= (uint64_t)(uint8_t)*p++ << 24;
-  *x |= (uint64_t)(uint8_t)*p++ << 32;
-  *x |= (uint64_t)(uint8_t)*p++ << 40;
-  *x |= (uint64_t)(uint8_t)*p++ << 48;
-  *x |= (uint64_t)(uint8_t)*p++ << 56;
-  return p;
-}
-
 static uint8_t *get_qid(uint8_t *p, Qid9p qid) {
   memcpy(qid, p, sizeof(Qid9p));
   return p + sizeof(Qid9p);
-}
-
-static uint8_t *get_data(uint8_t *p, uint16_t *size, const char **s) {
-  p = get_le2(p, size);
-  *s = (char *)p;
-  return p + *size;
 }
 
 static uint8_t *get_string_or_null(uint8_t *p, const char **s) {

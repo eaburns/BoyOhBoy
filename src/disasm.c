@@ -25,7 +25,6 @@ int main(int argc, const char *argv[]) {
     start_addr = l;
   }
 
-  int rom_size = 0;
   Rom rom = read_rom(argv[1]);
   printf("rom size: %d (bytes)\n", rom.size);
 

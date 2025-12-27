@@ -132,7 +132,6 @@ File9 *open9(Fsys9 *fsys, const char *path, OpenMode9 mode) {
     elms[nelms++] = s;
   }
 
-  Fid9p dir = fsys->root;
   Reply9p *r = wait9p(fsys->client,
                       walk_array9p(fsys->client, fsys->root, fid, nelms, elms));
   free(elms);

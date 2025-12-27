@@ -101,7 +101,7 @@ static void do_vram_store(Gameboy *g, uint16_t addr, uint8_t x) {
     if (!shhhh) {
       fprintf(stderr, "Ignoring VRAM store %d ($%02X) to $%04X\n", x, x, addr);
     }
-    g->break_point = true;
+    // g->break_point = true;
     return;
   }
   g->mem[addr] = x;
@@ -112,7 +112,7 @@ static uint8_t do_vram_fetch(Gameboy *g, uint16_t addr) {
     if (!shhhh) {
       fprintf(stderr, "Ignoring VRAM fetch at $%04X\n", addr);
     }
-    g->break_point = true;
+    // g->break_point = true;
     return 0xFF;
   }
   return g->mem[addr];
@@ -2327,7 +2327,7 @@ const char *cpu_state_name(CpuState s) {
     return "INTERRUPTING";
   case HALTED:
     return "HALTED";
-  done:
+  default:
     fail("unknown CpuState: %d", s);
   }
 }

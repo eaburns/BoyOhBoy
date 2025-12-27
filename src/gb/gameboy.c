@@ -1,4 +1,4 @@
- #include "gameboy.h"
+#include "gameboy.h"
 
 #include "buf/buffer.h"
 #include <errno.h>
@@ -185,7 +185,7 @@ Gameboy init_gameboy(const Rom *rom) {
 
   int rom_size = MEM_ROM_END + 1;
   if (rom->size < rom_size) {
-    rom_size = rom_size;
+    rom_size = rom->size;
   }
   memcpy(g.mem, rom->data, rom_size);
 
