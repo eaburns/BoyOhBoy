@@ -520,7 +520,7 @@ static bool sub3_borrows(uint8_t x, uint8_t y, uint8_t z) {
 
 // Returns whether x-y half-borrows.
 static bool sub_half_borrows(uint8_t x, uint8_t y) {
-  return ((x >> 4) & 1) && !((x - y) >> 4 & 1);
+  return (y & 0xF) > (x & 0xF);
 }
 
 // Returns whether x-y-z half-borrows.

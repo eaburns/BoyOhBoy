@@ -1145,7 +1145,8 @@ static struct exec_test
                 .cycles = 2,
             },
             {
-                .name = "(exec_add_hl_r16) ADD HL, BC (carries due to low-carry)",
+                .name =
+                    "(exec_add_hl_r16) ADD HL, BC (carries due to low-carry)",
                 .init =
                     {
                         .cpu =
@@ -3981,9 +3982,9 @@ static struct exec_test
             {
                 .name = "(exec_sub_a_r8) SUB A, B (borrow)",
                 .init = {.cpu = {.ir = 0x90,
-                                 .registers = {[REG_A] = 0x1, [REG_B] = 2}}},
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
                 .want = {.cpu = {.pc = 1,
-                                 .registers = {[REG_A] = 0xFF, [REG_B] = 2},
+                                 .registers = {[REG_A] = 0xF0, [REG_B] = 0x20},
                                  .flags = FLAG_N | FLAG_C}},
                 .cycles = 1,
             },
@@ -4063,10 +4064,10 @@ static struct exec_test
             {
                 .name = "(exec_sbc_a_r8) SBC A, B (borrow)",
                 .init = {.cpu = {.ir = 0x98,
-                                 .registers = {[REG_A] = 2, [REG_B] = 2},
+                                 .registers = {[REG_A] = 0x11, [REG_B] = 0x20},
                                  .flags = FLAG_C}},
                 .want = {.cpu = {.pc = 1,
-                                 .registers = {[REG_A] = 0xFF, [REG_B] = 2},
+                                 .registers = {[REG_A] = 0xF0, [REG_B] = 0x20},
                                  .flags = FLAG_N | FLAG_C}},
                 .cycles = 1,
             },
@@ -4296,9 +4297,9 @@ static struct exec_test
             {
                 .name = "(exec_cp_a_r8) CP A, B (borrow)",
                 .init = {.cpu = {.ir = 0xB8,
-                                 .registers = {[REG_A] = 0x1, [REG_B] = 2}}},
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 0x20}}},
                 .want = {.cpu = {.pc = 1,
-                                 .registers = {[REG_A] = 0x1, [REG_B] = 2},
+                                 .registers = {[REG_A] = 0x10, [REG_B] = 0x20},
                                  .flags = FLAG_N | FLAG_C}},
                 .cycles = 1,
             },
@@ -4400,6 +4401,24 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_sub_a_imm8) SUB A(=$D6), $DE",
+                .init =
+                    {
+                        .cpu = {.ir = 0xD6,
+                                .registers = {[REG_A] = 0xD6},
+                                .flags = FLAG_C},
+                        .mem = {0xDE},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 0xF8},
+                                .flags = FLAG_N | FLAG_C | FLAG_H},
+                        .mem = {0xDE},
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_sbc_a_imm8) SBC A, imm8",
                 .init =
                     {
@@ -4484,8 +4503,26 @@ static struct exec_test
                     {
                         .cpu = {.pc = 2,
                                 .registers = {[REG_A] = 4},
-                                .flags = FLAG_N | FLAG_C},
+                                .flags = FLAG_N | FLAG_C | FLAG_H},
                         .mem = {5},
+                    },
+                .cycles = 2,
+            },
+            {
+                .name = "(exec_cp_a_imm8) CP A(=$D6), $DE",
+                .init =
+                    {
+                        .cpu = {.ir = 0xFE,
+                                .registers = {[REG_A] = 0xD6},
+                                .flags = FLAG_C},
+                        .mem = {0xDE},
+                    },
+                .want =
+                    {
+                        .cpu = {.pc = 2,
+                                .registers = {[REG_A] = 0xD6},
+                                .flags = FLAG_N | FLAG_C | FLAG_H},
+                        .mem = {0xDE},
                     },
                 .cycles = 2,
             },
