@@ -415,7 +415,7 @@ void cpu_mcycle(Gameboy *g) {
     goto done;
   }
 
-  if (cpu->ir == 0xCB) {
+  if (cpu->bank != cb_instructions && cpu->ir == 0xCB) {
     cpu->ir = fetch_pc(g);
     cpu->bank = cb_instructions;
     cpu->instr = NULL; // should already be null, but just in case.

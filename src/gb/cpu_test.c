@@ -3288,6 +3288,28 @@ static struct exec_test
                 .cycles = 2,
             },
             {
+                .name = "(exec_set_b3_r8) SET 1 E (CB CB)",
+                .init =
+                    {
+                        .cpu =
+                            {
+                                .ir = 0xCB, // Op-code is at mem[pc == 0].
+                            },
+                        .mem = {/* op code */ 0xCB, 2, 3, 4},
+                    },
+                .want =
+                    {
+                        .cpu =
+                            {
+                                .registers = {[REG_E] = 0x02},
+                                .pc = 2,
+                                .ir = 2,
+                            },
+                        .mem = {/* op code */ 0xCB, 2, 3, 4},
+                    },
+                .cycles = 2,
+            },
+            {
                 .name = "(exec_set_b3_r8) SET 2 [HL]",
                 .init =
                     {
